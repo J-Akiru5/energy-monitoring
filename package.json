@@ -1,0 +1,21 @@
+{
+  "name": "energy-monitoring",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.2"
+  },
+  "packageManager": "pnpm@9.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

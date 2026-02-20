@@ -1,0 +1,12 @@
+{
+  "lintAllChanges": true,
+  "semverGroups": [],
+  "versionGroups": [
+    {
+      "label": "Use version pinning for critical deps",
+      "packages": ["**"],
+      "dependencies": ["next", "react", "react-dom", "typescript"],
+      "pinVersion": "workspace:*"
+    }
+  ]
+}

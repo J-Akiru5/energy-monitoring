@@ -1,0 +1,19 @@
+{
+  "name": "@energy/mock-sensor",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "spike": "tsx src/spike.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@energy/types": "workspace:*",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.2"
+  }
+}
