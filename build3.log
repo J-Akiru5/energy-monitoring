@@ -1,0 +1,108 @@
+
+> energy-monitoring@ build C:\dev\Monorepo\Energy-Monitoring
+> pnpm sync-env && turbo build "--force"
+
+
+> energy-monitoring@ sync-env C:\dev\Monorepo\Energy-Monitoring
+> powershell -ExecutionPolicy Bypass -File ./scripts/distribute-envs.ps1
+
+Syncing .env to apps\web...
+Syncing .env to apps\admin...
+Syncing .env to apps\mock-sensor...
+Environment variables synchronized successfully.
+ΓÇó turbo 2.8.10
+ΓÇó Packages in scope: @energy/admin, @energy/database, @energy/mock-sensor, @energy/types, web
+ΓÇó Running build in 5 packages
+ΓÇó Remote caching disabled
+@energy/types:build: cache bypass, force executing 4bbe77c9b657d027
+@energy/types:build: 
+@energy/types:build: > @energy/types@0.0.1 build C:\dev\Monorepo\Energy-Monitoring\packages\types
+@energy/types:build: > tsc
+@energy/types:build: 
+@energy/mock-sensor:build: cache bypass, force executing 5471265601e01ede
+@energy/database:build: cache bypass, force executing 50ec9b46b799cfd5
+@energy/database:build: 
+@energy/database:build: > @energy/database@0.0.1 build C:\dev\Monorepo\Energy-Monitoring\packages\database
+@energy/database:build: > tsc
+@energy/database:build: 
+@energy/mock-sensor:build: 
+@energy/mock-sensor:build: > @energy/mock-sensor@0.0.1 build C:\dev\Monorepo\Energy-Monitoring\apps\mock-sensor
+@energy/mock-sensor:build: > tsc
+@energy/mock-sensor:build: 
+@energy/admin:build: cache bypass, force executing a1ad52cb683b33da
+web:build: cache bypass, force executing cddb5f2873885d07
+@energy/admin:build: 
+@energy/admin:build: > @energy/admin@0.1.0 build C:\dev\Monorepo\Energy-Monitoring\apps\admin
+@energy/admin:build: > next build
+@energy/admin:build: 
+web:build: 
+web:build: > web@0.1.0 build C:\dev\Monorepo\Energy-Monitoring\apps\web
+web:build: > next build
+web:build: 
+web:build: Γû▓ Next.js 16.1.6 (Turbopack)
+web:build: - Environments: .env
+web:build: 
+@energy/admin:build: Γû▓ Next.js 16.1.6 (Turbopack)
+@energy/admin:build: - Environments: .env
+@energy/admin:build: 
+web:build:   Creating an optimized production build ...
+@energy/admin:build:   Creating an optimized production build ...
+web:build: Γ£ô Compiled successfully in 3.9s
+web:build:   Running TypeScript ...
+@energy/admin:build: Γ£ô Compiled successfully in 4.0s
+@energy/admin:build:   Running TypeScript ...
+web:build:   Collecting page data using 11 workers ...
+@energy/admin:build:   Collecting page data using 11 workers ...
+web:build:   Generating static pages using 11 workers (0/10) ...
+web:build:   Generating static pages using 11 workers (2/10) 
+web:build:   Generating static pages using 11 workers (4/10) 
+@energy/admin:build:   Generating static pages using 11 workers (0/15) ...
+@energy/admin:build:   Generating static pages using 11 workers (3/15) 
+web:build:   Generating static pages using 11 workers (7/10) 
+web:build: Γ£ô Generating static pages using 11 workers (10/10) in 1095.6ms
+web:build:   Finalizing page optimization ...
+web:build: 
+web:build: Route (app)
+web:build: Γöî Γùï /
+web:build: Γö£ Γùï /_not-found
+web:build: Γö£ ╞Æ /api/alerts
+web:build: Γö£ ╞Æ /api/billing
+web:build: Γö£ ╞Æ /api/ingest
+web:build: Γö£ ╞Æ /api/readings
+web:build: Γö£ ╞Æ /api/stream
+web:build: Γöö Γùï /dashboard
+web:build: 
+web:build: 
+web:build: Γùï  (Static)   prerendered as static content
+web:build: ╞Æ  (Dynamic)  server-rendered on demand
+web:build: 
+@energy/admin:build:   Generating static pages using 11 workers (7/15) 
+@energy/admin:build:   Generating static pages using 11 workers (11/15) 
+@energy/admin:build: Γ£ô Generating static pages using 11 workers (15/15) in 360.0ms
+@energy/admin:build:   Finalizing page optimization ...
+@energy/admin:build: 
+@energy/admin:build: Route (app)
+@energy/admin:build: Γöî Γùï /
+@energy/admin:build: Γö£ Γùï /_not-found
+@energy/admin:build: Γö£ Γùï /alerts
+@energy/admin:build: Γö£ ╞Æ /api/alerts
+@energy/admin:build: Γö£ ╞Æ /api/billing
+@energy/admin:build: Γö£ ╞Æ /api/devices
+@energy/admin:build: Γö£ ╞Æ /api/overview
+@energy/admin:build: Γö£ ╞Æ /api/reports
+@energy/admin:build: Γö£ ╞Æ /api/thresholds
+@energy/admin:build: Γö£ Γùï /billing
+@energy/admin:build: Γö£ Γùï /reports
+@energy/admin:build: Γö£ Γùï /sensors
+@energy/admin:build: Γöö Γùï /thresholds
+@energy/admin:build: 
+@energy/admin:build: 
+@energy/admin:build: Γùï  (Static)   prerendered as static content
+@energy/admin:build: ╞Æ  (Dynamic)  server-rendered on demand
+@energy/admin:build: 
+
+ Tasks:    5 successful, 5 total
+Cached:    0 cached, 5 total
+  Time:    14.806s 
+
+ WARNING  no output files found for task @energy/mock-sensor#build. Please check your `outputs` key in `turbo.json`

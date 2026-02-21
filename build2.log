@@ -1,0 +1,125 @@
+
+> energy-monitoring@ build C:\dev\Monorepo\Energy-Monitoring
+> pnpm sync-env && turbo build
+
+
+> energy-monitoring@ sync-env C:\dev\Monorepo\Energy-Monitoring
+> powershell -ExecutionPolicy Bypass -File ./scripts/distribute-envs.ps1
+
+Syncing .env to apps\web...
+Syncing .env to apps\admin...
+Syncing .env to apps\mock-sensor...
+Environment variables synchronized successfully.
+ΓÇó turbo 2.8.10
+ΓÇó Packages in scope: @energy/admin, @energy/database, @energy/mock-sensor, @energy/types, web
+ΓÇó Running build in 5 packages
+ΓÇó Remote caching disabled
+@energy/types:build: cache hit, replaying logs 4bbe77c9b657d027
+@energy/types:build: 
+@energy/types:build: > @energy/types@0.0.1 build C:\dev\Monorepo\Energy-Monitoring\packages\types
+@energy/types:build: > tsc
+@energy/types:build: 
+@energy/mock-sensor:build: cache hit, replaying logs 5471265601e01ede
+@energy/mock-sensor:build: 
+@energy/mock-sensor:build: > @energy/mock-sensor@0.0.1 build C:\dev\Monorepo\Energy-Monitoring\apps\mock-sensor
+@energy/mock-sensor:build: > tsc
+@energy/mock-sensor:build: 
+@energy/database:build: cache hit, replaying logs 50ec9b46b799cfd5
+@energy/database:build: 
+@energy/database:build: > @energy/database@0.0.1 build C:\dev\Monorepo\Energy-Monitoring\packages\database
+@energy/database:build: > tsc
+@energy/database:build: 
+web:build: cache hit, replaying logs cddb5f2873885d07
+web:build: 
+web:build: > web@0.1.0 build C:\dev\Monorepo\Energy-Monitoring\apps\web
+web:build: > next build
+web:build: 
+web:build: Γû▓ Next.js 16.1.6 (Turbopack)
+web:build: 
+web:build:   Creating an optimized production build ...
+web:build: Found 1 warning while optimizing generated CSS:
+web:build: 
+web:build: [2mΓöé   }[22m
+web:build: [2mΓöé }[22m
+web:build: [2mΓöé[22m @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+web:build: [2mΓöå[22m        [33m[2m^--[22m @import rules must precede all rules aside from @charset and @layer statements[39m
+web:build: [2mΓöå[22m
+web:build: [2mΓöé :root {[22m
+web:build: [2mΓöé   --canvas: #0F172A;[22m
+web:build: 
+web:build: Γ£ô Compiled successfully in 3.6s
+web:build:   Running TypeScript ...
+web:build:   Collecting page data using 11 workers ...
+web:build:   Generating static pages using 11 workers (0/10) ...
+web:build:   Generating static pages using 11 workers (2/10) 
+web:build:   Generating static pages using 11 workers (4/10) 
+web:build:   Generating static pages using 11 workers (7/10) 
+web:build: Γ£ô Generating static pages using 11 workers (10/10) in 1169.1ms
+web:build:   Finalizing page optimization ...
+web:build: 
+web:build: Route (app)
+web:build: Γöî Γùï /
+web:build: Γö£ Γùï /_not-found
+web:build: Γö£ ╞Æ /api/alerts
+web:build: Γö£ ╞Æ /api/billing
+web:build: Γö£ ╞Æ /api/ingest
+web:build: Γö£ ╞Æ /api/readings
+web:build: Γö£ ╞Æ /api/stream
+web:build: Γöö Γùï /dashboard
+web:build: 
+web:build: 
+web:build: Γùï  (Static)   prerendered as static content
+web:build: ╞Æ  (Dynamic)  server-rendered on demand
+web:build: 
+@energy/admin:build: cache hit, replaying logs a1ad52cb683b33da
+@energy/admin:build: 
+@energy/admin:build: > @energy/admin@0.1.0 build C:\dev\Monorepo\Energy-Monitoring\apps\admin
+@energy/admin:build: > next build
+@energy/admin:build: 
+@energy/admin:build: Γû▓ Next.js 16.1.6 (Turbopack)
+@energy/admin:build: 
+@energy/admin:build:   Creating an optimized production build ...
+@energy/admin:build: Found 1 warning while optimizing generated CSS:
+@energy/admin:build: 
+@energy/admin:build: [2mΓöé   }[22m
+@energy/admin:build: [2mΓöé }[22m
+@energy/admin:build: [2mΓöé[22m @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+@energy/admin:build: [2mΓöå[22m        [33m[2m^--[22m @import rules must precede all rules aside from @charset and @layer statements[39m
+@energy/admin:build: [2mΓöå[22m
+@energy/admin:build: [2mΓöé :root {[22m
+@energy/admin:build: [2mΓöé   --canvas: #0F172A;[22m
+@energy/admin:build: 
+@energy/admin:build: Γ£ô Compiled successfully in 3.8s
+@energy/admin:build:   Running TypeScript ...
+@energy/admin:build:   Collecting page data using 11 workers ...
+@energy/admin:build:   Generating static pages using 11 workers (0/15) ...
+@energy/admin:build:   Generating static pages using 11 workers (3/15) 
+@energy/admin:build:   Generating static pages using 11 workers (7/15) 
+@energy/admin:build:   Generating static pages using 11 workers (11/15) 
+@energy/admin:build: Γ£ô Generating static pages using 11 workers (15/15) in 352.0ms
+@energy/admin:build:   Finalizing page optimization ...
+@energy/admin:build: 
+@energy/admin:build: Route (app)
+@energy/admin:build: Γöî Γùï /
+@energy/admin:build: Γö£ Γùï /_not-found
+@energy/admin:build: Γö£ Γùï /alerts
+@energy/admin:build: Γö£ ╞Æ /api/alerts
+@energy/admin:build: Γö£ ╞Æ /api/billing
+@energy/admin:build: Γö£ ╞Æ /api/devices
+@energy/admin:build: Γö£ ╞Æ /api/overview
+@energy/admin:build: Γö£ ╞Æ /api/reports
+@energy/admin:build: Γö£ ╞Æ /api/thresholds
+@energy/admin:build: Γö£ Γùï /billing
+@energy/admin:build: Γö£ Γùï /reports
+@energy/admin:build: Γö£ Γùï /sensors
+@energy/admin:build: Γöö Γùï /thresholds
+@energy/admin:build: 
+@energy/admin:build: 
+@energy/admin:build: Γùï  (Static)   prerendered as static content
+@energy/admin:build: ╞Æ  (Dynamic)  server-rendered on demand
+@energy/admin:build: 
+
+ Tasks:    5 successful, 5 total
+Cached:    5 cached, 5 total
+  Time:    777ms >>> FULL TURBO
+

@@ -2,10 +2,11 @@
   "name": "energy-monitoring",
   "private": true,
   "scripts": {
-    "build": "turbo run build",
-    "dev": "turbo run dev",
-    "lint": "turbo run lint",
-    "type-check": "turbo run type-check",
+    "build": "pnpm sync-env && turbo build",
+    "dev": "pnpm sync-env && turbo dev",
+    "lint": "turbo lint",
+    "type-check": "turbo type-check",
+    "sync-env": "powershell -ExecutionPolicy Bypass -File ./scripts/distribute-envs.ps1",
     "format": "prettier --write \"**/*.{ts,tsx,md}\""
   },
   "devDependencies": {
