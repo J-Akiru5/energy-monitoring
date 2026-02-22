@@ -33,17 +33,17 @@ interface AlertItem {
 }
 
 // ── Default device ID for development (matches mock-sensor default) ──
-// ⚠️ This ID must match the `deviceId` field sent by the Arduino/PZEM
-// and the `api_key_hash` seeded in the `devices` table in Supabase.
-// Current: matches the UUID hardcoded in the Arduino firmware.
-const DEFAULT_DEVICE_ID = "550e8400-e29b-41d4-a716-446655440000";
+// ── Device ID is loaded dynamically from /api/devices on mount ──
+// This eliminates UUID drift between the DB, Arduino firmware, and this file.
 
 // ════════════════════════════════════════════════════════════
 // DASHBOARD PAGE
 // ════════════════════════════════════════════════════════════
 
 export default function DashboardPage() {
-  const { latestReading, isConnected } = useSSE(DEFAULT_DEVICE_ID);
+  // Dynamically resolved from /api/devices — avoids UUID hardcoding
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+  const { latestReading, isConnected } = useSSE(deviceId);
   const [chartData, setChartData] = useState<Reading[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [billing, setBilling] = useState<{ totalKwh: number; estimatedCostPhp: number } | null>(null);
@@ -52,23 +52,36 @@ export default function DashboardPage() {
   });
   const [flashKeys, setFlashKeys] = useState({ v: 0, a: 0, w: 0, pf: 0 });
 
-  // ── Fetch historical data on mount ──
+  // ── Step 1: Discover the active device ID from the DB ──
   useEffect(() => {
-    fetch(`/api/readings?deviceId=${DEFAULT_DEVICE_ID}`)
+    fetch("/api/devices")
+      .then((r) => r.json())
+      .then((d) => {
+        const firstDevice = d.devices?.[0];
+        if (firstDevice?.id) setDeviceId(firstDevice.id);
+      })
+      .catch(console.error);
+  }, []);
+
+  // ── Step 2: Load historical data once deviceId is known ──
+  useEffect(() => {
+    if (!deviceId) return;
+
+    fetch(`/api/readings?deviceId=${deviceId}`)
       .then((r) => r.json())
       .then((d) => setChartData(d.readings || []))
       .catch(console.error);
 
-    fetch(`/api/alerts?deviceId=${DEFAULT_DEVICE_ID}`)
+    fetch(`/api/alerts?deviceId=${deviceId}`)
       .then((r) => r.json())
       .then((d) => setAlerts(d.alerts || []))
       .catch(console.error);
 
-    fetch(`/api/billing?deviceId=${DEFAULT_DEVICE_ID}`)
+    fetch(`/api/billing?deviceId=${deviceId}`)
       .then((r) => r.json())
       .then((d) => setBilling(d))
       .catch(console.error);
-  }, []);
+  }, [deviceId]);
 
   // ── Append new SSE readings to chart + flash values ──
   // startTransition defers state updates out of the synchronous effect tick,
