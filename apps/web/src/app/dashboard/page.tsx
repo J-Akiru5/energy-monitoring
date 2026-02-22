@@ -33,7 +33,10 @@ interface AlertItem {
 }
 
 // ── Default device ID for development (matches mock-sensor default) ──
-const DEFAULT_DEVICE_ID = "00000000-0000-0000-0000-000000000001";
+// ⚠️ This ID must match the `deviceId` field sent by the Arduino/PZEM
+// and the `api_key_hash` seeded in the `devices` table in Supabase.
+// Current: matches the UUID hardcoded in the Arduino firmware.
+const DEFAULT_DEVICE_ID = "550e8400-e29b-41d4-a716-446655440000";
 
 // ════════════════════════════════════════════════════════════
 // DASHBOARD PAGE

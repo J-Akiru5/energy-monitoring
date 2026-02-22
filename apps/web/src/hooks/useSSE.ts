@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-interface SSEReading {
+export interface SSEReading {
   id: number;
   device_id: string;
   voltage: number;
@@ -15,55 +15,68 @@ interface SSEReading {
 }
 
 /**
- * Custom hook that connects to the SSE endpoint and
- * provides live readings as they stream in.
+ * Polls /api/readings?deviceId=<id>&limit=1 every POLL_INTERVAL_MS.
+ *
+ * WHY: Vercel Serverless Functions have a hard 300-second timeout.
+ * The previous SSE approach (setInterval inside ReadableStream) kept
+ * a long-lived connection open and was killed by Vercel after 300s,
+ * causing the "Task timed out" errors visible in Vercel logs.
+ *
+ * Client-side polling with short-lived fetch() calls is the correct
+ * pattern for Vercel. Each request completes in <100ms.
  */
+const POLL_INTERVAL_MS = 3000;
+
 export function useSSE(deviceId: string | null) {
   const [latestReading, setLatestReading] = useState<SSEReading | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!deviceId) return;
 
-    function connect() {
-      // Close existing connection
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
+    let isMounted = true;
 
-      const es = new EventSource(`/api/stream?deviceId=${deviceId}`);
-      eventSourceRef.current = es;
+    async function fetchLatest() {
+      // Cancel any in-flight request before making a new one
+      abortRef.current?.abort();
+      abortRef.current = new AbortController();
 
-      es.onopen = () => {
-        setIsConnected(true);
-      };
+      try {
+        const res = await fetch(
+          `/api/readings?deviceId=${deviceId}&limit=1`,
+          { signal: abortRef.current.signal }
+        );
 
-      es.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data) as SSEReading;
-          setLatestReading(data);
-        } catch {
-          // Ignore parse errors (heartbeats)
+        if (!res.ok) {
+          if (isMounted) setIsConnected(false);
+          return;
         }
-      };
 
-      es.onerror = () => {
-        setIsConnected(false);
-        es.close();
-        // Auto-reconnect after 3 seconds
-        reconnectTimeoutRef.current = setTimeout(connect, 3000);
-      };
+        const json = await res.json();
+        // /api/readings returns { readings: [...] }
+        const readings: SSEReading[] = json.readings ?? [];
+
+        if (isMounted && readings.length > 0) {
+          setLatestReading(readings[0]);
+          setIsConnected(true);
+        }
+      } catch (err) {
+        // AbortError is expected on cleanup — ignore it
+        if (err instanceof Error && err.name === "AbortError") return;
+        if (isMounted) setIsConnected(false);
+      }
     }
 
-    connect();
+    // Fetch immediately on mount, then every POLL_INTERVAL_MS
+    fetchLatest();
+    intervalRef.current = setInterval(fetchLatest, POLL_INTERVAL_MS);
 
     return () => {
-      eventSourceRef.current?.close();
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
+      isMounted = false;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      abortRef.current?.abort();
     };
   }, [deviceId]);
 
