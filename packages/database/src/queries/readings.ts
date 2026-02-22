@@ -54,8 +54,11 @@ export async function getLatestReading(deviceId: string) {
     .limit(1)
     .single();
 
-  if (error) throw new Error(`Fetch latest reading failed: ${error.message}`);
-  return data;
+  // PGRST116 = "no rows returned" — not a real error, just means no data yet
+  if (error && error.code !== "PGRST116") {
+    throw new Error(`Fetch latest reading failed: ${error.message}`);
+  }
+  return data ?? null;
 }
 
 /**
