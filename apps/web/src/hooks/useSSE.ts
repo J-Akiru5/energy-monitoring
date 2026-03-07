@@ -17,15 +17,17 @@ export interface SSEReading {
 /**
  * Polls /api/readings?deviceId=<id>&limit=1 every POLL_INTERVAL_MS.
  *
- * WHY: Vercel Serverless Functions have a hard 300-second timeout.
- * The previous SSE approach (setInterval inside ReadableStream) kept
- * a long-lived connection open and was killed by Vercel after 300s,
- * causing the "Task timed out" errors visible in Vercel logs.
+ * Staleness Detection (Option B – Absolute Time Check):
+ * Compares the `recorded_at` timestamp from the latest DB row against
+ * the browser's Date.now(). If the reading is older than STALE_THRESHOLD_MS,
+ * the device is considered OFFLINE.
  *
- * Client-side polling with short-lived fetch() calls is the correct
- * pattern for Vercel. Each request completes in <100ms.
+ * IMPORTANT: This requires the ESP32's RTC to be NTP-synchronised.
+ * If the RTC drifts by more than STALE_THRESHOLD_MS, the dashboard will
+ * falsely report "Offline" even when data is flowing.
  */
-const POLL_INTERVAL_MS = 3000;
+const POLL_INTERVAL_MS = 3_000;
+const STALE_THRESHOLD_MS = 15_000; // 15 seconds
 
 export function useSSE(deviceId: string | null) {
   const [latestReading, setLatestReading] = useState<SSEReading | null>(null);
@@ -55,12 +57,21 @@ export function useSSE(deviceId: string | null) {
         }
 
         const json = await res.json();
-        // /api/readings returns { readings: [...] }
         const readings: SSEReading[] = json.readings ?? [];
 
         if (isMounted && readings.length > 0) {
-          setLatestReading(readings[0]);
-          setIsConnected(true);
+          const reading = readings[0];
+          setLatestReading(reading);
+
+          // ── Option B: Absolute time staleness check ──
+          const recordedMs = new Date(reading.recorded_at).getTime();
+          const nowMs = Date.now();
+          const isStale = nowMs - recordedMs > STALE_THRESHOLD_MS;
+
+          setIsConnected(!isStale);
+        } else if (isMounted) {
+          // No readings at all — device never reported
+          setIsConnected(false);
         }
       } catch (err) {
         // AbortError is expected on cleanup — ignore it

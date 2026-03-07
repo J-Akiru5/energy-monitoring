@@ -36,6 +36,18 @@ interface AlertItem {
 // ── Device ID is loaded dynamically from /api/devices on mount ──
 // This eliminates UUID drift between the DB, Arduino firmware, and this file.
 
+// ── Helpers ──────────────────────────────────────────────────
+function formatTimeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const secs = Math.floor(diffMs / 1000);
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hr ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
 // ════════════════════════════════════════════════════════════
 // DASHBOARD PAGE
 // ════════════════════════════════════════════════════════════
@@ -156,6 +168,11 @@ export default function DashboardPage() {
         <div className="navbar-status">
           <span className={`status-dot ${isConnected ? "online" : "offline"}`} />
           {isConnected ? "Live" : "Offline"}
+          {!isConnected && latestReading?.recorded_at && (
+            <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 4 }}>
+              · Last seen {formatTimeAgo(latestReading.recorded_at)}
+            </span>
+          )}
           {alerts.length > 0 && (
             <span className="alert-badge">{alerts.length}</span>
           )}
