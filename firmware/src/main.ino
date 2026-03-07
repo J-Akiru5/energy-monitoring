@@ -65,6 +65,8 @@ void setup() {
   Serial.println("═══════════════════════════════════\n");
 
   connectWiFi();
+  syncNTP(); // Must sync after WiFi connects — required for Option B offline
+             // detection
 
   Serial.println("[PZEM] Initializing PZEM-004T on UART2 (GPIO16/17)...");
   // PZEM is ready after constructor; give it a moment
@@ -84,6 +86,7 @@ void loop() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[WiFi] Connection lost. Reconnecting...");
     connectWiFi();
+    syncNTP(); // Re-sync clock after WiFi recovery
   }
 
   // Read and send at the configured interval
@@ -219,21 +222,44 @@ void sendToCloud(const String& payload) {
 }
 
 // ════════════════════════════════════════════════════════════
+// NTP TIME SYNC
+// ════════════════════════════════════════════════════════════
+
+// UTC+8 for Philippines (adjust for your timezone)
+const long GMT_OFFSET_SEC = 8 * 3600;
+const int DAYLIGHT_OFFSET_SEC = 0;
+const char *NTP_SERVER = "pool.ntp.org";
+
+void syncNTP() {
+  configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER);
+  Serial.print("[NTP] Syncing time");
+  struct tm timeinfo;
+  int attempts = 0;
+  while (!getLocalTime(&timeinfo) && attempts < 10) {
+    Serial.print(".");
+    delay(500);
+    attempts++;
+  }
+  if (attempts < 10) {
+    char buf[30];
+    strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &timeinfo);
+    Serial.printf(" OK → %s\n", buf);
+  } else {
+    Serial.println(" FAILED (timestamps will be inaccurate)");
+  }
+}
+
+// ════════════════════════════════════════════════════════════
 // TIMESTAMP HELPER
 // ════════════════════════════════════════════════════════════
 
 String getTimestamp() {
-  // Simple uptime-based timestamp.
-  // For accurate time, consider adding NTP sync:
-  //   configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org");
-  unsigned long ms = millis();
-  unsigned long seconds = ms / 1000;
-  unsigned long minutes = seconds / 60;
-  unsigned long hours = minutes / 60;
-
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("[NTP] ⚠ Time not set — using epoch");
+    return "1970-01-01T00:00:00Z";
+  }
   char buf[30];
-  // Return a placeholder ISO format — NTP should replace this
-  snprintf(buf, sizeof(buf), "2026-01-01T%02lu:%02lu:%02luZ",
-           hours % 24, minutes % 60, seconds % 60);
+  strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &timeinfo);
   return String(buf);
 }
