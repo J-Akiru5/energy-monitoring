@@ -18,7 +18,7 @@ export type MeterReading = z.infer<typeof MeterReadingSchema>;
 export const TelemetryPayloadSchema = z.object({
   deviceId: z.string().min(1),
   reading: MeterReadingSchema,
-  timestamp: z.string().datetime(),
+  timestamp: z.string().datetime({ offset: true }),
 });
 
 export type TelemetryPayload = z.infer<typeof TelemetryPayloadSchema>;
