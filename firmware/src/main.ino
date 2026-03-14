@@ -35,8 +35,8 @@
 
 // ──── CONFIGURATION ─────────────────────────────────────────
 // Wi-Fi Credentials
-const char* WIFI_SSID     = "JEM";
-const char* WIFI_PASSWORD = "Martinez_2021";
+const char* WIFI_SSID     = "***REMOVED***";
+const char* WIFI_PASSWORD = "***REMOVED***";
 
 // Cloud API Endpoint (Vercel deployment)
 const char* API_ENDPOINT  = "https://energy-monitoring-web.vercel.app/api/ingest";
