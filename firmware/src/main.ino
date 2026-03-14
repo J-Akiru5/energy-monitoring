@@ -227,7 +227,9 @@ void readAndSend() {
 
   // Safety check: PZEM returns NaN when no AC is detected
   if (isnan(voltage) || isnan(current)) {
-    Serial.println("[PZEM] ⚠ Sensor offline (no AC or wiring issue). Skipping.");
+    Serial.println("[PZEM] ⚠ No AC reading (NaN). Is the PZEM connected to mains?");
+    Serial.println("[PZEM]   → Voltage pin wired to Line/Neutral?");
+    Serial.println("[PZEM]   → CT clamp secured around the live wire?");
     return;
   }
 
@@ -267,6 +269,13 @@ void readAndSend() {
 // ════════════════════════════════════════════════════════════
 
 void sendToCloud(const String& payload) {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[API] ✗ Skipping POST — WiFi not connected.");
+    return;
+  }
+
+  Serial.printf("[API] Sending payload: %s\n", payload.c_str());
+
   for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
     WiFiClientSecure client;
     client.setInsecure(); // Skip TLS cert verification (acceptable for IoT)
@@ -285,12 +294,18 @@ void sendToCloud(const String& payload) {
       return;
     }
 
-    Serial.printf("[API] ✗ Attempt %d/%d failed (HTTP %d)\n", attempt + 1, MAX_RETRIES, httpCode);
-
+    // Print the full server response to help diagnose 401, 422, 429, etc.
+    String response = "(no response body)";
     if (httpCode > 0) {
-      String response = http.getString();
-      Serial.printf("[API] Response: %s\n", response.c_str());
+      response = http.getString();
     }
+    Serial.printf("[API] ✗ Attempt %d/%d — HTTP %d\n", attempt + 1, MAX_RETRIES, httpCode);
+    Serial.printf("[API]   Server said: %s\n", response.c_str());
+
+    if (httpCode == 401) Serial.println("[API]   → Check DEVICE_TOKEN matches the Admin dashboard.");
+    if (httpCode == 422) Serial.println("[API]   → Payload schema mismatch. Check timestamp format.");
+    if (httpCode == 429) Serial.println("[API]   → Rate limited. READ_INTERVAL too low (must be >1000ms).");
+    if (httpCode == -1)  Serial.println("[API]   → Connection refused. Check API_ENDPOINT URL.");
 
     http.end();
 
@@ -310,26 +325,34 @@ void sendToCloud(const String& payload) {
 // ════════════════════════════════════════════════════════════
 
 void connectWiFi() {
+  WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.printf("[WiFi] Connecting to %s", WIFI_SSID);
+  Serial.printf("[WiFi] Connecting to \"%s\"...\n", WIFI_SSID);
 
   int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+  while (WiFi.status() != WL_CONNECTED && attempts < 40) {
     delay(500);
     Serial.print(".");
     attempts++;
   }
+  Serial.println();
 
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println(" Connected!");
-    Serial.printf("[WiFi] IP:   %s\n", WiFi.localIP().toString().c_str());
-    Serial.printf("[WiFi] RSSI: %d dBm\n", WiFi.RSSI());
+    Serial.println("[WiFi] ✓ Connected!");
+    Serial.printf("[WiFi]   IP:   %s\n", WiFi.localIP().toString().c_str());
+    Serial.printf("[WiFi]   RSSI: %d dBm\n", WiFi.RSSI());
+    if (WiFi.RSSI() < -75) {
+      Serial.println("[WiFi]   ⚠ Weak signal! Consider moving the antenna closer.");
+    }
     wifiRetryCount = 0;
   } else {
-    Serial.println(" FAILED!");
+    Serial.println("[WiFi] ✗ FAILED to connect!");
+    Serial.printf("[WiFi]   SSID tried: \"%s\"\n", WIFI_SSID);
+    Serial.println("[WiFi]   → Double-check SSID and PASSWORD spelling (case-sensitive).");
+    Serial.println("[WiFi]   → Is the router 2.4GHz? ESP32 does not support 5GHz.");
     wifiRetryCount++;
     int backoff = min(BASE_DELAY_MS * (1 << wifiRetryCount), 60000);
-    Serial.printf("[WiFi] Retrying in %d ms...\n", backoff);
+    Serial.printf("[WiFi]   Retrying in %d ms...\n", backoff);
     delay(backoff);
   }
 }
