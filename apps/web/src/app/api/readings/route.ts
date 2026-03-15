@@ -4,6 +4,16 @@ import { getLast24hReadings, getLatestReading } from "@energy/database";
 // Force Next.js to never cache this route — it serves live sensor data.
 export const dynamic = "force-dynamic";
 
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+};
+
+function noStoreJson(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: NO_STORE_HEADERS });
+}
+
 /**
  * GET /api/readings?deviceId=<id>
  * GET /api/readings?deviceId=<id>&limit=1   ← used by the polling hook
@@ -20,7 +30,7 @@ export async function GET(req: NextRequest) {
     const limit = req.nextUrl.searchParams.get("limit");
 
     if (!deviceId) {
-      return NextResponse.json({ error: "Missing deviceId" }, { status: 400 });
+      return noStoreJson({ error: "Missing deviceId" }, 400);
     }
 
     // Fast path: polling hook requests only the latest row
@@ -30,14 +40,14 @@ export async function GET(req: NextRequest) {
       const age_ms = latest
         ? Date.now() - new Date(latest.recorded_at).getTime()
         : null;
-      return NextResponse.json({ readings: latest ? [latest] : [], age_ms });
+      return noStoreJson({ readings: latest ? [latest] : [], age_ms });
     }
 
     const readings = await getLast24hReadings(deviceId);
-    return NextResponse.json({ readings });
+    return noStoreJson({ readings });
   } catch (err) {
     console.error("[/api/readings] Error:", err);
-    return NextResponse.json({ error: "Failed to fetch readings" }, { status: 500 });
+    return noStoreJson({ error: "Failed to fetch readings" }, 500);
   }
 }
 
