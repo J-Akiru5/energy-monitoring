@@ -34,7 +34,8 @@ export async function getLast24hReadings(deviceId: string) {
     .select("*")
     .eq("device_id", deviceId)
     .gte("recorded_at", since)
-    .order("recorded_at", { ascending: true });
+    .order("recorded_at", { ascending: true })
+    .order("id", { ascending: true });
 
   if (error) throw new Error(`Fetch 24h readings failed: ${error.message}`);
   return data;

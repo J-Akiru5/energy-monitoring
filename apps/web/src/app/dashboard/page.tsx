@@ -81,6 +81,30 @@ function formatTimeAgo(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+const MAX_CHART_POINTS = 1500;
+
+function mergeReadings(base: Reading[], incoming: Reading[]): Reading[] {
+  const byId = new Map<number, Reading>();
+
+  for (const reading of base) {
+    byId.set(reading.id, reading);
+  }
+
+  for (const reading of incoming) {
+    byId.set(reading.id, reading);
+  }
+
+  const merged = Array.from(byId.values()).sort((a, b) => {
+    const byTime = parseDBDate(a.recorded_at).getTime() - parseDBDate(b.recorded_at).getTime();
+    if (byTime !== 0) return byTime;
+    return a.id - b.id;
+  });
+
+  return merged.length > MAX_CHART_POINTS
+    ? merged.slice(-MAX_CHART_POINTS)
+    : merged;
+}
+
 // ════════════════════════════════════════════════════════════
 // DASHBOARD PAGE
 // ════════════════════════════════════════════════════════════
@@ -115,15 +139,46 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!deviceId) return;
 
-    fetch(`/api/readings?deviceId=${deviceId}`)
-      .then((r) => r.json())
-      .then((d) => setChartData(d.readings || []))
-      .catch(console.error);
+    let isMounted = true;
+    const controller = new AbortController();
 
-    fetch(`/api/alerts?deviceId=${deviceId}`)
-      .then((r) => r.json())
-      .then((d) => setAlerts(d.alerts || []))
-      .catch(console.error);
+    const loadInitialData = async () => {
+      try {
+        const [readingsRes, alertsRes] = await Promise.all([
+          fetch(`/api/readings?deviceId=${deviceId}`, {
+            cache: "no-store",
+            signal: controller.signal,
+          }),
+          fetch(`/api/alerts?deviceId=${deviceId}`, {
+            cache: "no-store",
+            signal: controller.signal,
+          }),
+        ]);
+
+        if (!readingsRes.ok || !alertsRes.ok) return;
+
+        const [readingsJson, alertsJson] = await Promise.all([
+          readingsRes.json(),
+          alertsRes.json(),
+        ]);
+
+        if (!isMounted) return;
+
+        const historical: Reading[] = readingsJson.readings ?? [];
+        setChartData((prev) => mergeReadings(prev, historical));
+        setAlerts(alertsJson.alerts ?? []);
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
+        console.error("[dashboard] Failed to load initial dashboard data:", err);
+      }
+    };
+
+    loadInitialData();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
   }, [deviceId]);
 
   // Refresh report summary at a slower cadence (analytics, not live telemetry).
@@ -226,15 +281,7 @@ export default function DashboardPage() {
     };
 
     startTransition(() => {
-      setChartData((prev) => {
-        // Dedup by DB row id — safe even if two readings share the same
-        // recorded_at second (which the timestamp string check missed).
-        if (prev.length > 0 && prev[prev.length - 1].id === reading.id) {
-          return prev;
-        }
-        const updated = [...prev, reading];
-        return updated.length > 500 ? updated.slice(-500) : updated;
-      });
+      setChartData((prev) => mergeReadings(prev, [reading]));
       if (Object.keys(flashes).length > 0) {
         setFlashKeys((f) => ({ ...f, ...flashes }));
       }
