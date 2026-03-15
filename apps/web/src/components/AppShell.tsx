@@ -86,6 +86,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               href={item.href}
               className={`app-shell-nav-link ${isActivePath(pathname, item.href) ? "active" : ""}`}
             >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d={item.icon} />
+              </svg>
               {item.label}
               {item.href === "/alerts" && alertsCount > 0 && (
                 <span className="alert-badge">{alertsCount}</span>
@@ -150,9 +153,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             href={item.href}
             className={`mobile-bottom-link ${isActivePath(pathname, item.href) ? "active" : ""}`}
           >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d={item.icon} />
+            </svg>
             <span>{item.shortLabel}</span>
             {item.href === "/alerts" && alertsCount > 0 && (
-              <span className="alert-badge">{alertsCount}</span>
+              <span className="alert-badge" style={{ position: "absolute", top: 6, right: 6, fontSize: 9, padding: "1px 4px" }}>{alertsCount}</span>
             )}
           </Link>
         ))}
@@ -162,7 +168,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onClick={() => setDrawerOpen(true)}
           aria-label="Open full menu"
         >
-          Menu
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
+          </svg>
+          <span>More</span>
         </button>
       </nav>
     </>

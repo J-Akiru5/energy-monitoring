@@ -122,7 +122,11 @@ export default function HistoryPage() {
               key={option}
               type="button"
               className={`segmented-control-btn ${period === option ? "active" : ""}`}
-              onClick={() => setPeriod(option)}
+              onClick={() => {
+                setPeriod(option);
+                // Reset to today when switching back to week/month to avoid confusion
+                if (option !== "day") setSelectedDate(getPhTodayKey());
+              }}
             >
               {option}
             </button>
@@ -188,13 +192,35 @@ export default function HistoryPage() {
                   <div className="tile-label">Energy Timeline</div>
                   <div className="panel-copy">
                     Scroll horizontally to inspect the full selected {period}. Samples in range: {history.sampleCount}.
+                    {period !== "day" && history.chartPoints.length > 0 && (
+                      <span style={{ color: "var(--accent-cyan)", marginLeft: "6px" }}>
+                        (Click on a day to view its detailed timeline)
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
 
               <div className="history-chart-scroll">
                 <div className="history-chart-frame">
-                  <AreaChart width={chartWidth} height={340} data={history.chartPoints}>
+                  <AreaChart 
+                    width={chartWidth} 
+                    height={340} 
+                    data={history.chartPoints}
+                    onClick={(state) => {
+                      if (period === "day" || !state || !state.activePayload) return;
+                      const payload = state.activePayload[0]?.payload;
+                      if (!payload?.recordedAt) return;
+                      
+                      // Extract just the YYYY-MM-DD from the recordedAt timestamp
+                      const clickedDateStr = payload.recordedAt.split("T")[0];
+                      if (clickedDateStr) {
+                        setPeriod("day");
+                        setSelectedDate(clickedDateStr);
+                      }
+                    }}
+                    style={{ cursor: period === "day" ? "default" : "pointer" }}
+                  >
                       <defs>
                         <linearGradient id="historyGrad" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#06B6D4" stopOpacity={0.35} />
