@@ -137,6 +137,9 @@ select {
 }
 
 .app-shell-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid rgba(71, 85, 105, 0.85);
   background: rgba(30, 41, 59, 0.92);
   color: var(--text-primary);
