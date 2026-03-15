@@ -1,0 +1,20 @@
+{
+  "name": "@energy/auth",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.48.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.16",
+    "typescript": "^5.7.3"
+  }
+}
