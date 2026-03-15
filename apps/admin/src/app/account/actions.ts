@@ -15,7 +15,8 @@ export async function updatePassword(formData: FormData) {
     return { error: "Passwords do not match." };
   }
 
-  const supabase = createClient(cookies);
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
 
   const { error } = await supabase.auth.updateUser({
     password: password,
