@@ -59,7 +59,15 @@ export async function POST(req: NextRequest) {
     lastPostTime.set(payload.deviceId, now);
 
     // ── 4. Write Reading to Database ──
-    await insertReading(payload);
+    // IMPORTANT: We override the timestamp with the server's UTC time.
+    // The ESP32's RTC stores UTC but incorrectly labels it as +08:00,
+    // causing all recorded_at values to be stored 8 hours behind reality.
+    // Using server time here ensures reliable staleness detection and ordering.
+    const serverPayload = {
+      ...payload,
+      timestamp: new Date().toISOString(), // authoritative server UTC time
+    };
+    await insertReading(serverPayload);
 
     // ── 5. Alert Engine & Blackout Detection ──
     if (payload.blackout) {
