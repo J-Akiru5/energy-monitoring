@@ -64,7 +64,8 @@ export function useSSE(deviceId: string | null) {
           setLatestReading(reading);
 
           // ── Option B: Absolute time staleness check ──
-          const recordedMs = new Date(reading.recorded_at).getTime();
+          const recordedStr = reading.recorded_at;
+          const recordedMs = new Date(recordedStr.endsWith("Z") || recordedStr.includes("+") ? recordedStr : recordedStr + "Z").getTime();
           const nowMs = Date.now();
           const isStale = nowMs - recordedMs > STALE_THRESHOLD_MS;
 

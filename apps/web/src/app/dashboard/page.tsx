@@ -37,8 +37,12 @@ interface AlertItem {
 // This eliminates UUID drift between the DB, Arduino firmware, and this file.
 
 // ── Helpers ──────────────────────────────────────────────────
+function parseDBDate(iso: string): Date {
+  return new Date(iso.endsWith("Z") || iso.includes("+") ? iso : iso + "Z");
+}
+
 function formatTimeAgo(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffMs = Date.now() - parseDBDate(iso).getTime();
   const secs = Math.floor(diffMs / 1000);
   if (secs < 60) return `${secs}s ago`;
   const mins = Math.floor(secs / 60);
@@ -200,7 +204,7 @@ export default function DashboardPage() {
                 <XAxis
                   dataKey="recorded_at"
                   tickFormatter={(t: string) =>
-                    new Date(t).toLocaleTimeString([], {
+                    parseDBDate(t).toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",
                     })
@@ -216,7 +220,7 @@ export default function DashboardPage() {
                     borderRadius: 2,
                     fontSize: 12,
                   }}
-                  labelFormatter={(t: string) => new Date(t).toLocaleString()}
+                  labelFormatter={(t: string) => parseDBDate(t).toLocaleString()}
                 />
                 <Area
                   type="monotone"
