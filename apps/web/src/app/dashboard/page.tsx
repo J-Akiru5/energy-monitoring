@@ -1,6 +1,6 @@
 "use client";
 
-import { useSSE } from "@/hooks/useSSE";
+import { usePolling } from "@/hooks/usePolling";
 import { useEffect, useState, useRef, startTransition } from "react";
 import {
   AreaChart,
@@ -14,6 +14,7 @@ import {
 
 // ──── Types ────────────────────────────────────────────────
 interface Reading {
+  id: number; // DB primary key — used for dedup, always unique
   voltage: number;
   current_amp: number;
   power_w: number;
@@ -61,7 +62,7 @@ function formatTimeAgo(iso: string): string {
 export default function DashboardPage() {
   // Dynamically resolved from /api/devices — avoids UUID hardcoding
   const [deviceId, setDeviceId] = useState<string | null>(null);
-  const { latestReading, isConnected } = useSSE(deviceId);
+  const { latestReading, isConnected } = usePolling(deviceId);
   const [chartData, setChartData] = useState<Reading[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [billing, setBilling] = useState<{ totalKwh: number; estimatedCostPhp: number } | null>(null);
@@ -108,6 +109,7 @@ export default function DashboardPage() {
     if (!latestReading) return;
 
     const reading: Reading = {
+      id: latestReading.id,
       voltage: latestReading.voltage,
       current_amp: latestReading.current_amp,
       power_w: latestReading.power_w,
@@ -133,8 +135,9 @@ export default function DashboardPage() {
 
     startTransition(() => {
       setChartData((prev) => {
-        // Only append if this reading is actually newer (dedup by id)
-        if (prev.length > 0 && prev[prev.length - 1].recorded_at === reading.recorded_at) {
+        // Dedup by DB row id — safe even if two readings share the same
+        // recorded_at second (which the timestamp string check missed).
+        if (prev.length > 0 && prev[prev.length - 1].id === reading.id) {
           return prev;
         }
         const updated = [...prev, reading];
