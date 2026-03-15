@@ -207,11 +207,13 @@ void syncNTP() {
 String getTimestamp() {
   // Primary: RTC (no WiFi dependency, works offline)
   if (rtcAvailable) {
-    DateTime now = rtc.now();
+    DateTime utcNow = rtc.now();
+    // DS3231 stores UTC. Convert to UTC+8 before appending +08:00.
+    DateTime localNow(utcNow.unixtime() + GMT_OFFSET_SEC);
     char buf[30];
     sprintf(buf, "%04d-%02d-%02dT%02d:%02d:%02d+08:00",
-      now.year(), now.month(), now.day(),
-      now.hour(), now.minute(), now.second());
+            localNow.year(), localNow.month(), localNow.day(),
+            localNow.hour(), localNow.minute(), localNow.second());
     return String(buf);
   }
 

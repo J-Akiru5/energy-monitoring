@@ -81,9 +81,14 @@ function formatTimeAgo(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-const MAX_CHART_POINTS = 1500;
+// Keep enough points for a full 24h window even at high sampling rates.
+const MAX_CHART_POINTS = 100000;
 
-function mergeReadings(base: Reading[], incoming: Reading[]): Reading[] {
+function mergeReadings(
+  base: Reading[],
+  incoming: Reading[],
+  maxPoints = MAX_CHART_POINTS
+): Reading[] {
   const byId = new Map<number, Reading>();
 
   for (const reading of base) {
@@ -100,8 +105,8 @@ function mergeReadings(base: Reading[], incoming: Reading[]): Reading[] {
     return a.id - b.id;
   });
 
-  return merged.length > MAX_CHART_POINTS
-    ? merged.slice(-MAX_CHART_POINTS)
+  return merged.length > maxPoints
+    ? merged.slice(-maxPoints)
     : merged;
 }
 
@@ -526,7 +531,7 @@ export default function DashboardPage() {
             ₱{billing?.estimatedCostPhp?.toLocaleString("en-PH", { minimumFractionDigits: 2 }) ?? "---"}
           </div>
           <div style={{ marginTop: 8, fontSize: 13, color: "var(--text-muted)" }}>
-            {billing?.totalKwh?.toFixed(2) ?? "0"} kWh consumed
+            {billing?.totalKwh?.toFixed(4) ?? "0.0000"} kWh consumed
           </div>
         </div>
 
