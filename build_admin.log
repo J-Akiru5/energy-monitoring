@@ -1,0 +1,113 @@
+
+> energy-monitoring@ build C:\dev\Monorepo\Energy-Monitoring
+> turbo build "--filter" "@energy/admin"
+
+ΓÇó turbo 2.8.10
+ΓÇó Packages in scope: @energy/admin
+ΓÇó Running build in 1 packages
+ΓÇó Remote caching disabled
+@energy/auth:build: cache hit, replaying logs bf22d36d2a3d3f15
+@energy/types:build: cache hit, replaying logs 4b584b7fb0cdb697
+@energy/types:build: 
+@energy/types:build: > @energy/types@0.0.1 build C:\dev\Monorepo\Energy-Monitoring\packages\types
+@energy/types:build: > tsc
+@energy/types:build: 
+@energy/database:build: cache miss, executing 177beea205c30632
+@energy/auth:build: 
+@energy/auth:build: > @energy/auth@0.1.0 build C:\dev\Monorepo\Energy-Monitoring\packages\auth
+@energy/auth:build: > tsc
+@energy/auth:build: 
+@energy/database:build: 
+@energy/database:build: > @energy/database@0.0.1 build C:\dev\Monorepo\Energy-Monitoring\packages\database
+@energy/database:build: > tsc
+@energy/database:build: 
+@energy/admin:build: cache miss, executing 0694f9c9ba99fb22
+@energy/admin:build: 
+@energy/admin:build: > @energy/admin@0.1.0 build C:\dev\Monorepo\Energy-Monitoring\apps\admin
+@energy/admin:build: > next build
+@energy/admin:build: 
+@energy/admin:build: Γû▓ Next.js 16.1.6 (Turbopack)
+@energy/admin:build: - Environments: .env
+@energy/admin:build: 
+@energy/admin:build: ΓÜá The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+@energy/admin:build:   Creating an optimized production build ...
+@energy/admin:build: 
+@energy/admin:build: > Build error occurred
+@energy/admin:build: Error: Turbopack build failed with 4 errors:
+@energy/admin:build: ./apps/admin/src/app/account/actions.ts:3:1
+@energy/admin:build: Module not found: Can't resolve '@energy/auth'
+@energy/admin:build: [0m [90m 1 |[39m [32m"use server"[39m[33m;[39m
+@energy/admin:build:  [90m 2 |[39m
+@energy/admin:build: [31m[1m>[22m[39m[90m 3 |[39m [36mimport[39m { createClient } [36mfrom[39m [32m"@energy/auth"[39m[33m;[39m
+@energy/admin:build:  [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+@energy/admin:build:  [90m 4 |[39m [36mimport[39m { cookies } [36mfrom[39m [32m"next/headers"[39m[33m;[39m
+@energy/admin:build:  [90m 5 |[39m
+@energy/admin:build:  [90m 6 |[39m [36mexport[39m [36masync[39m [36mfunction[39m updatePassword(formData[33m:[39m [33mFormData[39m) {[0m
+@energy/admin:build: 
+@energy/admin:build: 
+@energy/admin:build: 
+@energy/admin:build: https://nextjs.org/docs/messages/module-not-found
+@energy/admin:build: 
+@energy/admin:build: 
+@energy/admin:build: ./apps/admin/src/app/actions.ts:3:1
+@energy/admin:build: Module not found: Can't resolve '@energy/auth'
+@energy/admin:build: [0m [90m 1 |[39m [32m"use server"[39m[33m;[39m
+@energy/admin:build:  [90m 2 |[39m
+@energy/admin:build: [31m[1m>[22m[39m[90m 3 |[39m [36mimport[39m { createClient } [36mfrom[39m [32m"@energy/auth"[39m[33m;[39m
+@energy/admin:build:  [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+@energy/admin:build:  [90m 4 |[39m [36mimport[39m { cookies } [36mfrom[39m [32m"next/headers"[39m[33m;[39m
+@energy/admin:build:  [90m 5 |[39m [36mimport[39m { redirect } [36mfrom[39m [32m"next/navigation"[39m[33m;[39m
+@energy/admin:build:  [90m 6 |[39m[0m
+@energy/admin:build: 
+@energy/admin:build: 
+@energy/admin:build: 
+@energy/admin:build: https://nextjs.org/docs/messages/module-not-found
+@energy/admin:build: 
+@energy/admin:build: 
+@energy/admin:build: ./apps/admin/src/app/login/actions.ts:3:1
+@energy/admin:build: Module not found: Can't resolve '@energy/auth'
+@energy/admin:build: [0m [90m 1 |[39m [32m"use server"[39m[33m;[39m
+@energy/admin:build:  [90m 2 |[39m
+@energy/admin:build: [31m[1m>[22m[39m[90m 3 |[39m [36mimport[39m { createClient } [36mfrom[39m [32m"@energy/auth"[39m[33m;[39m
+@energy/admin:build:  [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+@energy/admin:build:  [90m 4 |[39m [36mimport[39m { cookies } [36mfrom[39m [32m"next/headers"[39m[33m;[39m
+@energy/admin:build:  [90m 5 |[39m [36mimport[39m { redirect } [36mfrom[39m [32m"next/navigation"[39m[33m;[39m
+@energy/admin:build:  [90m 6 |[39m[0m
+@energy/admin:build: 
+@energy/admin:build: 
+@energy/admin:build: 
+@energy/admin:build: https://nextjs.org/docs/messages/module-not-found
+@energy/admin:build: 
+@energy/admin:build: 
+@energy/admin:build: ./apps/admin/src/middleware.ts:1:1
+@energy/admin:build: Module not found: Can't resolve '@energy/auth'
+@energy/admin:build: [0m[31m[1m>[22m[39m[90m 1 |[39m [36mimport[39m { updateSession } [36mfrom[39m [32m"@energy/auth"[39m[33m;[39m
+@energy/admin:build:  [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+@energy/admin:build:  [90m 2 |[39m [36mimport[39m { type [33mNextRequest[39m } [36mfrom[39m [32m"next/server"[39m[33m;[39m
+@energy/admin:build:  [90m 3 |[39m
+@energy/admin:build:  [90m 4 |[39m [36mexport[39m [36masync[39m [36mfunction[39m middleware(request[33m:[39m [33mNextRequest[39m) {[0m
+@energy/admin:build: 
+@energy/admin:build: 
+@energy/admin:build: 
+@energy/admin:build: https://nextjs.org/docs/messages/module-not-found
+@energy/admin:build: 
+@energy/admin:build: 
+@energy/admin:build:     at <unknown> (./apps/admin/src/app/account/actions.ts:3:1)
+@energy/admin:build:     at <unknown> (https://nextjs.org/docs/messages/module-not-found)
+@energy/admin:build:     at <unknown> (./apps/admin/src/app/actions.ts:3:1)
+@energy/admin:build:     at <unknown> (https://nextjs.org/docs/messages/module-not-found)
+@energy/admin:build:     at <unknown> (./apps/admin/src/app/login/actions.ts:3:1)
+@energy/admin:build:     at <unknown> (https://nextjs.org/docs/messages/module-not-found)
+@energy/admin:build:     at <unknown> (./apps/admin/src/middleware.ts:1:1)
+@energy/admin:build:     at <unknown> (https://nextjs.org/docs/messages/module-not-found)
+@energy/admin:build: ΓÇëELIFECYCLEΓÇë Command failed with exit code 1.
+@energy/admin:build: ERROR: command finished with error: command (C:\dev\Monorepo\Energy-Monitoring\apps\admin) C:\Users\Lenovo\AppData\Roaming\npm\pnpm.cmd run build exited (1)
+@energy/admin#build: command (C:\dev\Monorepo\Energy-Monitoring\apps\admin) C:\Users\Lenovo\AppData\Roaming\npm\pnpm.cmd run build exited (1)
+
+ Tasks:    3 successful, 4 total
+Cached:    2 cached, 4 total
+  Time:    7.144s 
+Failed:    @energy/admin#build
+
+ ERROR  run failed: command  exited (1)
+ΓÇëELIFECYCLEΓÇë Command failed with exit code 1.
