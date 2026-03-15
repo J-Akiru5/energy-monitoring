@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
     y -= 8;
     draw("Current Consumption", 14, true, rgb(0.08, 0.42, 0.26));
     draw(`Day (last 24h): ${kwh(summary.current.dayKwh)}  |  ${peso(summary.current.dayEstimatedPhp)}`, 11);
-    draw(`Week (last 7d): ${kwh(summary.current.weekKwh)}  |  ${peso(summary.current.weekEstimatedPhp)}`, 11);
+    draw(`Week (calendar week): ${kwh(summary.current.weekKwh)}  |  ${peso(summary.current.weekEstimatedPhp)}`, 11);
     draw(
       `Month (${summary.current.monthLabel}): ${kwh(summary.current.monthKwh)}  |  ${peso(summary.current.monthEstimatedPhp)}`,
       11
@@ -69,7 +69,10 @@ export async function GET(req: NextRequest) {
     y -= 8;
     draw("Average Consumption", 14, true, rgb(0.55, 0.32, 0.02));
     draw(`Average per day: ${kwh(summary.averages.dayKwh)}  |  ${peso(summary.averages.dayEstimatedPhp)}`, 11);
-    draw(`Average per week: ${kwh(summary.averages.weekKwh)}  |  ${peso(summary.averages.weekEstimatedPhp)}`, 11);
+    draw(
+      `Average per week (last 8 full calendar weeks): ${kwh(summary.averages.weekKwh)}  |  ${peso(summary.averages.weekEstimatedPhp)}`,
+      11
+    );
     draw(`Average per month: ${kwh(summary.averages.monthKwh)}  |  ${peso(summary.averages.monthEstimatedPhp)}`, 11);
 
     y -= 8;

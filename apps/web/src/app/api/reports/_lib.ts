@@ -30,6 +30,7 @@ export type ConsumptionSummary = {
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEK_MS = 7 * DAY_MS;
 
 function round(value: number, decimals: number): number {
   return Number(value.toFixed(decimals));
@@ -38,6 +39,22 @@ function round(value: number, decimals: number): number {
 function monthLabel(date: Date): string {
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
   return `${date.getUTCFullYear()}-${month}`;
+}
+
+function startOfIsoWeekUtc(date: Date): Date {
+  const day = date.getUTCDay();
+  const daysSinceMonday = (day + 6) % 7;
+  return new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate() - daysSinceMonday,
+      0,
+      0,
+      0,
+      0
+    )
+  );
 }
 
 async function getWindowDelta(
@@ -69,6 +86,52 @@ async function getWindowDelta(
   const deltaKwh = Math.max(0, latestEnergyKwh - startEnergyKwh);
 
   return { deltaKwh, spanDays };
+}
+
+async function getRangeDelta(
+  deviceId: string,
+  startIso: string,
+  endIso: string
+): Promise<{ deltaKwh: number; hasData: boolean }> {
+  const supabase = getSupabaseAdmin();
+
+  const [firstResult, lastResult] = await Promise.all([
+    supabase
+      .from("power_readings")
+      .select("id, energy_kwh")
+      .eq("device_id", deviceId)
+      .gte("recorded_at", startIso)
+      .lt("recorded_at", endIso)
+      .order("recorded_at", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("power_readings")
+      .select("id, energy_kwh")
+      .eq("device_id", deviceId)
+      .gte("recorded_at", startIso)
+      .lt("recorded_at", endIso)
+      .order("recorded_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (firstResult.error || lastResult.error || !firstResult.data || !lastResult.data) {
+    return { deltaKwh: 0, hasData: false };
+  }
+
+  if (firstResult.data.id === lastResult.data.id) {
+    return { deltaKwh: 0, hasData: false };
+  }
+
+  const firstEnergy = Number(firstResult.data.energy_kwh ?? 0);
+  const lastEnergy = Number(lastResult.data.energy_kwh ?? 0);
+  return {
+    deltaKwh: Math.max(0, lastEnergy - firstEnergy),
+    hasData: true,
+  };
 }
 
 export async function buildConsumptionSummary(deviceId: string): Promise<ConsumptionSummary> {
@@ -109,9 +172,9 @@ export async function buildConsumptionSummary(deviceId: string): Promise<Consump
   const latestAt = new Date(latest.recorded_at);
 
   const oneDayAgo = new Date(latestAt.getTime() - DAY_MS).toISOString();
-  const sevenDaysAgo = new Date(latestAt.getTime() - 7 * DAY_MS).toISOString();
+  const currentWeekStart = startOfIsoWeekUtc(latestAt);
+  const currentWeekStartIso = currentWeekStart.toISOString();
   const thirtyDaysAgo = new Date(latestAt.getTime() - 30 * DAY_MS).toISOString();
-  const fiftySixDaysAgo = new Date(latestAt.getTime() - 56 * DAY_MS).toISOString();
 
   const currentMonthDate = new Date(
     Date.UTC(latestAt.getUTCFullYear(), latestAt.getUTCMonth(), 1)
@@ -121,14 +184,24 @@ export async function buildConsumptionSummary(deviceId: string): Promise<Consump
     dayWindow,
     weekWindow,
     avgDayWindow,
-    avgWeekWindow,
+    weeklyAverageWindows,
     currentMonthKwhRaw,
     historicalMonths,
   ] = await Promise.all([
     getWindowDelta(deviceId, latestEnergyKwh, latestAt, oneDayAgo),
-    getWindowDelta(deviceId, latestEnergyKwh, latestAt, sevenDaysAgo),
+    getWindowDelta(deviceId, latestEnergyKwh, latestAt, currentWeekStartIso),
     getWindowDelta(deviceId, latestEnergyKwh, latestAt, thirtyDaysAgo),
-    getWindowDelta(deviceId, latestEnergyKwh, latestAt, fiftySixDaysAgo),
+    Promise.all(
+      Array.from({ length: 8 }, (_, idx) => {
+        const weekEndMs = currentWeekStart.getTime() - idx * WEEK_MS;
+        const weekStartMs = weekEndMs - WEEK_MS;
+        return getRangeDelta(
+          deviceId,
+          new Date(weekStartMs).toISOString(),
+          new Date(weekEndMs).toISOString()
+        );
+      })
+    ),
     getMonthlyEnergy(deviceId, currentMonthDate.getUTCFullYear(), currentMonthDate.getUTCMonth() + 1),
     Promise.all(
       [6, 5, 4, 3, 2, 1].map(async (offset) => {
@@ -149,10 +222,15 @@ export async function buildConsumptionSummary(deviceId: string): Promise<Consump
   const currentMonthKwh = round(Math.max(0, Number(currentMonthKwhRaw ?? 0)), 4);
 
   const avgDayDivisor = Math.max(1 / 24, avgDayWindow.spanDays);
-  const avgWeekDivisor = Math.max(1 / 24, avgWeekWindow.spanDays / 7);
 
   const averageDayKwh = round(avgDayWindow.deltaKwh / avgDayDivisor, 4);
-  const averageWeekKwh = round(avgWeekWindow.deltaKwh / avgWeekDivisor, 4);
+  const weekDeltas = weeklyAverageWindows
+    .filter((window) => window.hasData)
+    .map((window) => window.deltaKwh);
+  const averageWeekKwh =
+    weekDeltas.length > 0
+      ? round(weekDeltas.reduce((sum, value) => sum + value, 0) / weekDeltas.length, 4)
+      : 0;
 
   const historicalAverageMonthKwh =
     historicalMonths.length > 0

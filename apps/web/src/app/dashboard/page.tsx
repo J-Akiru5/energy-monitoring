@@ -513,7 +513,7 @@ export default function DashboardPage() {
             <div>
               <div className="tile-label">Consumption Summary Report</div>
               <div className="report-subtitle">
-                Averages: day (last 30d), week (last 8w), month (last 6 complete months)
+                Averages: day (last 30d), week (last 8 full calendar weeks), month (last 6 complete months)
               </div>
             </div>
             <button
