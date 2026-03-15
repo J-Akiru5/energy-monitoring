@@ -71,6 +71,9 @@ const int BASE_DELAY_MS  = 1000;
 
 // ──── GLOBALS ───────────────────────────────────────────────
 unsigned long lastReadTime = 0;
+unsigned long lastNtpSyncTime = 0;
+bool rtcNeedSync = false;                // true if RTC lost power and needs NTP
+const unsigned long NTP_RESYNC_INTERVAL = 6UL * 60 * 60 * 1000; // 6 hours
 int wifiRetryCount = 0;
 
 // ════════════════════════════════════════════════════════════
@@ -110,7 +113,12 @@ void loop() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[WiFi] Connection lost. Reconnecting...");
     connectWiFi();
-    syncNTP(); // Re-sync NTP after WiFi recovery
+  }
+
+  // Sync NTP: on startup (if RTC lost power) OR every 6 hours
+  bool syncNeeded = rtcNeedSync || (now - lastNtpSyncTime >= NTP_RESYNC_INTERVAL);
+  if (syncNeeded && WiFi.status() == WL_CONNECTED) {
+    syncNTP();
   }
 
   // Read and send at the configured interval
@@ -135,12 +143,13 @@ void setupRTC() {
   rtcAvailable = true;
 
   if (rtc.lostPower()) {
-    Serial.println("[RTC] ⚠ RTC lost power — clock is not set. NTP will calibrate it.");
-    // Temporary compile-time stamp; NTP will overwrite after WiFi connects
-    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    // RTC coin cell died or first boot — do NOT use the stale compile-time
+    // stamp. Set the flag so syncNTP() will write the correct time after WiFi.
+    Serial.println("[RTC] ⚠ RTC lost power — will sync from NTP after WiFi connects.");
+    rtcNeedSync = true;
   } else {
     DateTime now = rtc.now();
-    Serial.printf("[RTC] ✓ Clock OK → %04d-%02d-%02dT%02d:%02d:%02d\n",
+    Serial.printf("[RTC] ✓ Clock OK (UTC) → %04d-%02d-%02dT%02d:%02d:%02dZ\n",
       now.year(), now.month(), now.day(),
       now.hour(), now.minute(), now.second());
   }
@@ -167,13 +176,19 @@ void syncNTP() {
     strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &timeinfo);
     Serial.printf(" OK → %s%s\n", buf, TZ_OFFSET_STR);
 
-    // Write NTP time back into RTC for persistent accuracy
+    // Write NTP time back into RTC for persistent accuracy.
+    // IMPORTANT: configTime() already applies GMT_OFFSET_SEC, so `timeinfo`
+    // holds LOCAL time (UTC+8). The DS3231 should store pure UTC.
+    // We subtract the offset to convert back to UTC before saving.
     if (rtcAvailable) {
-      // mktime uses local time; NTP already gave us local (UTC+8)
-      time_t ntpEpoch = mktime(&timeinfo);
-      rtc.adjust(DateTime((uint32_t)ntpEpoch));
-      Serial.println("[RTC] ✓ RTC calibrated from NTP.");
+      time_t localEpoch = mktime(&timeinfo);
+      time_t utcEpoch   = localEpoch - GMT_OFFSET_SEC; // convert to UTC
+      rtc.adjust(DateTime((uint32_t)utcEpoch));
+      Serial.println("[RTC] ✓ RTC calibrated from NTP (stored as UTC).");
     }
+
+    lastNtpSyncTime = millis();
+    rtcNeedSync = false;
   } else {
     Serial.println(" FAILED.");
     if (rtcAvailable) {
