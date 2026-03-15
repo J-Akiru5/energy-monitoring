@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import {
   AreaChart,
   Area,
@@ -27,9 +29,14 @@ export default function ReportsPage() {
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 1);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     return d.toISOString().slice(0, 16);
   });
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 16));
+  const [dateTo, setDateTo] = useState(() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  });
   const [activeChart, setActiveChart] = useState<"power" | "voltage" | "current">("power");
 
   const fetchData = async () => {
@@ -72,6 +79,28 @@ export default function ReportsPage() {
     link.download = `energy_report_${dateFrom}_${dateTo}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  const downloadPDF = async () => {
+    const element = document.getElementById("report-export-area");
+    if (!element) return;
+    
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        backgroundColor: "#0F172A", // Match the industrial cool theme background
+      });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("landscape", "mm", "a4");
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`energy_report_${dateFrom.split('T')[0]}_${dateTo.split('T')[0]}.pdf`);
+    } catch (error) {
+      console.error("Failed to generate PDF", error);
+    }
   };
 
   // Summary stats
@@ -130,10 +159,14 @@ export default function ReportsPage() {
             <button className="btn" onClick={downloadCSV} disabled={readings.length === 0}>
               📥 Export CSV
             </button>
+            <button className="btn" onClick={downloadPDF} disabled={readings.length === 0}>
+              📄 Export PDF
+            </button>
           </div>
         </div>
 
-        {/* ── Summary Stats ── */}
+        <div id="report-export-area" style={{ padding: "8px", background: "inherit" }}>
+          {/* ── Summary Stats ── */}
         <div className="stat-grid">
           <div className="stat-card">
             <div className="stat-label">Data Points</div>
@@ -220,6 +253,7 @@ export default function ReportsPage() {
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
     </>
