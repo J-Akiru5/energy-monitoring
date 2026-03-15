@@ -19,10 +19,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [alertsCount, setAlertsCount] = useState(0);
 
   useEffect(() => {
-    setDrawerOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
     if (!deviceId) return;
 
     let isMounted = true;
@@ -134,6 +130,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               key={item.href}
               href={item.href}
               className={`app-shell-drawer-link ${isActivePath(pathname, item.href) ? "active" : ""}`}
+              onClick={() => setDrawerOpen(false)}
             >
               <span>{item.label}</span>
               {item.href === "/alerts" && alertsCount > 0 && (
@@ -152,6 +149,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             key={item.href}
             href={item.href}
             className={`mobile-bottom-link ${isActivePath(pathname, item.href) ? "active" : ""}`}
+            onClick={() => setDrawerOpen(false)}
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d={item.icon} />

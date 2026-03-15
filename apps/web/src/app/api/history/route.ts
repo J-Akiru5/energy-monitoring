@@ -7,6 +7,7 @@ const PH_OFFSET_MS = 8 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 type HistoryPeriod = "day" | "week" | "month";
+type HistoryMetric = "energy_kwh" | "power_w" | "current_amp" | "voltage";
 
 type ReadingRow = {
   id: number;
@@ -80,6 +81,19 @@ function round(value: number, digits: number) {
   return Number(value.toFixed(digits));
 }
 
+function roundForMetric(value: number, metric: HistoryMetric) {
+  if (metric === "energy_kwh") return round(value, 4);
+  if (metric === "current_amp") return round(value, 3);
+  return round(value, 2);
+}
+
+function toMetricValue(row: ReadingRow, metric: HistoryMetric) {
+  if (metric === "power_w") return toNumber(row.power_w);
+  if (metric === "current_amp") return toNumber(row.current_amp);
+  if (metric === "voltage") return toNumber(row.voltage);
+  return toNumber(row.energy_kwh);
+}
+
 function computeSummary(readings: ReadingRow[], ratePhpPerKwh: number) {
   const first = readings[0];
   const last = readings[readings.length - 1];
@@ -109,17 +123,28 @@ function computeSummary(readings: ReadingRow[], ratePhpPerKwh: number) {
   };
 }
 
-function buildDayChart(readings: ReadingRow[]) {
+function buildDayChart(readings: ReadingRow[], metric: HistoryMetric) {
   return readings.map((row) => ({
     label: phTimeLabel(new Date(row.recorded_at)),
-    value: round(toNumber(row.energy_kwh), 4),
+    value: roundForMetric(toMetricValue(row, metric), metric),
     recordedAt: row.recorded_at,
     secondaryValue: round(toNumber(row.power_w), 2),
   }));
 }
 
-function buildBucketedChart(readings: ReadingRow[]) {
-  const buckets = new Map<string, { firstEnergy: number; lastEnergy: number; latestAt: string }>();
+function buildBucketedChart(readings: ReadingRow[], metric: HistoryMetric) {
+  const buckets = new Map<
+    string,
+    {
+      firstEnergy: number;
+      lastEnergy: number;
+      latestAt: string;
+      sampleCount: number;
+      sumPower: number;
+      sumCurrent: number;
+      sumVoltage: number;
+    }
+  >();
 
   for (const row of readings) {
     const key = phDateKey(new Date(row.recorded_at));
@@ -131,17 +156,32 @@ function buildBucketedChart(readings: ReadingRow[]) {
         firstEnergy: energy,
         lastEnergy: energy,
         latestAt: row.recorded_at,
+        sampleCount: 1,
+        sumPower: toNumber(row.power_w),
+        sumCurrent: toNumber(row.current_amp),
+        sumVoltage: toNumber(row.voltage),
       });
       continue;
     }
 
     existing.lastEnergy = energy;
     existing.latestAt = row.recorded_at;
+    existing.sampleCount += 1;
+    existing.sumPower += toNumber(row.power_w);
+    existing.sumCurrent += toNumber(row.current_amp);
+    existing.sumVoltage += toNumber(row.voltage);
   }
 
   return Array.from(buckets.entries()).map(([label, bucket]) => ({
+    // week/month timelines are bucketed by day for readability
     label,
-    value: round(Math.max(0, bucket.lastEnergy - bucket.firstEnergy), 4),
+    value: metric === "energy_kwh"
+      ? round(Math.max(0, bucket.lastEnergy - bucket.firstEnergy), 4)
+      : metric === "power_w"
+        ? roundForMetric(bucket.sumPower / Math.max(1, bucket.sampleCount), metric)
+        : metric === "current_amp"
+          ? roundForMetric(bucket.sumCurrent / Math.max(1, bucket.sampleCount), metric)
+          : roundForMetric(bucket.sumVoltage / Math.max(1, bucket.sampleCount), metric),
     recordedAt: bucket.latestAt,
     secondaryValue: round(bucket.lastEnergy, 4),
   }));
@@ -152,6 +192,7 @@ export async function GET(req: NextRequest) {
     const deviceId = req.nextUrl.searchParams.get("deviceId");
     const periodParam = req.nextUrl.searchParams.get("period") ?? "day";
     const dateParam = req.nextUrl.searchParams.get("date") ?? phDateKey(new Date());
+    const metricParam = req.nextUrl.searchParams.get("metric") ?? "energy_kwh";
 
     if (!deviceId) {
       return NextResponse.json({ error: "Missing deviceId" }, { status: 400 });
@@ -161,7 +202,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Invalid period" }, { status: 400 });
     }
 
+    if (!["energy_kwh", "power_w", "current_amp", "voltage"].includes(metricParam)) {
+      return NextResponse.json({ error: "Invalid metric" }, { status: 400 });
+    }
+
     const period = periodParam as HistoryPeriod;
+    const metric = metricParam as HistoryMetric;
     const { start, end } = getRangeBounds(period, dateParam);
     const supabase = getSupabaseAdmin();
 
@@ -198,8 +244,8 @@ export async function GET(req: NextRequest) {
     const ratePhpPerKwh = Number(billingRate?.rate_php_per_kwh ?? 10);
     const summary = computeSummary(readings, ratePhpPerKwh);
     const chartPoints = period === "day"
-      ? buildDayChart(readings)
-      : buildBucketedChart(readings);
+      ? buildDayChart(readings, metric)
+      : buildBucketedChart(readings, metric);
 
     return NextResponse.json({
       period,
@@ -207,7 +253,7 @@ export async function GET(req: NextRequest) {
       rangeStart: start.toISOString(),
       rangeEnd: end.toISOString(),
       ratePhpPerKwh,
-      chartMetric: period === "day" ? "energy_kwh" : "daily_kwh",
+      chartMetric: metric,
       chartPoints,
       summary,
       alerts,

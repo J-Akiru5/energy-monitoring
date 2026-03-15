@@ -41,7 +41,7 @@ export function Sidebar() {
   if (pathname === "/login") return null;
 
   return (
-    <aside className="sidebar flex flex-col justify-between h-screen">
+    <aside className="sidebar">
       <div>
         <div className="sidebar-header">
           <h1>
@@ -68,11 +68,11 @@ export function Sidebar() {
         </nav>
       </div>
 
-      <div className="p-4 border-t border-slate-800">
+      <div className="sidebar-signout-section">
         <form action={logout}>
           <button
             type="submit"
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-rose-400 hover:text-white hover:bg-rose-600 rounded-md transition-colors"
+            className="sidebar-signout-btn"
           >
             <span>🚪</span> Sign Out
           </button>
