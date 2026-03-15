@@ -1,11 +1,9 @@
 {
-  "extends": "@energy/config/tsconfig.json",
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": "src",
-    "declaration": true,
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext"
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "noEmit": false
   },
-  "include": ["src"]
+  "include": ["src/**/*"]
 }
