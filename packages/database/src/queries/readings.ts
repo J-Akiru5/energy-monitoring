@@ -12,11 +12,8 @@ export async function insertReading(payload: TelemetryPayload) {
     device_id: payload.deviceId,
     voltage: reading.voltage,
     current_amp: reading.current,
-    power_w: reading.power,
-    energy_kwh: reading.energy,
-    frequency: reading.frequency,
     power_factor: reading.powerFactor,
-    // explicitly NOT setting recorded_at so the database uses NOW()
+    recorded_at: payload.timestamp,
   });
 
   if (error) throw new Error(`Insert reading failed: ${error.message}`);
