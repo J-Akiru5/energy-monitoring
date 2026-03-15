@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 interface Stats {
@@ -43,7 +44,7 @@ export default function OverviewPage() {
             </div>
           </div>
 
-          <div className="stat-card">
+          <Link href="/alerts" className="stat-card clickable-card">
             <div className="stat-label">Unread Alerts</div>
             <div
               className="stat-value"
@@ -56,7 +57,7 @@ export default function OverviewPage() {
             >
               {loading ? "—" : stats?.unreadAlerts ?? 0}
             </div>
-          </div>
+          </Link>
 
           <div className="stat-card">
             <div className="stat-label">System Status</div>

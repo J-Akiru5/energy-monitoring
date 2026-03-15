@@ -295,16 +295,6 @@ export default function DashboardPage() {
       }
     : null;
 
-  // ── Mark alert as read ──
-  const dismissAlert = async (alertId: string) => {
-    await fetch("/api/alerts", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ alertId }),
-    });
-    setAlerts((prev) => prev.filter((a) => a.id !== alertId));
-  };
-
   const downloadReportPdf = async () => {
     if (!deviceId || isReportDownloading) return;
 
@@ -412,14 +402,14 @@ export default function DashboardPage() {
           className="bento-tile"
           style={{ gridColumn: "span 4", gridRow: "span 2", overflowY: "auto" }}
         >
-          <div className="tile-label">
-            🔔 Alerts{" "}
+          <Link href="/alerts" className="tile-label" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            🔔 Alerts
             {alerts.length > 0 && (
-              <span className="alert-badge" style={{ marginLeft: 6 }}>
+              <span className="alert-badge" style={{ marginLeft: 2 }}>
                 {alerts.length}
               </span>
             )}
-          </div>
+          </Link>
           {alerts.length === 0 ? (
             <div
               style={{
@@ -433,35 +423,27 @@ export default function DashboardPage() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
               {alerts.map((alert) => (
-                <div
+                <Link
                   key={alert.id}
+                  href="/alerts"
                   style={{
                     background: "rgba(225, 29, 72, 0.1)",
                     border: "1px solid rgba(225, 29, 72, 0.3)",
-                    borderRadius: 2,
+                    borderRadius: 14,
                     padding: "10px 12px",
                     fontSize: 13,
+                    cursor: "pointer",
+                    display: "block",
                   }}
                 >
                   <div style={{ fontWeight: 600, color: "var(--accent-rose)", marginBottom: 4 }}>
                     {alert.type.replace("_", " ")}
                   </div>
                   <div style={{ color: "var(--text-secondary)" }}>{alert.message}</div>
-                  <button
-                    onClick={() => dismissAlert(alert.id)}
-                    style={{
-                      marginTop: 6,
-                      fontSize: 11,
-                      color: "var(--text-muted)",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      textDecoration: "underline",
-                    }}
-                  >
-                    Dismiss
-                  </button>
-                </div>
+                  <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-muted)", textDecoration: "underline" }}>
+                    Open Alerts
+                  </div>
+                </Link>
               ))}
             </div>
           )}

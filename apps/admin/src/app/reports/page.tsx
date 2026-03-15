@@ -37,7 +37,7 @@ export default function ReportsPage() {
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     return d.toISOString().slice(0, 16);
   });
-  const [activeChart, setActiveChart] = useState<"power" | "voltage" | "current">("power");
+  const [activeChart, setActiveChart] = useState<"energy" | "power" | "voltage" | "current">("power");
 
   const fetchData = async () => {
     setLoading(true);
@@ -115,9 +115,10 @@ export default function ReportsPage() {
     : "—";
 
   const CHART_CONFIG = {
-    power: { key: "power_w", label: "Power (W)", color: "#06B6D4" },
-    voltage: { key: "voltage", label: "Voltage (V)", color: "#3B82F6" },
-    current: { key: "current_amp", label: "Current (A)", color: "#F59E0B" },
+    energy: { key: "energy_kwh", label: "Energy (kWh)", color: "#F59E0B", unit: "kWh", digits: 4 },
+    power: { key: "power_w", label: "Power (W)", color: "#06B6D4", unit: "W", digits: 1 },
+    voltage: { key: "voltage", label: "Voltage (V)", color: "#3B82F6", unit: "V", digits: 1 },
+    current: { key: "current_amp", label: "Current (A)", color: "#22D3EE", unit: "A", digits: 3 },
   };
 
   const cfg = CHART_CONFIG[activeChart];
@@ -196,8 +197,7 @@ export default function ReportsPage() {
               {(Object.keys(CHART_CONFIG) as Array<keyof typeof CHART_CONFIG>).map((key) => (
                 <button
                   key={key}
-                  className={`btn ${activeChart === key ? "btn-primary" : ""}`}
-                  style={{ padding: "4px 12px", fontSize: 12 }}
+                  className={`btn chart-toggle-btn ${activeChart === key ? "btn-primary" : ""}`}
                   onClick={() => setActiveChart(key)}
                 >
                   {CHART_CONFIG[key].label}
@@ -229,7 +229,7 @@ export default function ReportsPage() {
                       stroke="#64748B"
                       tick={{ fontSize: 11 }}
                     />
-                    <YAxis stroke="#64748B" tick={{ fontSize: 11 }} />
+                    <YAxis stroke="#64748B" tick={{ fontSize: 11 }} unit={cfg.unit ? ` ${cfg.unit}` : undefined} />
                     <Tooltip
                       contentStyle={{
                         background: "#1E293B",
@@ -238,6 +238,7 @@ export default function ReportsPage() {
                         fontSize: 12,
                       }}
                       labelFormatter={(t: string) => new Date(t).toLocaleString()}
+                      formatter={(value: number) => [value.toFixed(cfg.digits ?? 2), cfg.label]}
                     />
                     <Area
                       type="monotone"

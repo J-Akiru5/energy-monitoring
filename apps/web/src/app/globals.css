@@ -31,7 +31,10 @@
 
 body {
   font-family: var(--font-ui);
-  background: var(--canvas);
+  background:
+    radial-gradient(1200px 600px at 20% -10%, rgba(6, 182, 212, 0.16), transparent 55%),
+    radial-gradient(1000px 520px at 90% -15%, rgba(59, 130, 246, 0.14), transparent 52%),
+    var(--canvas);
   color: var(--text-primary);
   margin: 0;
   -webkit-font-smoothing: antialiased;
@@ -73,7 +76,7 @@ select {
   background: rgba(15, 23, 42, 0.88);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(71, 85, 105, 0.85);
+  border-bottom: 1px solid rgba(71, 85, 105, 0.6);
 }
 
 .app-shell-brand-row {
@@ -145,8 +148,12 @@ select {
   color: var(--text-primary);
   width: 40px;
   height: 40px;
-  border-radius: 12px;
+  border-radius: 14px;
   cursor: pointer;
+}
+
+.app-shell-menu-btn.mobile-only {
+  display: none;
 }
 
 .app-shell-overlay {
@@ -496,10 +503,15 @@ select {
 
 .history-alert-item,
 .alert-card {
+  display: block;
   border: 1px solid rgba(225, 29, 72, 0.28);
   border-radius: 14px;
   background: rgba(225, 29, 72, 0.07);
   padding: 14px;
+}
+
+.history-alert-item:hover {
+  border-color: rgba(251, 113, 133, 0.45);
 }
 
 .history-alert-type {
@@ -547,6 +559,10 @@ select {
     display: inline-flex;
   }
 
+  .app-shell-menu-btn.mobile-only {
+    display: inline-flex;
+  }
+
   .app-shell-main {
     padding-bottom: 112px;
   }
@@ -580,16 +596,19 @@ select {
 
 /* ── Bento Tile ── */
 .bento-tile {
-  background: var(--canvas-secondary);
-  border: 1px solid var(--border);
-  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.94));
+  border: 1px solid rgba(71, 85, 105, 0.72);
+  border-radius: 18px;
   padding: 20px;
   position: relative;
-  transition: border-color 0.2s ease;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
 }
 
 .bento-tile:hover {
-  border-color: var(--accent-cyan);
+  border-color: rgba(6, 182, 212, 0.42);
+  transform: translateY(-1px);
 }
 
 .bento-tile .tile-label {
@@ -712,7 +731,7 @@ select {
   font-weight: 600;
   font-size: 12px;
   padding: 9px 12px;
-  border-radius: 2px;
+  border-radius: 12px;
   cursor: pointer;
 }
 
@@ -732,9 +751,9 @@ select {
 }
 
 .report-metric {
-  border: 1px solid var(--border);
+  border: 1px solid rgba(71, 85, 105, 0.72);
   background: rgba(15, 23, 42, 0.5);
-  border-radius: 2px;
+  border-radius: 14px;
   padding: 10px;
 }
 

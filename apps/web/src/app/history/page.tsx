@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   Area,
@@ -12,11 +13,12 @@ import {
 import { usePrimaryDevice } from "@/hooks/usePrimaryDevice";
 
 type HistoryPeriod = "day" | "week" | "month";
+type HistoryMetric = "energy_kwh" | "power_w" | "current_amp" | "voltage";
 
 type HistoryResponse = {
   period: HistoryPeriod;
   date: string;
-  chartMetric: "energy_kwh" | "daily_kwh";
+  chartMetric: HistoryMetric;
   chartPoints: Array<{
     label: string;
     value: number;
@@ -52,9 +54,47 @@ function getPhTodayKey() {
   return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`;
 }
 
+const METRIC_OPTIONS: Array<{
+  key: HistoryMetric;
+  label: string;
+  yAxisUnit: string;
+  tooltipLabel: string;
+  digits: number;
+}> = [
+  {
+    key: "energy_kwh",
+    label: "Energy",
+    yAxisUnit: " kWh",
+    tooltipLabel: "Energy",
+    digits: 4,
+  },
+  {
+    key: "power_w",
+    label: "Power",
+    yAxisUnit: " W",
+    tooltipLabel: "Power",
+    digits: 1,
+  },
+  {
+    key: "current_amp",
+    label: "Current",
+    yAxisUnit: " A",
+    tooltipLabel: "Current",
+    digits: 3,
+  },
+  {
+    key: "voltage",
+    label: "Voltage",
+    yAxisUnit: " V",
+    tooltipLabel: "Voltage",
+    digits: 1,
+  },
+];
+
 export default function HistoryPage() {
   const { deviceId, isLoading: isDeviceLoading } = usePrimaryDevice();
   const [period, setPeriod] = useState<HistoryPeriod>("day");
+  const [metric, setMetric] = useState<HistoryMetric>("energy_kwh");
   const [selectedDate, setSelectedDate] = useState(getPhTodayKey);
   const [history, setHistory] = useState<HistoryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -74,6 +114,7 @@ export default function HistoryPage() {
           deviceId,
           period,
           date: selectedDate,
+          metric,
         });
         const res = await fetch(`/api/history?${params.toString()}`, {
           cache: "no-store",
@@ -99,7 +140,21 @@ export default function HistoryPage() {
     return () => {
       isMounted = false;
     };
-  }, [deviceId, period, selectedDate]);
+  }, [deviceId, period, selectedDate, metric]);
+
+  const selectedMetric = METRIC_OPTIONS.find((option) => option.key === metric) ?? METRIC_OPTIONS[0];
+  const timelineTitle = selectedMetric.key === "energy_kwh"
+    ? period === "day"
+      ? "Energy Timeline"
+      : "Daily Energy Timeline"
+    : `${selectedMetric.label} Timeline`;
+  const timelineHelper = selectedMetric.key === "energy_kwh"
+    ? period === "day"
+      ? "meter reading (kWh)"
+      : "daily consumption (kWh)"
+    : period === "day"
+      ? `${selectedMetric.label.toLowerCase()} readings`
+      : `daily average ${selectedMetric.label.toLowerCase()}`;
 
   const chartWidth = Math.max(860, (history?.chartPoints.length ?? 1) * (period === "day" ? 18 : 78));
 
@@ -129,6 +184,19 @@ export default function HistoryPage() {
               }}
             >
               {option}
+            </button>
+          ))}
+        </div>
+
+        <div className="segmented-control" aria-label="Timeline metric selector">
+          {METRIC_OPTIONS.map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              className={`segmented-control-btn ${metric === option.key ? "active" : ""}`}
+              onClick={() => setMetric(option.key)}
+            >
+              {option.label}
             </button>
           ))}
         </div>
@@ -189,9 +257,9 @@ export default function HistoryPage() {
             <article className="history-panel history-panel-wide">
               <div className="panel-header-row">
                 <div>
-                  <div className="tile-label">Energy Timeline</div>
+                  <div className="tile-label">{timelineTitle}</div>
                   <div className="panel-copy">
-                    Scroll horizontally to inspect the full selected {period}. Samples in range: {history.sampleCount}.
+                    Scroll horizontally to inspect the full selected {period} {timelineHelper}. Samples in range: {history.sampleCount}.
                     {period !== "day" && history.chartPoints.length > 0 && (
                       <span style={{ color: "var(--accent-cyan)", marginLeft: "6px" }}>
                         (Click on a day to view its detailed timeline)
@@ -229,14 +297,21 @@ export default function HistoryPage() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                       <XAxis dataKey="label" stroke="#64748B" tick={{ fontSize: 11 }} minTickGap={24} />
-                      <YAxis stroke="#64748B" tick={{ fontSize: 11 }} unit=" kWh" />
+                      <YAxis stroke="#64748B" tick={{ fontSize: 11 }} unit={selectedMetric.yAxisUnit} />
                       <Tooltip
                         contentStyle={{
                           background: "#0F172A",
                           border: "1px solid #475569",
                           borderRadius: 10,
                         }}
-                        formatter={(value: number) => [value.toFixed(4), history.chartMetric === "energy_kwh" ? "Meter energy" : "Daily consumption"]}
+                        formatter={(value: number) => [
+                          value.toFixed(selectedMetric.digits),
+                          history.chartMetric === "energy_kwh"
+                            ? period === "day"
+                              ? "Meter energy"
+                              : "Daily consumption"
+                            : selectedMetric.tooltipLabel,
+                        ]}
                         labelFormatter={(_, payload) => payload?.[0]?.payload?.recordedAt ? new Date(payload[0].payload.recordedAt).toLocaleString() : ""}
                       />
                       <Area
@@ -253,18 +328,18 @@ export default function HistoryPage() {
             </article>
 
             <article className="history-panel">
-              <div className="tile-label">Alerts In Range</div>
+              <Link href="/alerts" className="tile-label" style={{ display: "inline-flex" }}>Alerts In Range</Link>
               <div className="panel-copy">Events recorded during the selected period.</div>
               {history.alerts.length === 0 ? (
                 <div className="page-empty compact">No alerts for this period.</div>
               ) : (
                 <div className="history-alert-list">
                   {history.alerts.map((alert) => (
-                    <div key={alert.id} className="history-alert-item">
+                    <Link key={alert.id} href="/alerts" className="history-alert-item">
                       <div className="history-alert-type">{alert.type.replaceAll("_", " ")}</div>
                       <div className="history-alert-message">{alert.message}</div>
                       <div className="history-alert-time">{new Date(alert.created_at).toLocaleString()}</div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               )}
