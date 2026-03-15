@@ -16,21 +16,31 @@ export async function GET() {
 export async function PUT(req: NextRequest) {
   try {
     const updates = await req.json();
-    // updates: { type: string, min_value?: number, max_value?: number }[]
+    // updates: { overvoltage?: number, undervoltage?: number, overcurrent?: number, high_power?: number }
 
     const client = getSupabaseAdmin();
 
-    for (const threshold of updates) {
-      const { error } = await client
-        .from("alert_thresholds")
-        .update({
-          min_value: threshold.min_value,
-          max_value: threshold.max_value,
-        })
-        .eq("metric", threshold.metric);
+    // Fetch the ID of the first (and only) threshold row
+    const { data: existing, error: fetchError } = await client
+      .from("alert_thresholds")
+      .select("id")
+      .limit(1)
+      .single();
 
-      if (error) throw error;
-    }
+    if (fetchError) throw fetchError;
+
+    const { error } = await client
+      .from("alert_thresholds")
+      .update({
+        overvoltage: updates.overvoltage,
+        undervoltage: updates.undervoltage,
+        overcurrent: updates.overcurrent,
+        high_power: updates.high_power,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existing.id);
+
+    if (error) throw error;
 
     return NextResponse.json({ status: "updated" });
   } catch (err) {

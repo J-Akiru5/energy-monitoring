@@ -2,22 +2,15 @@
 
 import { useEffect, useState } from "react";
 
-interface Threshold {
-  id: string;
-  metric: string;
-  min_value: number | null;
-  max_value: number | null;
+interface Thresholds {
+  overvoltage: number | null;
+  undervoltage: number | null;
+  overcurrent: number | null;
+  high_power: number | null;
 }
 
-const METRIC_LABELS: Record<string, { label: string; unit: string }> = {
-  voltage: { label: "Voltage", unit: "V" },
-  current: { label: "Current", unit: "A" },
-  power: { label: "Power", unit: "W" },
-  frequency: { label: "Frequency", unit: "Hz" },
-};
-
 export default function ThresholdsPage() {
-  const [thresholds, setThresholds] = useState<Threshold[]>([]);
+  const [thresholds, setThresholds] = useState<Thresholds | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
@@ -25,22 +18,19 @@ export default function ThresholdsPage() {
   useEffect(() => {
     fetch("/api/thresholds")
       .then((r) => r.json())
-      .then((d) => setThresholds(d.thresholds || []))
+      .then((d) => setThresholds(d.thresholds))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
-  const updateThreshold = (metric: string, field: "min_value" | "max_value", value: string) => {
+  const updateThreshold = (field: keyof Thresholds, value: string) => {
     setThresholds((prev) =>
-      prev.map((t) =>
-        t.metric === metric
-          ? { ...t, [field]: value === "" ? null : parseFloat(value) }
-          : t
-      )
+      prev ? { ...prev, [field]: value === "" ? null : parseFloat(value) } : null
     );
   };
 
   const handleSave = async () => {
+    if (!thresholds) return;
     setSaving(true);
     setSaveMsg("");
 
@@ -76,7 +66,7 @@ export default function ThresholdsPage() {
         <div className="panel">
           <div className="panel-header">
             <h3>Threshold Configuration</h3>
-            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving || !thresholds}>
               {saving ? "Saving..." : "Save Changes"}
             </button>
           </div>
@@ -84,55 +74,83 @@ export default function ThresholdsPage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Metric</th>
-                  <th>Minimum</th>
-                  <th>Maximum</th>
+                  <th>Metric Name</th>
+                  <th>Threshold Value</th>
                   <th>Unit</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={4} style={{ textAlign: "center", color: "var(--text-muted)" }}>
+                    <td colSpan={3} style={{ textAlign: "center", color: "var(--text-muted)" }}>
                       Loading...
                     </td>
                   </tr>
-                ) : thresholds.length === 0 ? (
+                ) : !thresholds ? (
                   <tr>
-                    <td colSpan={4} style={{ textAlign: "center", color: "var(--text-muted)" }}>
+                    <td colSpan={3} style={{ textAlign: "center", color: "var(--text-muted)" }}>
                       No thresholds configured. Run schema.sql to seed defaults.
                     </td>
                   </tr>
                 ) : (
-                  thresholds.map((t) => {
-                    const meta = METRIC_LABELS[t.metric] || { label: t.metric, unit: "" };
-                    return (
-                      <tr key={t.metric}>
-                        <td style={{ fontWeight: 500, color: "var(--text-primary)" }}>{meta.label}</td>
-                        <td>
-                          <input
-                            className="form-input"
-                            type="number"
-                            style={{ maxWidth: 140, background: "transparent" }}
-                            value={t.min_value ?? ""}
-                            onChange={(e) => updateThreshold(t.metric, "min_value", e.target.value)}
-                            placeholder="—"
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="form-input"
-                            type="number"
-                            style={{ maxWidth: 140, background: "transparent" }}
-                            value={t.max_value ?? ""}
-                            onChange={(e) => updateThreshold(t.metric, "max_value", e.target.value)}
-                            placeholder="—"
-                          />
-                        </td>
-                        <td className="mono">{meta.unit}</td>
-                      </tr>
-                    );
-                  })
+                  <>
+                    <tr>
+                      <td style={{ fontWeight: 500, color: "var(--text-primary)" }}>Overvoltage (Max)</td>
+                      <td>
+                        <input
+                          className="form-input"
+                          type="number"
+                          style={{ maxWidth: 140, background: "transparent" }}
+                          value={thresholds.overvoltage ?? ""}
+                          onChange={(e) => updateThreshold("overvoltage", e.target.value)}
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="mono">V</td>
+                    </tr>
+                    <tr>
+                      <td style={{ fontWeight: 500, color: "var(--text-primary)" }}>Undervoltage (Min)</td>
+                      <td>
+                        <input
+                          className="form-input"
+                          type="number"
+                          style={{ maxWidth: 140, background: "transparent" }}
+                          value={thresholds.undervoltage ?? ""}
+                          onChange={(e) => updateThreshold("undervoltage", e.target.value)}
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="mono">V</td>
+                    </tr>
+                    <tr>
+                      <td style={{ fontWeight: 500, color: "var(--text-primary)" }}>Overcurrent (Max)</td>
+                      <td>
+                        <input
+                          className="form-input"
+                          type="number"
+                          style={{ maxWidth: 140, background: "transparent" }}
+                          value={thresholds.overcurrent ?? ""}
+                          onChange={(e) => updateThreshold("overcurrent", e.target.value)}
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="mono">A</td>
+                    </tr>
+                    <tr>
+                      <td style={{ fontWeight: 500, color: "var(--text-primary)" }}>High Power (Max)</td>
+                      <td>
+                        <input
+                          className="form-input"
+                          type="number"
+                          style={{ maxWidth: 140, background: "transparent" }}
+                          value={thresholds.high_power ?? ""}
+                          onChange={(e) => updateThreshold("high_power", e.target.value)}
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="mono">W</td>
+                    </tr>
+                  </>
                 )}
               </tbody>
             </table>
