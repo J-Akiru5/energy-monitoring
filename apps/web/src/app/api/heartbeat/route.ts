@@ -31,7 +31,7 @@ export async function GET() {
         
         // 4. Check if there's already an unread offline alert for this device to avoid spam
         const unreadAlerts = await getUnreadAlerts(device.id);
-        const hasOfflineAlert = unreadAlerts.some((a: any) => a.type === "DEVICE_OFFLINE");
+        const hasOfflineAlert = unreadAlerts.some((a) => a.type === "DEVICE_OFFLINE");
 
         if (!hasOfflineAlert) {
           await createAlert({
