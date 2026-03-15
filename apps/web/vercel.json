@@ -1,7 +1,19 @@
 {
-  "framework": "nextjs",
-  "installCommand": "cd ../.. && pnpm install",
-  "buildCommand": "cd ../.. && pnpm turbo build --filter=web",
-  "outputDirectory": ".next",
-  "ignoreCommand": "npx turbo-ignore web"
+  "crons": [
+    {
+      "path": "/api/heartbeat",
+      "schedule": "*/2 * * * *"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        }
+      ]
+    }
+  ]
 }

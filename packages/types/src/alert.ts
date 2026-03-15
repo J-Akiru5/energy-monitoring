@@ -8,6 +8,7 @@ export const AlertTypeEnum = z.enum([
   "OVERCURRENT",
   "HIGH_POWER",
   "DEVICE_OFFLINE",
+  "BLACKOUT",
 ]);
 
 export type AlertType = z.infer<typeof AlertTypeEnum>;

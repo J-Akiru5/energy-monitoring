@@ -61,8 +61,21 @@ export async function POST(req: NextRequest) {
     // ── 4. Write Reading to Database ──
     await insertReading(payload);
 
-    // ── 5. Alert Engine — Check Thresholds ──
-    await checkThresholds(payload.deviceId, payload.reading);
+    // ── 5. Alert Engine & Blackout Detection ──
+    if (payload.blackout) {
+      // If it's a blackout, trigger the specific alert and skip normal thresholds
+      // because 0V would normally falsely trigger UNDERVOLTAGE.
+      await createAlert({
+        deviceId: payload.deviceId,
+        type: "BLACKOUT",
+        value: 0,
+        threshold: 0,
+        message: "CRITICAL: Mains power blackout detected (0V AC).",
+      });
+    } else {
+      // Normal threshold checks
+      await checkThresholds(payload.deviceId, payload.reading);
+    }
 
     return NextResponse.json({ status: "ok" }, { status: 200 });
   } catch (err) {
