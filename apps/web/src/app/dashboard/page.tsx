@@ -33,6 +33,32 @@ interface AlertItem {
   is_read: boolean;
 }
 
+interface ReportSummary {
+  generatedAt: string;
+  ratePhpPerKwh: number;
+  current: {
+    dayKwh: number;
+    weekKwh: number;
+    monthKwh: number;
+    monthLabel: string;
+    dayEstimatedPhp: number;
+    weekEstimatedPhp: number;
+    monthEstimatedPhp: number;
+  };
+  averages: {
+    dayKwh: number;
+    weekKwh: number;
+    monthKwh: number;
+    dayEstimatedPhp: number;
+    weekEstimatedPhp: number;
+    monthEstimatedPhp: number;
+  };
+  monthlyHistory: Array<{
+    period: string;
+    totalKwh: number;
+  }>;
+}
+
 // ── Default device ID for development (matches mock-sensor default) ──
 // ── Device ID is loaded dynamically from /api/devices on mount ──
 // This eliminates UUID drift between the DB, Arduino firmware, and this file.
@@ -66,6 +92,9 @@ export default function DashboardPage() {
   const [chartData, setChartData] = useState<Reading[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [billing, setBilling] = useState<{ totalKwh: number; estimatedCostPhp: number } | null>(null);
+  const [reportSummary, setReportSummary] = useState<ReportSummary | null>(null);
+  const [isReportLoading, setIsReportLoading] = useState(false);
+  const [isReportDownloading, setIsReportDownloading] = useState(false);
   const prevValuesRef = useRef<{ v: number; a: number; w: number; pf: number }>({
     v: 0, a: 0, w: 0, pf: 0,
   });
@@ -95,11 +124,74 @@ export default function DashboardPage() {
       .then((r) => r.json())
       .then((d) => setAlerts(d.alerts || []))
       .catch(console.error);
+  }, [deviceId]);
 
-    fetch(`/api/billing?deviceId=${deviceId}`)
-      .then((r) => r.json())
-      .then((d) => setBilling(d))
-      .catch(console.error);
+  // Refresh report summary at a slower cadence (analytics, not live telemetry).
+  useEffect(() => {
+    if (!deviceId) return;
+
+    let isMounted = true;
+
+    const refreshSummary = async () => {
+      if (isMounted) setIsReportLoading(true);
+      try {
+        const res = await fetch(`/api/reports/summary?deviceId=${deviceId}`, {
+          cache: "no-store",
+        });
+
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!isMounted) return;
+        setReportSummary(data);
+      } catch (err) {
+        console.error("[dashboard] Failed to refresh report summary:", err);
+      } finally {
+        if (isMounted) setIsReportLoading(false);
+      }
+    };
+
+    refreshSummary();
+    const interval = setInterval(refreshSummary, 60_000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [deviceId]);
+
+  // Keep billing estimate in sync with incoming readings.
+  useEffect(() => {
+    if (!deviceId) return;
+
+    let isMounted = true;
+
+    const refreshBilling = async () => {
+      try {
+        const res = await fetch(`/api/billing?deviceId=${deviceId}`, {
+          cache: "no-store",
+        });
+
+        if (!res.ok) return;
+
+        const d = await res.json();
+        if (!isMounted) return;
+
+        setBilling({
+          totalKwh: Number(d.totalKwh ?? 0),
+          estimatedCostPhp: Number(d.estimatedCostPhp ?? 0),
+        });
+      } catch (err) {
+        console.error("[dashboard] Failed to refresh billing:", err);
+      }
+    };
+
+    refreshBilling();
+    const interval = setInterval(refreshBilling, 6_000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [deviceId]);
 
   // ── Append new SSE readings to chart + flash values ──
@@ -169,6 +261,40 @@ export default function DashboardPage() {
       body: JSON.stringify({ alertId }),
     });
     setAlerts((prev) => prev.filter((a) => a.id !== alertId));
+  };
+
+  const downloadReportPdf = async () => {
+    if (!deviceId || isReportDownloading) return;
+
+    setIsReportDownloading(true);
+    try {
+      const res = await fetch(`/api/reports/pdf?deviceId=${deviceId}`, {
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        console.error("[dashboard] Failed to download PDF report");
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+
+      const contentDisposition = res.headers.get("content-disposition") ?? "";
+      const match = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
+
+      a.href = url;
+      a.download = match?.[1] ?? "consumption-summary.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("[dashboard] PDF download error:", err);
+    } finally {
+      setIsReportDownloading(false);
+    }
   };
 
   return (
@@ -380,8 +506,91 @@ export default function DashboardPage() {
             Grid frequency
           </div>
         </div>
+
+        {/* ──── REPORT SUMMARY TILE ──── */}
+        <div className="bento-tile report-tile" style={{ gridColumn: "span 12" }}>
+          <div className="report-header">
+            <div>
+              <div className="tile-label">Consumption Summary Report</div>
+              <div className="report-subtitle">
+                Averages: day (last 30d), week (last 8w), month (last 6 complete months)
+              </div>
+            </div>
+            <button
+              className="report-download-btn"
+              onClick={downloadReportPdf}
+              disabled={!deviceId || isReportDownloading}
+            >
+              {isReportDownloading ? "Generating PDF..." : "Generate PDF"}
+            </button>
+          </div>
+
+          {isReportLoading && !reportSummary ? (
+            <div className="report-muted">Loading consumption summary...</div>
+          ) : (
+            <>
+              <div className="report-grid">
+                <ReportMetric
+                  label="Average / Day"
+                  kwh={reportSummary?.averages.dayKwh ?? 0}
+                  cost={reportSummary?.averages.dayEstimatedPhp ?? 0}
+                />
+                <ReportMetric
+                  label="Average / Week"
+                  kwh={reportSummary?.averages.weekKwh ?? 0}
+                  cost={reportSummary?.averages.weekEstimatedPhp ?? 0}
+                />
+                <ReportMetric
+                  label="Average / Month"
+                  kwh={reportSummary?.averages.monthKwh ?? 0}
+                  cost={reportSummary?.averages.monthEstimatedPhp ?? 0}
+                />
+                <ReportMetric
+                  label="Current Month"
+                  kwh={reportSummary?.current.monthKwh ?? 0}
+                  cost={reportSummary?.current.monthEstimatedPhp ?? 0}
+                />
+              </div>
+
+              <div className="report-history">
+                <div className="report-history-title">Monthly History</div>
+                {reportSummary?.monthlyHistory?.length ? (
+                  <div className="report-history-list">
+                    {reportSummary.monthlyHistory.map((item) => (
+                      <span key={item.period} className="report-history-item">
+                        {item.period}: {item.totalKwh.toFixed(2)} kWh
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="report-muted">Not enough historical data yet.</div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </>
+  );
+}
+
+function ReportMetric({
+  label,
+  kwh,
+  cost,
+}: {
+  label: string;
+  kwh: number;
+  cost: number;
+}) {
+  return (
+    <div className="report-metric">
+      <div className="report-metric-label">{label}</div>
+      <div className="report-metric-kwh">{kwh.toFixed(3)} kWh</div>
+      <div className="report-metric-cost">
+        ~ ₱{cost.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </div>
+    </div>
   );
 }
 
