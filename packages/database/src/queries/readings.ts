@@ -12,6 +12,9 @@ export async function insertReading(payload: TelemetryPayload) {
     device_id: payload.deviceId,
     voltage: reading.voltage,
     current_amp: reading.current,
+    power_w: reading.power,
+    energy_kwh: reading.energy,
+    frequency: reading.frequency,
     power_factor: reading.powerFactor,
     recorded_at: payload.timestamp,
   });
