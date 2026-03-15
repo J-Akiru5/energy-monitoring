@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePolling } from "@/hooks/usePolling";
 import { useEffect, useState, useRef, startTransition } from "react";
 import {
@@ -70,17 +71,6 @@ function parseDBDate(iso: string): Date {
   return new Date(dateString);
 }
 
-function formatTimeAgo(iso: string): string {
-  const diffMs = Date.now() - parseDBDate(iso).getTime();
-  const secs = Math.floor(diffMs / 1000);
-  if (secs < 60) return `${secs}s ago`;
-  const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins} min ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} hr ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
-
 // Keep enough points for a full 24h window even at high sampling rates.
 const MAX_CHART_POINTS = 100000;
 
@@ -117,7 +107,7 @@ function mergeReadings(
 export default function DashboardPage() {
   // Dynamically resolved from /api/devices — avoids UUID hardcoding
   const [deviceId, setDeviceId] = useState<string | null>(null);
-  const { latestReading, isConnected } = usePolling(deviceId);
+  const { latestReading } = usePolling(deviceId);
   const [chartData, setChartData] = useState<Reading[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [billing, setBilling] = useState<{ totalKwh: number; estimatedCostPhp: number } | null>(null);
@@ -350,28 +340,22 @@ export default function DashboardPage() {
   };
 
   return (
-    <>
-      {/* ── Navbar ── */}
-      <nav className="navbar">
-        <div className="navbar-title">
-          ⚡ Energy Monitor
+    <div className="page-shell">
+      <section className="page-header page-header-split">
+        <div>
+          <div className="page-eyebrow">Live Monitoring</div>
+          <h1 className="page-title">Realtime Dashboard</h1>
+          <p className="page-copy">
+            Live telemetry stays here. Historical review, date-based summaries, and scrollable ranges now live in the History view.
+          </p>
         </div>
-        <div className="navbar-status">
-          <span className={`status-dot ${isConnected ? "online" : "offline"}`} />
-          {isConnected ? "Live" : "Offline"}
-          {!isConnected && latestReading?.recorded_at && (
-            <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 4 }}>
-              · Last seen {formatTimeAgo(latestReading.recorded_at)}
-            </span>
-          )}
-          {alerts.length > 0 && (
-            <span className="alert-badge">{alerts.length}</span>
-          )}
-        </div>
-      </nav>
+        <Link href="/history" className="primary-btn">
+          Open History
+        </Link>
+      </section>
 
       {/* ── Bento Grid ── */}
-      <div className="bento-grid">
+      <div className="bento-grid bento-grid-page">
         {/* ──── HERO: 24h Energy Chart ──── */}
         <div
           className="bento-tile"
@@ -622,7 +606,7 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
