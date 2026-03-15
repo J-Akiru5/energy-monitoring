@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLast24hReadings, getLatestReading } from "@energy/database";
 
+// Force Next.js to never cache this route — it serves live sensor data.
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/readings?deviceId=<id>
  * GET /api/readings?deviceId=<id>&limit=1   ← used by the polling hook
