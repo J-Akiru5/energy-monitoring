@@ -133,6 +133,10 @@ export default function DashboardPage() {
 
     startTransition(() => {
       setChartData((prev) => {
+        // Only append if this reading is actually newer (dedup by id)
+        if (prev.length > 0 && prev[prev.length - 1].recorded_at === reading.recorded_at) {
+          return prev;
+        }
         const updated = [...prev, reading];
         return updated.length > 500 ? updated.slice(-500) : updated;
       });

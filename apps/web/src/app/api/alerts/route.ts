@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUnreadAlerts, markAlertRead } from "@energy/database";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/alerts?deviceId=<optional>
  * Returns unread alerts.

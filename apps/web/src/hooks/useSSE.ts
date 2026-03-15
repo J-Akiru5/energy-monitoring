@@ -48,7 +48,7 @@ export function useSSE(deviceId: string | null) {
       try {
         const res = await fetch(
           `/api/readings?deviceId=${deviceId}&limit=1`,
-          { signal: abortRef.current.signal }
+          { signal: abortRef.current.signal, cache: "no-store" }
         );
 
         if (!res.ok) {

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { listDevices } from "@energy/database";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/devices
  * Returns the list of registered, active devices.
