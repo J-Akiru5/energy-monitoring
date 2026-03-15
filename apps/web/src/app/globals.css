@@ -813,6 +813,12 @@ select {
     flex-direction: column;
   }
 
+  /* Force all explicitly spanned tiles to take full width on mobile */
+  .bento-tile[style] {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+  }
+
   .summary-grid,
   .compact-grid,
   .history-layout {
