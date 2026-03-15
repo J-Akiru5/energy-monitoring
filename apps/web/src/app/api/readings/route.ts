@@ -9,8 +9,10 @@ export const dynamic = "force-dynamic";
  * GET /api/readings?deviceId=<id>&limit=1   ← used by the polling hook
  *
  * Returns historical readings for the dashboard chart.
- * When limit=1 is specified, returns only the latest reading
- * (much faster — avoids fetching 24h of rows for live tiles).
+ * When limit=1, also returns `age_ms` — the server-computed milliseconds
+ * since the last reading. The client uses this for staleness detection
+ * instead of doing its own Date.now() math against the device timestamp
+ * (which can be wrong if the ESP32 clock has a timezone offset bug).
  */
 export async function GET(req: NextRequest) {
   try {
@@ -24,7 +26,11 @@ export async function GET(req: NextRequest) {
     // Fast path: polling hook requests only the latest row
     if (limit === "1") {
       const latest = await getLatestReading(deviceId);
-      return NextResponse.json({ readings: latest ? [latest] : [] });
+      // Compute age on the server — immune to device clock drift
+      const age_ms = latest
+        ? Date.now() - new Date(latest.recorded_at).getTime()
+        : null;
+      return NextResponse.json({ readings: latest ? [latest] : [], age_ms });
     }
 
     const readings = await getLast24hReadings(deviceId);
@@ -34,3 +40,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Failed to fetch readings" }, { status: 500 });
   }
 }
+
