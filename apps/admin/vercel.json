@@ -1,7 +1,7 @@
 {
   "framework": "nextjs",
   "installCommand": "cd ../.. && pnpm install",
-  "buildCommand": "cd ../.. && pnpm turbo build --filter=@energy/admin",
+  "buildCommand": "cd ../.. && pnpm turbo build --filter=@energy/admin --env-mode=loose",
   "outputDirectory": ".next",
   "ignoreCommand": "npx turbo-ignore @energy/admin"
 }
