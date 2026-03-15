@@ -9,12 +9,28 @@ export default function BillingPage() {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
 
+  const extractRate = (payload: unknown): number | null => {
+    if (!payload || typeof payload !== "object") return null;
+
+    const source = payload as {
+      ratePhpPerKwh?: unknown;
+      rate_php_per_kwh?: unknown;
+      rate_per_kwh?: unknown;
+    };
+
+    const value = Number(
+      source.ratePhpPerKwh ?? source.rate_php_per_kwh ?? source.rate_per_kwh
+    );
+    return Number.isFinite(value) && value > 0 ? value : null;
+  };
+
   useEffect(() => {
-    fetch("/api/billing")
+    fetch("/api/billing", { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => {
-        setRate(d.rate_per_kwh);
-        setInputValue(String(d.rate_per_kwh ?? ""));
+        const nextRate = extractRate(d);
+        setRate(nextRate);
+        setInputValue(nextRate !== null ? String(nextRate) : "");
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -38,7 +54,10 @@ export default function BillingPage() {
       });
 
       if (res.ok) {
-        setRate(parsed);
+        const data = await res.json();
+        const savedRate = extractRate(data) ?? parsed;
+        setRate(savedRate);
+        setInputValue(String(savedRate));
         setSaveMsg("✓ Billing rate updated.");
       } else {
         const data = await res.json();

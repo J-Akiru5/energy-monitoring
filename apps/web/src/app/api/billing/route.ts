@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMonthlyEnergy, getBillingRate } from "@energy/database";
 
+// Billing should always reflect latest readings and latest admin-configured rate.
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/billing?deviceId=<id>&month=2026-02
  * Calculates estimated PHP cost for the given month.
@@ -25,14 +28,19 @@ export async function GET(req: NextRequest) {
       getBillingRate(),
     ]);
 
-    const rate = rateConfig?.rate_php_per_kwh ?? 10;
-    const estimatedCost = (totalKwh as number) * rate;
+    const totalKwhValue = Number(totalKwh ?? 0);
+    const rate = Number(rateConfig?.rate_php_per_kwh ?? 10);
+    const estimatedCost = totalKwhValue * rate;
 
     return NextResponse.json({
-      totalKwh,
+      totalKwh: Number(totalKwhValue.toFixed(4)),
       ratePhpPerKwh: rate,
       estimatedCostPhp: Math.round(estimatedCost * 100) / 100,
       period: `${year}-${String(month).padStart(2, "0")}`,
+    }, {
+      headers: {
+        "Cache-Control": "no-store",
+      },
     });
   } catch (err) {
     console.error("[/api/billing] Error:", err);

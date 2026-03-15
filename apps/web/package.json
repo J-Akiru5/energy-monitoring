@@ -9,9 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@energy/types": "workspace:*",
     "@energy/database": "workspace:*",
+    "@energy/types": "workspace:*",
     "next": "16.1.6",
+    "pdf-lib": "^1.17.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "^2.15.0",
