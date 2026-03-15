@@ -53,10 +53,11 @@ export async function listDevices() {
   const { data, error } = await supabase
     .from("devices")
     .select("*")
+    .eq("is_active", true)        // Only return devices that are registered & active
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(`List devices failed: ${error.message}`);
-  return data;
+  return data ?? [];
 }
 
 /**

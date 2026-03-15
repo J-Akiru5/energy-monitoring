@@ -51,6 +51,7 @@ export async function getLatestReading(deviceId: string) {
     .select("*")
     .eq("device_id", deviceId)
     .order("recorded_at", { ascending: false })
+    .order("id", { ascending: false }) // tie-breaker: use DB insert order
     .limit(1)
     .single();
 
@@ -60,6 +61,7 @@ export async function getLatestReading(deviceId: string) {
   }
   return data ?? null;
 }
+
 
 /**
  * Get total energy consumption for a given month (for billing).
