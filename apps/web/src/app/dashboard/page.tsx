@@ -38,7 +38,9 @@ interface AlertItem {
 
 // ── Helpers ──────────────────────────────────────────────────
 function parseDBDate(iso: string): Date {
-  return new Date(iso.endsWith("Z") || iso.includes("+") ? iso : iso + "Z");
+  const hasTimezone = iso.endsWith("Z") || /([+-][0-9]{2}:[0-9]{2})$/.test(iso);
+  const dateString = hasTimezone ? iso : `${iso}Z`;
+  return new Date(dateString);
 }
 
 function formatTimeAgo(iso: string): string {
