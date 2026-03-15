@@ -273,6 +273,12 @@ void readAndSend() {
 
   doc["timestamp"] = getTimestamp();
 
+  // If voltage is exactly 0.00 (but not NaN), it means mains AC power is cut (Blackout)
+  if (voltage == 0.0) {
+    doc["blackout"] = true;
+    Serial.println("[ALERT] Mains blackout detected (0V). Flagging payload.");
+  }
+
   String payload;
   serializeJson(doc, payload);
 
