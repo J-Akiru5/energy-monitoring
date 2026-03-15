@@ -65,7 +65,11 @@ export function useSSE(deviceId: string | null) {
 
           // ── Option B: Absolute time staleness check ──
           const recordedStr = reading.recorded_at;
-          const recordedMs = new Date(recordedStr.endsWith("Z") || recordedStr.includes("+") ? recordedStr : recordedStr + "Z").getTime();
+          // Only append Z if there is no timezone indicator in the string at all
+          const hasTimezone = recordedStr.endsWith("Z") || /([+-][0-9]{2}:[0-9]{2})$/.test(recordedStr);
+          const dateString = hasTimezone ? recordedStr : `${recordedStr}Z`;
+          
+          const recordedMs = new Date(dateString).getTime();
           const nowMs = Date.now();
           const isStale = nowMs - recordedMs > STALE_THRESHOLD_MS;
 
