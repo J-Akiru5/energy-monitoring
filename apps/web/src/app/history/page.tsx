@@ -45,6 +45,31 @@ type HistoryResponse = {
   sampleCount: number;
 };
 
+type BlackoutResponse = {
+  period: HistoryPeriod;
+  date: string;
+  events: Array<{
+    id: string;
+    startedAt: string;
+    endedAt: string | null;
+    durationSeconds: number | null;
+    durationFormatted: string;
+    isOngoing: boolean;
+  }>;
+  stats: {
+    totalEvents: number;
+    completedEvents: number;
+    totalDurationSeconds: number;
+    totalDurationFormatted: string;
+    averageDurationSeconds: number;
+    averageDurationFormatted: string;
+    longestDurationSeconds: number;
+    longestDurationFormatted: string;
+    shortestDurationSeconds: number;
+    shortestDurationFormatted: string;
+  };
+};
+
 function pad(value: number) {
   return String(value).padStart(2, "0");
 }
@@ -100,6 +125,10 @@ export default function HistoryPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Blackout monitoring state
+  const [blackouts, setBlackouts] = useState<BlackoutResponse | null>(null);
+  const [isLoadingBlackouts, setIsLoadingBlackouts] = useState(false);
+
   useEffect(() => {
     if (!deviceId) return;
 
@@ -141,6 +170,44 @@ export default function HistoryPage() {
       isMounted = false;
     };
   }, [deviceId, period, selectedDate, metric]);
+
+  // Fetch blackout data parallel to history data
+  useEffect(() => {
+    if (!deviceId) return;
+
+    let isMounted = true;
+
+    const loadBlackouts = async () => {
+      setIsLoadingBlackouts(true);
+      try {
+        const params = new URLSearchParams({
+          deviceId,
+          period,
+          date: selectedDate,
+        });
+        const res = await fetch(`/api/blackouts?${params.toString()}`, {
+          cache: "no-store",
+        });
+
+        if (!res.ok) throw new Error("Unable to load blackout data");
+        const data = await res.json();
+        if (!isMounted) return;
+        setBlackouts(data);
+      } catch (err) {
+        if (!isMounted) return;
+        console.error("Blackout fetch error:", err);
+        setBlackouts(null);
+      } finally {
+        if (isMounted) setIsLoadingBlackouts(false);
+      }
+    };
+
+    loadBlackouts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [deviceId, period, selectedDate]);
 
   const selectedMetric = METRIC_OPTIONS.find((option) => option.key === metric) ?? METRIC_OPTIONS[0];
   const timelineTitle = selectedMetric.key === "energy_kwh"
@@ -341,6 +408,87 @@ export default function HistoryPage() {
                       <div className="history-alert-time">{new Date(alert.created_at).toLocaleString()}</div>
                     </Link>
                   ))}
+                </div>
+              )}
+            </article>
+
+            {/* Blackout Monitoring Section */}
+            <article className="history-panel history-panel-wide">
+              <div className="panel-header-row">
+                <div>
+                  <div className="tile-label">Blackout Monitoring</div>
+                  <div className="panel-copy">
+                    Power outage events during the selected {period}.
+                  </div>
+                </div>
+              </div>
+
+              {isLoadingBlackouts ? (
+                <div className="page-empty compact">Loading blackout data...</div>
+              ) : blackouts && blackouts.stats.totalEvents > 0 ? (
+                <>
+                  {/* Statistics Cards */}
+                  <div className="blackout-stats-grid">
+                    <div className="blackout-stat-card">
+                      <div className="blackout-stat-label">Total Events</div>
+                      <div className="blackout-stat-value accent-rose">
+                        {blackouts.stats.totalEvents}
+                      </div>
+                    </div>
+                    <div className="blackout-stat-card">
+                      <div className="blackout-stat-label">Total Downtime</div>
+                      <div className="blackout-stat-value">
+                        {blackouts.stats.totalDurationFormatted}
+                      </div>
+                    </div>
+                    <div className="blackout-stat-card">
+                      <div className="blackout-stat-label">Average Duration</div>
+                      <div className="blackout-stat-value">
+                        {blackouts.stats.averageDurationFormatted}
+                      </div>
+                    </div>
+                    <div className="blackout-stat-card">
+                      <div className="blackout-stat-label">Longest Outage</div>
+                      <div className="blackout-stat-value accent-amber">
+                        {blackouts.stats.longestDurationFormatted}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Event Timeline */}
+                  <div className="blackout-event-list">
+                    {blackouts.events.map((event) => (
+                      <div
+                        key={event.id}
+                        className={`blackout-event-item ${event.isOngoing ? "ongoing" : ""}`}
+                      >
+                        <div className="blackout-event-header">
+                          <span className="blackout-event-status">
+                            {event.isOngoing ? "ONGOING" : "RESOLVED"}
+                          </span>
+                          <span className="blackout-event-duration">
+                            {event.durationFormatted}
+                          </span>
+                        </div>
+                        <div className="blackout-event-times">
+                          <div>
+                            <span className="time-label">Started:</span>{" "}
+                            {new Date(event.startedAt).toLocaleString()}
+                          </div>
+                          {event.endedAt && (
+                            <div>
+                              <span className="time-label">Ended:</span>{" "}
+                              {new Date(event.endedAt).toLocaleString()}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="page-empty compact">
+                  No blackout events recorded for this {period}.
                 </div>
               )}
             </article>

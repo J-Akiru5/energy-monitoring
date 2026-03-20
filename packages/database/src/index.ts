@@ -39,3 +39,12 @@ export {
   logRelayAction,
   getRelayLogs,
 } from "./queries/relay";
+
+// Blackout queries
+export {
+  getDeviceBlackoutState,
+  startBlackoutEvent,
+  endBlackoutEvent,
+  getBlackoutEvents,
+  getBlackoutStats,
+} from "./queries/blackouts";

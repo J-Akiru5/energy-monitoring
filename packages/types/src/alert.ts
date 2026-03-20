@@ -9,6 +9,7 @@ export const AlertTypeEnum = z.enum([
   "HIGH_POWER",
   "DEVICE_OFFLINE",
   "BLACKOUT",
+  "PZEM_OFFLINE",    // Sensor communication failure (ESP32 alive but can't talk to PZEM)
 ]);
 
 export type AlertType = z.infer<typeof AlertTypeEnum>;

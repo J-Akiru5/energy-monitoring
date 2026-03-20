@@ -8,6 +8,10 @@ export async function insertReading(payload: TelemetryPayload) {
   const supabase = getSupabaseAdmin();
   const { reading } = payload;
 
+  if (!reading) {
+    throw new Error("Cannot insert reading: reading data is missing");
+  }
+
   const { error } = await supabase.from("power_readings").insert({
     device_id: payload.deviceId,
     voltage: reading.voltage,
