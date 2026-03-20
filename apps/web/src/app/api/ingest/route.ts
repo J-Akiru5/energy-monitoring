@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TelemetryPayloadSchema } from "@energy/types";
-import { insertReading, validateDeviceToken, createAlert, getAlertThresholds } from "@energy/database";
+import {
+  insertReading,
+  validateDeviceToken,
+  createAlert,
+  getAlertThresholds,
+  getRelayConfig,
+  updateRelayState,
+  logRelayAction,
+} from "@energy/database";
 
 // ──── Rate limiting (in-memory, per device) ────────────────
 const lastPostTime = new Map<string, number>();
@@ -97,6 +105,7 @@ export async function POST(req: NextRequest) {
 
 /**
  * Check reading against alert thresholds and create alerts if needed.
+ * Also triggers relay auto-trip if configured.
  */
 async function checkThresholds(
   deviceId: string,
@@ -106,34 +115,74 @@ async function checkThresholds(
     const thresholds = await getAlertThresholds();
     if (!thresholds) return;
 
+    // Get relay config to see if auto-trip is enabled
+    const relayConfig = await getRelayConfig(deviceId);
+    const shouldAutoTrip = relayConfig?.autoTripEnabled ?? false;
+
+    // Check overvoltage
     if (reading.voltage > thresholds.overvoltage) {
-      await createAlert({
+      const alert = await createAlert({
         deviceId,
         type: "OVERVOLTAGE",
         value: reading.voltage,
         threshold: thresholds.overvoltage,
         message: `High voltage detected: ${reading.voltage}V (threshold: ${thresholds.overvoltage}V)`,
       });
+
+      // Auto-trip relay if configured
+      if (shouldAutoTrip && relayConfig?.tripOnOvervoltage && alert) {
+        await triggerRelayTrip(
+          deviceId,
+          "OVERVOLTAGE",
+          reading.voltage,
+          thresholds.overvoltage,
+          alert.id
+        );
+      }
     }
 
+    // Check undervoltage
     if (reading.voltage < thresholds.undervoltage) {
-      await createAlert({
+      const alert = await createAlert({
         deviceId,
         type: "UNDERVOLTAGE",
         value: reading.voltage,
         threshold: thresholds.undervoltage,
         message: `Low voltage detected: ${reading.voltage}V (threshold: ${thresholds.undervoltage}V)`,
       });
+
+      // Auto-trip relay if configured
+      if (shouldAutoTrip && relayConfig?.tripOnUndervoltage && alert) {
+        await triggerRelayTrip(
+          deviceId,
+          "UNDERVOLTAGE",
+          reading.voltage,
+          thresholds.undervoltage,
+          alert.id
+        );
+      }
     }
 
+    // Check overcurrent
     if (reading.current > thresholds.overcurrent) {
-      await createAlert({
+      const alert = await createAlert({
         deviceId,
         type: "OVERCURRENT",
         value: reading.current,
         threshold: thresholds.overcurrent,
         message: `High current detected: ${reading.current}A (threshold: ${thresholds.overcurrent}A)`,
       });
+
+      // Auto-trip relay if configured
+      if (shouldAutoTrip && relayConfig?.tripOnOvercurrent && alert) {
+        await triggerRelayTrip(
+          deviceId,
+          "OVERCURRENT",
+          reading.current,
+          thresholds.overcurrent,
+          alert.id
+        );
+      }
     }
 
     if (reading.power > thresholds.high_power) {
@@ -144,9 +193,38 @@ async function checkThresholds(
         threshold: thresholds.high_power,
         message: `High power draw detected: ${reading.power}W (threshold: ${thresholds.high_power}W)`,
       });
+      // Note: HIGH_POWER doesn't trip relay (not in tripOnOvervoltage/undervoltage/overcurrent)
     }
   } catch (err) {
     console.error("[Alert Engine] Error:", err);
     // Don't fail the ingest if alert check fails
+  }
+}
+
+/**
+ * Helper function to trigger relay trip on dangerous conditions
+ */
+async function triggerRelayTrip(
+  deviceId: string,
+  trigger: string,
+  value: number,
+  threshold: number,
+  alertId?: string
+) {
+  try {
+    await updateRelayState(deviceId, true, trigger, alertId);
+    await logRelayAction(
+      deviceId,
+      "TRIP",
+      trigger,
+      value,
+      threshold,
+      alertId,
+      "SYSTEM",
+      "Auto-trip triggered by alert"
+    );
+    console.log(`[Relay] Auto-tripped relay for device ${deviceId} due to ${trigger}`);
+  } catch (err) {
+    console.error("[Relay] Failed to trip relay:", err);
   }
 }

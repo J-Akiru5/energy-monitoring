@@ -30,3 +30,18 @@ export {
   type Device,
   type DeviceCreate,
 } from "./device";
+
+export {
+  RelayActionEnum,
+  RelayTriggerEnum,
+  RelayConfigSchema,
+  RelayStateSchema,
+  RelayCommandSchema,
+  RelayLogSchema,
+  type RelayAction,
+  type RelayTrigger,
+  type RelayConfig,
+  type RelayState,
+  type RelayCommand,
+  type RelayLog,
+} from "./relay";
