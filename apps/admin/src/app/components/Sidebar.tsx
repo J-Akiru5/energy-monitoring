@@ -16,6 +16,7 @@ const NAV_GROUPS = [
     label: "Management",
     items: [
       { href: "/sensors", icon: "📡", label: "Sensors" },
+      { href: "/relay", icon: "🔌", label: "Relay Control" },
       { href: "/thresholds", icon: "⚡", label: "Alert Thresholds" },
       { href: "/billing", icon: "💰", label: "Billing Rate" },
     ],

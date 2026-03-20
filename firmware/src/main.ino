@@ -13,6 +13,7 @@
  *   - PZEM004Tv30       by Jakub Mandula
  *   - ArduinoJson       by Benoit Blanchon
  *   - RTClib            by Adafruit
+ *   - WebSocketsClient  by Links2004 (v2.4.0+)
  *   - WiFi              (built-in ESP32)
  *   - HTTPClient        (built-in ESP32)
  *   - WiFiClientSecure  (built-in ESP32)
@@ -20,6 +21,7 @@
  * Wiring:
  *   RTC DS3231  → SDA=GPIO21, SCL=GPIO22 (I2C default)
  *   PZEM-004T   → RX2=GPIO16 (from PZEM TX), TX2=GPIO17 (to PZEM RX)
+ *   RELAY       → GPIO5 (active-low: LOW=tripped, HIGH=normal)
  *
  * Board: ESP32 Dev Module (ESP32-WROOM-32U recommended)
  * ═══════════════════════════════════════════════════════════════
@@ -32,6 +34,7 @@
 #include <PZEM004Tv30.h>
 #include <Wire.h>
 #include <RTClib.h>
+#include <WebSocketsClient.h>
 
 // ──── CONFIGURATION ─────────────────────────────────────────
 // Wi-Fi Credentials
@@ -76,6 +79,21 @@ bool rtcNeedSync = false;                // true if RTC lost power and needs NTP
 const unsigned long NTP_RESYNC_INTERVAL = 6UL * 60 * 60 * 1000; // 6 hours
 int wifiRetryCount = 0;
 
+// ──── RELAY CONTROL ─────────────────────────────────────────
+const int RELAY_PIN = 5;                 // GPIO5 for relay control
+bool relayState = false;                 // false = normal (power flowing), true = tripped (power cut)
+
+// ──── SUPABASE REALTIME (WebSocket) ─────────────────────────
+// Replace these with your Supabase project credentials
+const char* SUPABASE_HOST = "your-project.supabase.co";  // e.g., "xyzcompany.supabase.co"
+const char* SUPABASE_ANON_KEY = "your-anon-key-here";    // Settings → API → anon/public key
+
+WebSocketsClient webSocket;
+bool wsConnected = false;
+unsigned long lastReconnectAttempt = 0;
+const unsigned long WS_RECONNECT_INTERVAL = 5000;   // 5s between reconnection attempts
+unsigned long wsDisconnectTime = 0;                 // Track how long WS has been disconnected
+
 // ════════════════════════════════════════════════════════════
 // SETUP
 // ════════════════════════════════════════════════════════════
@@ -99,6 +117,14 @@ void setup() {
   Serial.println("[PZEM] Initializing PZEM-004T on UART2 (GPIO16/17)...");
   delay(1000);
 
+  // 5. Initialize Relay (default: normal operation, power flowing)
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, HIGH);  // HIGH = relay OFF (normal operation, power flowing)
+  Serial.println("[RELAY] Relay initialized (normal state - power flowing).");
+
+  // 6. Initialize Supabase Realtime WebSocket for relay control
+  initSupabaseRealtime();
+
   Serial.println("[BOOT] System ready. Starting measurement loop.\n");
 }
 
@@ -108,6 +134,31 @@ void setup() {
 
 void loop() {
   unsigned long now = millis();
+
+  // ── Maintain WebSocket connection ──
+  webSocket.loop();
+
+  // Auto-reconnect WebSocket if disconnected
+  if (!wsConnected && (now - lastReconnectAttempt > WS_RECONNECT_INTERVAL)) {
+    lastReconnectAttempt = now;
+    Serial.println("[WS] Reconnecting to Supabase Realtime...");
+    initSupabaseRealtime();
+  }
+
+  // Safety: Track WebSocket disconnect duration
+  if (!wsConnected) {
+    if (wsDisconnectTime == 0) wsDisconnectTime = now;
+    // Warn every 30s if disconnected for >60s
+    if (now - wsDisconnectTime > 60000) {
+      static unsigned long lastWarnTime = 0;
+      if (now - lastWarnTime > 30000) {
+        Serial.println("[RELAY] WARNING: WebSocket disconnected >60s, maintaining last relay state.");
+        lastWarnTime = now;
+      }
+    }
+  } else {
+    wsDisconnectTime = 0;
+  }
 
   // Reconnect WiFi if lost
   if (WiFi.status() != WL_CONNECTED) {
@@ -378,4 +429,187 @@ void connectWiFi() {
     Serial.printf("[WiFi]   Retrying in %d ms...\n", backoff);
     delay(backoff);
   }
+}
+
+// ════════════════════════════════════════════════════════════
+// SUPABASE REALTIME — WebSocket Connection for Relay Control
+// Provides <1 second latency for relay trip/reset commands
+// ════════════════════════════════════════════════════════════
+
+void initSupabaseRealtime() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[WS] WiFi not connected, skipping WebSocket init.");
+    return;
+  }
+
+  Serial.println("[WS] Connecting to Supabase Realtime...");
+
+  // Build WebSocket path with API key
+  String wsPath = "/realtime/v1/websocket?apikey=";
+  wsPath += SUPABASE_ANON_KEY;
+  wsPath += "&vsn=1.0.0";
+
+  // Connect to Supabase Realtime endpoint (SSL on port 443)
+  webSocket.beginSSL(SUPABASE_HOST, 443, wsPath.c_str());
+
+  // Set event handler
+  webSocket.onEvent(webSocketEvent);
+
+  // Configure reconnection and heartbeat
+  webSocket.setReconnectInterval(5000);           // 5s between reconnect attempts
+  webSocket.enableHeartbeat(30000, 3000, 2);      // Ping every 30s, timeout 3s, 2 retries
+
+  Serial.println("[WS] WebSocket initialized.");
+}
+
+void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
+  switch (type) {
+    case WStype_DISCONNECTED:
+      Serial.println("[WS] ✗ Disconnected from Supabase Realtime");
+      wsConnected = false;
+      break;
+
+    case WStype_CONNECTED:
+      Serial.println("[WS] ✓ Connected to Supabase Realtime!");
+      wsConnected = true;
+      // Subscribe to relay_state table changes for this device
+      subscribeToRelayState();
+      break;
+
+    case WStype_TEXT:
+      // Handle incoming messages (relay state changes)
+      handleRealtimeMessage((char*)payload);
+      break;
+
+    case WStype_ERROR:
+      Serial.println("[WS] ✗ WebSocket error occurred");
+      wsConnected = false;
+      break;
+
+    case WStype_PING:
+      // Ping received, pong will be sent automatically
+      break;
+
+    case WStype_PONG:
+      // Heartbeat acknowledged
+      break;
+
+    default:
+      break;
+  }
+}
+
+void subscribeToRelayState() {
+  // Supabase Realtime uses Phoenix Channels protocol
+  // Subscribe to changes on relay_state table filtered by device_id
+  JsonDocument doc;
+  doc["topic"] = String("realtime:public:relay_state:device_id=eq.") + DEVICE_ID;
+  doc["event"] = "phx_join";
+  doc["payload"]["config"]["postgres_changes"][0]["event"] = "*";
+  doc["payload"]["config"]["postgres_changes"][0]["schema"] = "public";
+  doc["payload"]["config"]["postgres_changes"][0]["table"] = "relay_state";
+  doc["payload"]["config"]["postgres_changes"][0]["filter"] = String("device_id=eq.") + DEVICE_ID;
+  doc["ref"] = "1";
+
+  String message;
+  serializeJson(doc, message);
+
+  webSocket.sendTXT(message);
+  Serial.println("[WS] Subscribed to relay_state changes for this device");
+  Serial.printf("[WS]   Device ID: %s\n", DEVICE_ID);
+}
+
+void handleRealtimeMessage(char* payload) {
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, payload);
+
+  if (error) {
+    Serial.printf("[WS] JSON parse error: %s\n", error.c_str());
+    return;
+  }
+
+  const char* event = doc["event"];
+
+  // Handle subscription confirmation
+  if (strcmp(event, "phx_reply") == 0) {
+    const char* status = doc["payload"]["status"];
+    if (status && strcmp(status, "ok") == 0) {
+      Serial.println("[WS] ✓ Subscription confirmed by Supabase");
+    }
+    return;
+  }
+
+  // Handle system messages (presence, heartbeat, etc.)
+  if (strcmp(event, "system") == 0 || strcmp(event, "presence_state") == 0) {
+    return; // Ignore system messages
+  }
+
+  // Handle database changes (INSERT, UPDATE, DELETE)
+  if (strcmp(event, "postgres_changes") == 0) {
+    const char* changeType = doc["payload"]["data"]["type"];
+    JsonObject record = doc["payload"]["data"]["record"];
+
+    if (!record.isNull()) {
+      // Verify this update is for our device
+      const char* recordDeviceId = record["device_id"];
+      if (recordDeviceId && strcmp(recordDeviceId, DEVICE_ID) == 0) {
+        bool newTrippedState = record["is_tripped"] | false;
+        const char* tripReason = record["trip_reason"] | "UNKNOWN";
+
+        // Only actuate relay if state actually changed
+        if (newTrippedState != relayState) {
+          relayState = newTrippedState;
+
+          // Actuate relay: LOW = tripped (power cut), HIGH = normal (power flowing)
+          digitalWrite(RELAY_PIN, relayState ? LOW : HIGH);
+
+          Serial.println("════════════════════════════════════════");
+          if (relayState) {
+            Serial.printf("[RELAY] ⚡ CIRCUIT TRIPPED! Reason: %s\n", tripReason);
+            Serial.println("[RELAY] ⚠ Power disconnected to protect equipment.");
+          } else {
+            Serial.println("[RELAY] ✓ Circuit RESET. Power restored.");
+          }
+          Serial.printf("[RELAY] State: %s\n", relayState ? "TRIPPED" : "NORMAL");
+          Serial.println("════════════════════════════════════════");
+        }
+      }
+    }
+    return;
+  }
+
+  // Log unknown events for debugging
+  if (strcmp(event, "phx_reply") != 0) {
+    Serial.printf("[WS] Received event: %s\n", event);
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// MANUAL RELAY CONTROL (for testing without WebSocket)
+// Can be called from Serial commands or other triggers
+// ════════════════════════════════════════════════════════════
+
+void tripRelay(const char* reason) {
+  if (!relayState) {
+    relayState = true;
+    digitalWrite(RELAY_PIN, LOW);  // LOW = tripped (power cut)
+    Serial.println("════════════════════════════════════════");
+    Serial.printf("[RELAY] ⚡ MANUALLY TRIPPED! Reason: %s\n", reason);
+    Serial.println("[RELAY] ⚠ Power disconnected.");
+    Serial.println("════════════════════════════════════════");
+  }
+}
+
+void resetRelay() {
+  if (relayState) {
+    relayState = false;
+    digitalWrite(RELAY_PIN, HIGH);  // HIGH = normal (power flowing)
+    Serial.println("════════════════════════════════════════");
+    Serial.println("[RELAY] ✓ MANUALLY RESET. Power restored.");
+    Serial.println("════════════════════════════════════════");
+  }
+}
+
+bool isRelayTripped() {
+  return relayState;
 }
