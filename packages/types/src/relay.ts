@@ -22,6 +22,8 @@ export const RelayTriggerEnum = z.enum([
   "BLACKOUT",
   "MANUAL",
   "AUTO_RESET",
+  "LOCAL_OVERVOLTAGE",   // ESP32 local safety override
+  "LOCAL_UNDERVOLTAGE",  // ESP32 local safety override
 ]);
 
 export type RelayTrigger = z.infer<typeof RelayTriggerEnum>;
