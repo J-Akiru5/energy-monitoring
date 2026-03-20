@@ -44,4 +44,4 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
   },
 ];
 
-export const MOBILE_PRIMARY_NAV = APP_NAV_ITEMS.slice(0, 4);
+export const MOBILE_PRIMARY_NAV = APP_NAV_ITEMS.slice(0, 4);
