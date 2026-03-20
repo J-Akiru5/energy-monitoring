@@ -3,6 +3,7 @@ import type { AlertType } from "@energy/types";
 
 /**
  * Create a new alert (in-app notification).
+ * Returns the created alert with its ID.
  */
 export async function createAlert(data: {
   deviceId: string;
@@ -13,15 +14,20 @@ export async function createAlert(data: {
 }) {
   const supabase = getSupabaseAdmin();
 
-  const { error } = await supabase.from("alerts").insert({
-    device_id: data.deviceId,
-    type: data.type,
-    value: data.value,
-    threshold: data.threshold,
-    message: data.message,
-  });
+  const { data: alert, error } = await supabase
+    .from("alerts")
+    .insert({
+      device_id: data.deviceId,
+      type: data.type,
+      value: data.value,
+      threshold: data.threshold,
+      message: data.message,
+    })
+    .select()
+    .single();
 
   if (error) throw new Error(`Create alert failed: ${error.message}`);
+  return alert;
 }
 
 /**

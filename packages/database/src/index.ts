@@ -29,3 +29,13 @@ export {
   listDevices,
   deactivateDevice,
 } from "./queries/devices";
+
+// Relay queries
+export {
+  getRelayConfig,
+  updateRelayConfig,
+  getRelayState,
+  updateRelayState,
+  logRelayAction,
+  getRelayLogs,
+} from "./queries/relay";

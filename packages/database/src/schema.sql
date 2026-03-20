@@ -72,3 +72,57 @@ CREATE TABLE IF NOT EXISTS alert_thresholds (
 INSERT INTO alert_thresholds (overvoltage, undervoltage, overcurrent, high_power)
   VALUES (250, 200, 80, 20000)
   ON CONFLICT DO NOTHING;
+
+-- ──── Relay Controller Configuration ─────────────────────────
+CREATE TABLE IF NOT EXISTS relay_config (
+  id SERIAL PRIMARY KEY,
+  device_id UUID NOT NULL REFERENCES devices(id) UNIQUE,
+  relay_enabled BOOLEAN DEFAULT false,
+  auto_trip_enabled BOOLEAN DEFAULT false,
+  auto_reset_enabled BOOLEAN DEFAULT false,
+  auto_reset_delay_seconds INTEGER DEFAULT 300,
+  trip_on_overvoltage BOOLEAN DEFAULT true,
+  trip_on_undervoltage BOOLEAN DEFAULT true,
+  trip_on_overcurrent BOOLEAN DEFAULT true,
+  trip_on_blackout BOOLEAN DEFAULT false,
+  manual_control_allowed BOOLEAN DEFAULT true,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ──── Relay State (Current State) ────────────────────────────
+CREATE TABLE IF NOT EXISTS relay_state (
+  id SERIAL PRIMARY KEY,
+  device_id UUID NOT NULL REFERENCES devices(id) UNIQUE,
+  is_tripped BOOLEAN DEFAULT false,
+  last_trip_at TIMESTAMPTZ,
+  last_reset_at TIMESTAMPTZ,
+  trip_reason TEXT,
+  trip_alert_id UUID REFERENCES alerts(id),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ──── Relay Action Log (Audit Trail) ─────────────────────────
+CREATE TABLE IF NOT EXISTS relay_logs (
+  id BIGSERIAL PRIMARY KEY,
+  device_id UUID NOT NULL REFERENCES devices(id),
+  action TEXT NOT NULL,
+  trigger_type TEXT,
+  trigger_value NUMERIC,
+  threshold_value NUMERIC,
+  alert_id UUID REFERENCES alerts(id),
+  initiated_by TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_relay_logs_device_time
+  ON relay_logs (device_id, created_at DESC);
+
+-- Seed default relay config for existing devices
+INSERT INTO relay_config (device_id, relay_enabled, auto_trip_enabled)
+SELECT id, false, false FROM devices
+ON CONFLICT (device_id) DO NOTHING;
+
+INSERT INTO relay_state (device_id, is_tripped)
+SELECT id, false FROM devices
+ON CONFLICT (device_id) DO NOTHING;

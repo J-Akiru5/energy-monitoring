@@ -118,6 +118,7 @@ export default function DashboardPage() {
     v: 0, a: 0, w: 0, pf: 0,
   });
   const [flashKeys, setFlashKeys] = useState({ v: 0, a: 0, w: 0, pf: 0 });
+  const [currentDate, setCurrentDate] = useState("");
 
   // ── Step 1: Discover the active device ID from the DB ──
   useEffect(() => {
@@ -283,6 +284,37 @@ export default function DashboardPage() {
     });
   }, [latestReading]);
 
+  // ── Update date display at midnight (Philippines timezone) ──
+  useEffect(() => {
+    const updateDate = () => {
+      const formatted = new Intl.DateTimeFormat('en-PH', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'Asia/Manila'
+      }).format(new Date());
+      setCurrentDate(formatted);
+    };
+
+    updateDate(); // Initial update
+
+    // Calculate milliseconds until next midnight
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setHours(24, 0, 0, 0);
+    const msUntilMidnight = tomorrow.getTime() - now.getTime();
+
+    // Update at midnight, then every 24 hours
+    const timeout = setTimeout(() => {
+      updateDate();
+      const interval = setInterval(updateDate, 24 * 60 * 60 * 1000);
+      return () => clearInterval(interval);
+    }, msUntilMidnight);
+
+    return () => clearTimeout(timeout);
+  }, []);
+
   // ── Current values (from latest reading or SSE) ──
   const current = latestReading
     ? {
@@ -335,6 +367,16 @@ export default function DashboardPage() {
         <div>
           <div className="page-eyebrow">Live Monitoring</div>
           <h1 className="page-title">Realtime Dashboard</h1>
+          {currentDate && (
+            <div style={{
+              fontSize: 14,
+              color: "var(--text-muted)",
+              marginTop: 4,
+              marginBottom: 8
+            }}>
+              {currentDate}
+            </div>
+          )}
           <p className="page-copy">
             Live telemetry stays here. Historical review, date-based summaries, and scrollable ranges now live in the History view.
           </p>
