@@ -36,6 +36,12 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     shortLabel: "Billing",
     icon: "M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z",
   },
+  {
+    href: "/relay",
+    label: "Relay Control",
+    shortLabel: "Relay",
+    icon: "M13 10V3L4 14h7v7l9-11h-7z",
+  },
 ];
 
 export const MOBILE_PRIMARY_NAV = APP_NAV_ITEMS.slice(0, 4);

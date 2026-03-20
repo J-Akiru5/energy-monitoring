@@ -93,6 +93,15 @@ export async function POST(req: NextRequest) {
       await checkThresholds(payload.deviceId, payload.reading);
     }
 
+    // ── 6. Handle Local Safety Trips from ESP32 ──
+    if (payload.localTrip && payload.localTripReason) {
+      await handleLocalTrip({
+        deviceId: payload.deviceId,
+        localTripReason: payload.localTripReason,
+        reading: payload.reading,
+      });
+    }
+
     return NextResponse.json({ status: "ok" }, { status: 200 });
   } catch (err) {
     console.error("[/api/ingest] Error:", err);
@@ -226,5 +235,62 @@ async function triggerRelayTrip(
     console.log(`[Relay] Auto-tripped relay for device ${deviceId} due to ${trigger}`);
   } catch (err) {
     console.error("[Relay] Failed to trip relay:", err);
+  }
+}
+
+/**
+ * Handle local safety trips from ESP32 hardware override.
+ * The ESP32 tripped the relay locally and is informing the cloud.
+ */
+async function handleLocalTrip(payload: {
+  deviceId: string;
+  localTripReason: string;
+  reading: { voltage: number; current: number; power: number };
+}) {
+  try {
+    const thresholds = await getAlertThresholds();
+    const isOvervoltage = payload.localTripReason === "LOCAL_OVERVOLTAGE";
+    const alertType = isOvervoltage ? "OVERVOLTAGE" : "UNDERVOLTAGE";
+    const thresholdValue = isOvervoltage
+      ? thresholds?.overvoltage ?? 250
+      : thresholds?.undervoltage ?? 200;
+
+    // Log the local trip to relay_logs
+    await logRelayAction(
+      payload.deviceId,
+      "LOCAL_TRIP",
+      payload.localTripReason,
+      payload.reading.voltage,
+      thresholdValue,
+      undefined,
+      "ESP32_LOCAL",
+      "Automatic local hardware safety override by ESP32"
+    );
+
+    // Update relay state in database to reflect the local trip
+    await updateRelayState(
+      payload.deviceId,
+      true,
+      payload.localTripReason,
+      undefined
+    );
+
+    // Create alert for the local trip
+    await createAlert({
+      deviceId: payload.deviceId,
+      type: alertType,
+      value: payload.reading.voltage,
+      threshold: thresholdValue,
+      message: `ESP32 LOCAL SAFETY TRIP: ${
+        isOvervoltage ? "Overvoltage" : "Undervoltage"
+      } detected (${payload.reading.voltage}V). Power cut locally by hardware override.`,
+    });
+
+    console.log(
+      `[Ingest] Local safety trip logged for device ${payload.deviceId}: ${payload.localTripReason}`
+    );
+  } catch (err) {
+    console.error("[Ingest] Failed to handle local trip:", err);
+    // Don't fail the ingest if local trip logging fails
   }
 }
