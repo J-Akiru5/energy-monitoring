@@ -302,11 +302,27 @@ void readAndSend() {
   float frequency   = pzem.frequency();
   float powerFactor = pzem.pf();
 
-  // Safety check: PZEM returns NaN when no AC is detected
+  // ══════════════════════════════════════════════════════════
+  // PZEM OFFLINE DETECTION
+  // When PZEM returns NaN, the ESP32 is online but cannot
+  // communicate with the sensor (wiring issue, sensor failure, etc.)
+  // We still send a payload so the cloud knows the sensor is offline.
+  // ══════════════════════════════════════════════════════════
   if (isnan(voltage) || isnan(current)) {
-    Serial.println("[PZEM] ⚠ No AC reading (NaN). Is the PZEM connected to mains?");
+    Serial.println("[PZEM] ⚠ Sensor offline (NaN readings)!");
     Serial.println("[PZEM]   → Voltage pin wired to Line/Neutral?");
     Serial.println("[PZEM]   → CT clamp secured around the live wire?");
+    Serial.println("[PZEM]   → Sending sensorOffline notification to cloud...");
+
+    // Send sensorOffline payload to API
+    JsonDocument doc;
+    doc["deviceId"] = DEVICE_ID;
+    doc["timestamp"] = getTimestamp();
+    doc["sensorOffline"] = true;
+
+    String payload;
+    serializeJson(doc, payload);
+    sendToCloud(payload);
     return;
   }
 
@@ -637,6 +653,29 @@ void handleRealtimeMessage(char* payload) {
     if (status && strcmp(status, "ok") == 0) {
       Serial.println("[WS] ✓ Subscription confirmed by Supabase");
     }
+    return;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // PHOENIX HEARTBEAT HANDLER (CRITICAL for connection stability)
+  // Supabase Realtime sends "heartbeat" events every 30s.
+  // We MUST respond with a matching "phx_reply" to keep connection alive.
+  // ═══════════════════════════════════════════════════════════════
+  if (strcmp(event, "heartbeat") == 0 || strcmp(event, "phx_heartbeat") == 0) {
+    const char* topic = doc["topic"] | "phoenix";
+    const char* ref = doc["ref"];
+
+    JsonDocument reply;
+    reply["topic"] = topic;
+    reply["event"] = "phx_reply";
+    reply["ref"] = ref;
+    reply["payload"]["status"] = "ok";
+    reply["payload"]["response"] = JsonObject();
+
+    String replyStr;
+    serializeJson(reply, replyStr);
+    webSocket.sendTXT(replyStr);
+    Serial.println("[WS] ♥ Phoenix heartbeat acknowledged");
     return;
   }
 

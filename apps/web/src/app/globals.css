@@ -535,6 +535,113 @@ select {
   font-size: 12px;
 }
 
+/* ── Blackout Monitoring ── */
+.blackout-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 16px 0;
+}
+
+@media (max-width: 768px) {
+  .blackout-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.blackout-stat-card {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(100, 116, 139, 0.2);
+  border-radius: 12px;
+  padding: 14px;
+  text-align: center;
+}
+
+.blackout-stat-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.blackout-stat-value {
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 700;
+  margin-top: 6px;
+}
+
+.blackout-stat-value.accent-rose {
+  color: #fb7185;
+}
+
+.blackout-event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.blackout-event-item {
+  border: 1px solid rgba(100, 116, 139, 0.25);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.4);
+  padding: 14px;
+}
+
+.blackout-event-item.ongoing {
+  border-color: rgba(251, 113, 133, 0.5);
+  background: rgba(225, 29, 72, 0.08);
+  animation: pulse-border 2s infinite;
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: rgba(251, 113, 133, 0.3); }
+  50% { border-color: rgba(251, 113, 133, 0.7); }
+}
+
+.blackout-event-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.blackout-event-status {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
+.blackout-event-item.ongoing .blackout-event-status {
+  background: rgba(251, 113, 133, 0.15);
+  color: #fb7185;
+}
+
+.blackout-event-duration {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.blackout-event-times {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.blackout-event-times .time-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 .bento-grid-page {
   max-width: none;
   padding: 0 0 24px;

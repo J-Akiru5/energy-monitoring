@@ -126,3 +126,44 @@ ON CONFLICT (device_id) DO NOTHING;
 INSERT INTO relay_state (device_id, is_tripped)
 SELECT id, false FROM devices
 ON CONFLICT (device_id) DO NOTHING;
+
+-- ══════════════════════════════════════════════════════════════
+-- BLACKOUT EVENTS (Event-Based Tracking with Duration)
+-- Tracks power outages with start/end times for analytics.
+-- ══════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS blackout_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  device_id UUID NOT NULL REFERENCES devices(id),
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ended_at TIMESTAMPTZ,                          -- NULL = ongoing blackout
+  duration_seconds INTEGER,                       -- Calculated on end
+  alert_id UUID REFERENCES alerts(id),            -- Link to the BLACKOUT alert
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Index for querying active blackouts and historical data
+CREATE INDEX IF NOT EXISTS idx_blackout_events_device_time
+  ON blackout_events (device_id, started_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_blackout_events_active
+  ON blackout_events (device_id)
+  WHERE ended_at IS NULL;
+
+-- ══════════════════════════════════════════════════════════════
+-- DEVICE BLACKOUT STATE (Tracks Current Blackout Status)
+-- Used for smart deduplication - only one alert per blackout event.
+-- ══════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS device_blackout_state (
+  device_id UUID PRIMARY KEY REFERENCES devices(id),
+  in_blackout BOOLEAN DEFAULT false,
+  current_blackout_id UUID REFERENCES blackout_events(id),
+  blackout_started_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Seed blackout state for existing devices
+INSERT INTO device_blackout_state (device_id, in_blackout)
+SELECT id, false FROM devices
+ON CONFLICT (device_id) DO NOTHING;

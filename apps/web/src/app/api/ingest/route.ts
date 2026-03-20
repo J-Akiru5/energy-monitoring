@@ -8,6 +8,9 @@ import {
   getRelayConfig,
   updateRelayState,
   logRelayAction,
+  getDeviceBlackoutState,
+  startBlackoutEvent,
+  endBlackoutEvent,
 } from "@energy/database";
 
 // ──── Rate limiting (in-memory, per device) ────────────────
@@ -66,7 +69,29 @@ export async function POST(req: NextRequest) {
     }
     lastPostTime.set(payload.deviceId, now);
 
-    // ── 4. Write Reading to Database ──
+    // ── 4a. Handle Sensor Offline ──
+    if (payload.sensorOffline) {
+      await createAlert({
+        deviceId: payload.deviceId,
+        type: "PZEM_OFFLINE",
+        value: 0,
+        threshold: 0,
+        message: "PZEM sensor offline: ESP32 cannot communicate with power meter. Check wiring and sensor connection.",
+      });
+
+      // Don't insert a reading (no valid data), just acknowledge
+      return NextResponse.json({ status: "ok", sensorOffline: true }, { status: 200 });
+    }
+
+    // ── 4b. Write Reading to Database ──
+    // Validate that reading exists before proceeding
+    if (!payload.reading) {
+      return NextResponse.json(
+        { error: "Missing reading data" },
+        { status: 422 }
+      );
+    }
+
     // IMPORTANT: We override the timestamp with the server's UTC time.
     // The ESP32's RTC stores UTC but incorrectly labels it as +08:00,
     // causing all recorded_at values to be stored 8 hours behind reality.
@@ -77,24 +102,53 @@ export async function POST(req: NextRequest) {
     };
     await insertReading(serverPayload);
 
-    // ── 5. Alert Engine & Blackout Detection ──
-    if (payload.blackout) {
-      // If it's a blackout, trigger the specific alert and skip normal thresholds
-      // because 0V would normally falsely trigger UNDERVOLTAGE.
-      await createAlert({
+    // ── 5. Smart Blackout Detection & Event Tracking ──
+    const blackoutState = await getDeviceBlackoutState(payload.deviceId);
+    const wasInBlackout = blackoutState?.inBlackout ?? false;
+    const isBlackout = payload.blackout === true;
+
+    if (isBlackout && !wasInBlackout) {
+      // BLACKOUT START: First 0V reading after normal operation
+      const alert = await createAlert({
         deviceId: payload.deviceId,
         type: "BLACKOUT",
         value: 0,
         threshold: 0,
-        message: "CRITICAL: Mains power blackout detected (0V AC).",
+        message: "BLACKOUT STARTED: Mains power outage detected (0V AC).",
       });
+
+      await startBlackoutEvent(payload.deviceId, alert?.id);
+      console.log(`[Blackout] Started tracking blackout for device ${payload.deviceId}`);
+
+    } else if (!isBlackout && wasInBlackout) {
+      // BLACKOUT END: First non-0V reading after blackout
+      const ended = await endBlackoutEvent(payload.deviceId);
+
+      if (ended) {
+        await createAlert({
+          deviceId: payload.deviceId,
+          type: "BLACKOUT",
+          value: payload.reading.voltage,
+          threshold: 0,
+          message: `BLACKOUT ENDED: Power restored at ${payload.reading.voltage}V.`,
+        });
+        console.log(`[Blackout] Ended blackout for device ${payload.deviceId}`);
+      }
+
+      // Continue with normal threshold checks
+      await checkThresholds(payload.deviceId, payload.reading);
+
+    } else if (isBlackout && wasInBlackout) {
+      // ONGOING BLACKOUT: Don't create duplicate alerts
+      console.log(`[Blackout] Ongoing blackout for device ${payload.deviceId} (no new alert)`);
+
     } else {
-      // Normal threshold checks
+      // NORMAL OPERATION: Check thresholds as usual
       await checkThresholds(payload.deviceId, payload.reading);
     }
 
     // ── 6. Handle Local Safety Trips from ESP32 ──
-    if (payload.localTrip && payload.localTripReason) {
+    if (payload.localTrip && payload.localTripReason && payload.reading) {
       await handleLocalTrip({
         deviceId: payload.deviceId,
         localTripReason: payload.localTripReason,
