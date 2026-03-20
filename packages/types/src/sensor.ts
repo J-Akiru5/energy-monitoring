@@ -20,6 +20,8 @@ export const TelemetryPayloadSchema = z.object({
   reading: MeterReadingSchema,
   timestamp: z.string().datetime({ offset: true }),
   blackout: z.boolean().optional(),
+  localTrip: z.boolean().optional(),           // ESP32 local safety override triggered
+  localTripReason: z.string().optional(),      // "LOCAL_OVERVOLTAGE" or "LOCAL_UNDERVOLTAGE"
 });
 
 export type TelemetryPayload = z.infer<typeof TelemetryPayloadSchema>;

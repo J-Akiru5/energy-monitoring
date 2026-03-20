@@ -21,7 +21,7 @@
  * Wiring:
  *   RTC DS3231  → SDA=GPIO21, SCL=GPIO22 (I2C default)
  *   PZEM-004T   → RX2=GPIO16 (from PZEM TX), TX2=GPIO17 (to PZEM RX)
- *   RELAY       → GPIO5 (active-low: LOW=tripped, HIGH=normal)
+ *   RELAY       → GPIO25 (Normally Open: HIGH=Power ON, LOW=Power OFF)
  *
  * Board: ESP32 Dev Module (ESP32-WROOM-32U recommended)
  * ═══════════════════════════════════════════════════════════════
@@ -80,8 +80,14 @@ const unsigned long NTP_RESYNC_INTERVAL = 6UL * 60 * 60 * 1000; // 6 hours
 int wifiRetryCount = 0;
 
 // ──── RELAY CONTROL ─────────────────────────────────────────
-const int RELAY_PIN = 5;                 // GPIO5 for relay control
-bool relayState = false;                 // false = normal (power flowing), true = tripped (power cut)
+const int RELAY_PIN = 25;                // GPIO25 for relay control (Normally Open)
+bool relayState = false;                 // false = normal (power ON), true = tripped (power OFF)
+
+// ──── LOCAL SAFETY THRESHOLDS ───────────────────────────────
+// Fetched from cloud on boot, provides protection even if WiFi disconnects
+float localOvervoltageThreshold = 250.0;   // Default: 250V (will be overwritten from cloud)
+float localUndervoltageThreshold = 200.0;  // Default: 200V (will be overwritten from cloud)
+bool localSafetyEnabled = true;            // Enable local hardware override by default
 
 // ──── SUPABASE REALTIME (WebSocket) ─────────────────────────
 // Replace these with your Supabase project credentials
@@ -113,13 +119,16 @@ void setup() {
   // 3. Sync NTP — also writes to RTC if RTC lost power
   syncNTP();
 
+  // 3.5. Fetch safety thresholds from cloud for local hardware override
+  fetchThresholdsFromCloud();
+
   // 4. Initialize PZEM
   Serial.println("[PZEM] Initializing PZEM-004T on UART2 (GPIO16/17)...");
   delay(1000);
 
   // 5. Initialize Relay (default: normal operation, power flowing)
   pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, HIGH);  // HIGH = relay OFF (normal operation, power flowing)
+  digitalWrite(RELAY_PIN, HIGH);  // HIGH = Power ON (normal operation, power flowing)
   Serial.println("[RELAY] Relay initialized (normal state - power flowing).");
 
   // 6. Initialize Supabase Realtime WebSocket for relay control
@@ -312,6 +321,39 @@ void readAndSend() {
   Serial.printf("  Timestamp:    %s\n",      getTimestamp().c_str());
   Serial.println("────────────────────────────────────");
 
+  // ══════════════════════════════════════════════════════════
+  // LOCAL HARDWARE SAFETY OVERRIDE
+  // This runs BEFORE sending to cloud, ensuring immediate protection
+  // even if WiFi/WebSocket is disconnected.
+  // ══════════════════════════════════════════════════════════
+  bool localTrip = false;
+  const char* localTripReason = nullptr;
+
+  if (localSafetyEnabled && !relayState && voltage > 0) {
+    // Only check if: local safety is enabled, relay not already tripped, and not a blackout
+    if (voltage > localOvervoltageThreshold) {
+      localTrip = true;
+      localTripReason = "LOCAL_OVERVOLTAGE";
+      Serial.println("════════════════════════════════════════════════════════");
+      Serial.println("[ALERT] LOCAL HARDWARE OVERRIDE: DANGEROUS VOLTAGE! Killing Power...");
+      Serial.printf("[ALERT]   Measured: %.2fV > Threshold: %.1fV\n", voltage, localOvervoltageThreshold);
+      Serial.println("════════════════════════════════════════════════════════");
+    } else if (voltage < localUndervoltageThreshold) {
+      localTrip = true;
+      localTripReason = "LOCAL_UNDERVOLTAGE";
+      Serial.println("════════════════════════════════════════════════════════");
+      Serial.println("[ALERT] LOCAL HARDWARE OVERRIDE: DANGEROUS VOLTAGE! Killing Power...");
+      Serial.printf("[ALERT]   Measured: %.2fV < Threshold: %.1fV\n", voltage, localUndervoltageThreshold);
+      Serial.println("════════════════════════════════════════════════════════");
+    }
+
+    if (localTrip) {
+      relayState = true;
+      digitalWrite(RELAY_PIN, LOW);   // LOW = Power OFF (tripped, relay de-energized)
+      Serial.println("[RELAY] ⚡ LOCAL TRIP EXECUTED — Power disconnected.");
+    }
+  }
+
   // Build JSON payload using ArduinoJson (safe, no string concatenation bugs)
   JsonDocument doc;
   doc["deviceId"] = DEVICE_ID;
@@ -325,6 +367,12 @@ void readAndSend() {
   reading["powerFactor"] = round(powerFactor * 100)   / 100.0;
 
   doc["timestamp"] = getTimestamp();
+
+  // Flag if this was a local safety trip
+  if (localTrip && localTripReason) {
+    doc["localTrip"] = true;
+    doc["localTripReason"] = localTripReason;
+  }
 
   // If voltage is exactly 0.00 (but not NaN), it means mains AC power is cut (Blackout)
   if (voltage == 0.0) {
@@ -429,6 +477,59 @@ void connectWiFi() {
     Serial.printf("[WiFi]   Retrying in %d ms...\n", backoff);
     delay(backoff);
   }
+}
+
+// ════════════════════════════════════════════════════════════
+// FETCH THRESHOLDS FROM CLOUD ON BOOT
+// ESP32 needs these values for local hardware override
+// ════════════════════════════════════════════════════════════
+
+void fetchThresholdsFromCloud() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[THRESHOLDS] WiFi not connected, using defaults.");
+    Serial.printf("[THRESHOLDS]   Overvoltage:  %.1fV\n", localOvervoltageThreshold);
+    Serial.printf("[THRESHOLDS]   Undervoltage: %.1fV\n", localUndervoltageThreshold);
+    return;
+  }
+
+  Serial.println("[THRESHOLDS] Fetching safety thresholds from cloud...");
+
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient http;
+  String thresholdsUrl = String("https://energy-monitoring-web.vercel.app/api/thresholds/esp32?deviceId=") + DEVICE_ID;
+  http.begin(client, thresholdsUrl);
+  http.addHeader("X-Device-Token", DEVICE_TOKEN);
+  http.setTimeout(8000);
+
+  int httpCode = http.GET();
+
+  if (httpCode == 200) {
+    String response = http.getString();
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, response);
+
+    if (!error) {
+      localOvervoltageThreshold = doc["overvoltage"] | 250.0;
+      localUndervoltageThreshold = doc["undervoltage"] | 200.0;
+      localSafetyEnabled = doc["localSafetyEnabled"] | true;
+
+      Serial.println("[THRESHOLDS] ✓ Thresholds fetched successfully:");
+      Serial.printf("[THRESHOLDS]   Overvoltage:  %.1fV\n", localOvervoltageThreshold);
+      Serial.printf("[THRESHOLDS]   Undervoltage: %.1fV\n", localUndervoltageThreshold);
+      Serial.printf("[THRESHOLDS]   Local Safety: %s\n", localSafetyEnabled ? "ENABLED" : "DISABLED");
+    } else {
+      Serial.printf("[THRESHOLDS] ⚠ JSON parse error: %s\n", error.c_str());
+      Serial.println("[THRESHOLDS]   Using default thresholds.");
+    }
+  } else {
+    Serial.printf("[THRESHOLDS] ⚠ HTTP %d — using defaults.\n", httpCode);
+    Serial.printf("[THRESHOLDS]   Overvoltage:  %.1fV\n", localOvervoltageThreshold);
+    Serial.printf("[THRESHOLDS]   Undervoltage: %.1fV\n", localUndervoltageThreshold);
+  }
+
+  http.end();
 }
 
 // ════════════════════════════════════════════════════════════
@@ -560,7 +661,7 @@ void handleRealtimeMessage(char* payload) {
         if (newTrippedState != relayState) {
           relayState = newTrippedState;
 
-          // Actuate relay: LOW = tripped (power cut), HIGH = normal (power flowing)
+          // Actuate relay: LOW = Power OFF (tripped), HIGH = Power ON (normal)
           digitalWrite(RELAY_PIN, relayState ? LOW : HIGH);
 
           Serial.println("════════════════════════════════════════");
@@ -592,7 +693,7 @@ void handleRealtimeMessage(char* payload) {
 void tripRelay(const char* reason) {
   if (!relayState) {
     relayState = true;
-    digitalWrite(RELAY_PIN, LOW);  // LOW = tripped (power cut)
+    digitalWrite(RELAY_PIN, LOW);   // LOW = Power OFF (tripped, relay de-energized)
     Serial.println("════════════════════════════════════════");
     Serial.printf("[RELAY] ⚡ MANUALLY TRIPPED! Reason: %s\n", reason);
     Serial.println("[RELAY] ⚠ Power disconnected.");
@@ -603,7 +704,7 @@ void tripRelay(const char* reason) {
 void resetRelay() {
   if (relayState) {
     relayState = false;
-    digitalWrite(RELAY_PIN, HIGH);  // HIGH = normal (power flowing)
+    digitalWrite(RELAY_PIN, HIGH);  // HIGH = Power ON (normal operation, power flowing)
     Serial.println("════════════════════════════════════════");
     Serial.println("[RELAY] ✓ MANUALLY RESET. Power restored.");
     Serial.println("════════════════════════════════════════");
