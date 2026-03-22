@@ -4,8 +4,13 @@
 export {
   MeterReadingSchema,
   TelemetryPayloadSchema,
+  PhaseReadingSchema,
+  ThreePhaseReadingSchema,
+  isThreePhasePayload,
   type MeterReading,
   type TelemetryPayload,
+  type PhaseReading,
+  type ThreePhaseReading,
 } from "./sensor";
 
 export {
