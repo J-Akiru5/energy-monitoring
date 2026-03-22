@@ -13,17 +13,48 @@ CREATE TABLE IF NOT EXISTS devices (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ──── Power Readings (Append-Only, Single Phase) ────────────
+-- ──── Power Readings (Append-Only, Single & 3-Phase) ─────────
+-- Supports both legacy single-phase and new 3-phase monitoring.
+-- For single-phase: use voltage, current_amp, power_w, energy_kwh
+-- For 3-phase: use phase-specific columns + total_power, total_energy
 CREATE TABLE IF NOT EXISTS power_readings (
   id BIGSERIAL PRIMARY KEY,
   device_id UUID NOT NULL REFERENCES devices(id),
+  -- Legacy single-phase columns (also used for Phase A in 3-phase mode)
   voltage NUMERIC(6,2),
   current_amp NUMERIC(6,3),
   power_w NUMERIC(8,2),
   energy_kwh NUMERIC(10,4),
   frequency NUMERIC(5,2),
   power_factor NUMERIC(4,3),
-  recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- 3-Phase: Per-phase voltage
+  voltage_a NUMERIC(6,2),
+  voltage_b NUMERIC(6,2),
+  voltage_c NUMERIC(6,2),
+  -- 3-Phase: Per-phase current
+  current_a NUMERIC(6,3),
+  current_b NUMERIC(6,3),
+  current_c NUMERIC(6,3),
+  -- 3-Phase: Per-phase power
+  power_a NUMERIC(8,2),
+  power_b NUMERIC(8,2),
+  power_c NUMERIC(8,2),
+  -- 3-Phase: Per-phase energy
+  energy_a NUMERIC(10,4),
+  energy_b NUMERIC(10,4),
+  energy_c NUMERIC(10,4),
+  -- 3-Phase: Per-phase frequency
+  frequency_a NUMERIC(5,2),
+  frequency_b NUMERIC(5,2),
+  frequency_c NUMERIC(5,2),
+  -- 3-Phase: Per-phase power factor
+  power_factor_a NUMERIC(4,3),
+  power_factor_b NUMERIC(4,3),
+  power_factor_c NUMERIC(4,3),
+  -- 3-Phase: Calculated totals
+  total_power NUMERIC(10,2),
+  total_energy NUMERIC(12,4)
 );
 
 -- Fast lookup for 24h queries on dashboard

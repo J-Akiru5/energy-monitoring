@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 export interface PollingReading {
   id: number;
   device_id: string;
+  // Legacy single-phase columns
   voltage: number;
   current_amp: number;
   power_w: number;
@@ -12,6 +13,27 @@ export interface PollingReading {
   frequency: number;
   power_factor: number;
   recorded_at: string;
+  // 3-Phase columns (nullable - only present for 3-phase devices)
+  voltage_a?: number | null;
+  voltage_b?: number | null;
+  voltage_c?: number | null;
+  current_a?: number | null;
+  current_b?: number | null;
+  current_c?: number | null;
+  power_a?: number | null;
+  power_b?: number | null;
+  power_c?: number | null;
+  energy_a?: number | null;
+  energy_b?: number | null;
+  energy_c?: number | null;
+  frequency_a?: number | null;
+  frequency_b?: number | null;
+  frequency_c?: number | null;
+  power_factor_a?: number | null;
+  power_factor_b?: number | null;
+  power_factor_c?: number | null;
+  total_power?: number | null;
+  total_energy?: number | null;
 }
 
 /**

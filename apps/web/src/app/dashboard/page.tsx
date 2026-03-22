@@ -15,7 +15,7 @@ import {
 
 // ──── Types ────────────────────────────────────────────────
 interface Reading {
-  id: number; // DB primary key — used for dedup, always unique
+  id: number;
   voltage: number;
   current_amp: number;
   power_w: number;
@@ -23,6 +23,27 @@ interface Reading {
   frequency: number;
   power_factor: number;
   recorded_at: string;
+  // 3-Phase columns
+  voltage_a?: number | null;
+  voltage_b?: number | null;
+  voltage_c?: number | null;
+  current_a?: number | null;
+  current_b?: number | null;
+  current_c?: number | null;
+  power_a?: number | null;
+  power_b?: number | null;
+  power_c?: number | null;
+  energy_a?: number | null;
+  energy_b?: number | null;
+  energy_c?: number | null;
+  frequency_a?: number | null;
+  frequency_b?: number | null;
+  frequency_c?: number | null;
+  power_factor_a?: number | null;
+  power_factor_b?: number | null;
+  power_factor_c?: number | null;
+  total_power?: number | null;
+  total_energy?: number | null;
 }
 
 interface AlertItem {
@@ -60,9 +81,7 @@ interface ReportSummary {
   }>;
 }
 
-// ── Default device ID for development (matches mock-sensor default) ──
-// ── Device ID is loaded dynamically from /api/devices on mount ──
-// This eliminates UUID drift between the DB, Arduino firmware, and this file.
+type PhaseSelection = "A" | "B" | "C" | "ALL";
 
 // ── Helpers ──────────────────────────────────────────────────
 function parseDBDate(iso: string): Date {
@@ -71,7 +90,6 @@ function parseDBDate(iso: string): Date {
   return new Date(dateString);
 }
 
-// Keep enough points for a full 24h window even at high sampling rates.
 const MAX_CHART_POINTS = 100000;
 
 function mergeReadings(
@@ -80,14 +98,8 @@ function mergeReadings(
   maxPoints = MAX_CHART_POINTS
 ): Reading[] {
   const byId = new Map<number, Reading>();
-
-  for (const reading of base) {
-    byId.set(reading.id, reading);
-  }
-
-  for (const reading of incoming) {
-    byId.set(reading.id, reading);
-  }
+  for (const reading of base) byId.set(reading.id, reading);
+  for (const reading of incoming) byId.set(reading.id, reading);
 
   const merged = Array.from(byId.values()).sort((a, b) => {
     const byTime = parseDBDate(a.recorded_at).getTime() - parseDBDate(b.recorded_at).getTime();
@@ -95,9 +107,20 @@ function mergeReadings(
     return a.id - b.id;
   });
 
-  return merged.length > maxPoints
-    ? merged.slice(-maxPoints)
-    : merged;
+  return merged.length > maxPoints ? merged.slice(-maxPoints) : merged;
+}
+
+/** Check if a reading has 3-phase data */
+function isThreePhase(reading: Reading | null): boolean {
+  if (!reading) return false;
+  return (
+    reading.voltage_a !== null &&
+    reading.voltage_a !== undefined &&
+    reading.voltage_b !== null &&
+    reading.voltage_b !== undefined &&
+    reading.voltage_c !== null &&
+    reading.voltage_c !== undefined
+  );
 }
 
 // ════════════════════════════════════════════════════════════
@@ -105,7 +128,6 @@ function mergeReadings(
 // ════════════════════════════════════════════════════════════
 
 export default function DashboardPage() {
-  // Dynamically resolved from /api/devices — avoids UUID hardcoding
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const { latestReading } = usePolling(deviceId);
   const [chartData, setChartData] = useState<Reading[]>([]);
@@ -119,6 +141,19 @@ export default function DashboardPage() {
   });
   const [flashKeys, setFlashKeys] = useState({ v: 0, a: 0, w: 0, pf: 0 });
   const [currentDate, setCurrentDate] = useState("");
+
+  // Phase selector state
+  const [selectedPhase, setSelectedPhase] = useState<PhaseSelection>(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("selectedPhase") as PhaseSelection) || "ALL";
+    }
+    return "ALL";
+  });
+
+  // Persist phase selection
+  useEffect(() => {
+    localStorage.setItem("selectedPhase", selectedPhase);
+  }, [selectedPhase]);
 
   // ── Step 1: Discover the active device ID from the DB ──
   useEffect(() => {
@@ -177,7 +212,7 @@ export default function DashboardPage() {
     };
   }, [deviceId]);
 
-  // Refresh report summary at a slower cadence (analytics, not live telemetry).
+  // Refresh report summary
   useEffect(() => {
     if (!deviceId) return;
 
@@ -210,7 +245,7 @@ export default function DashboardPage() {
     };
   }, [deviceId]);
 
-  // Keep billing estimate in sync with incoming readings.
+  // Keep billing estimate in sync
   useEffect(() => {
     if (!deviceId) return;
 
@@ -245,9 +280,7 @@ export default function DashboardPage() {
     };
   }, [deviceId]);
 
-  // ── Append new SSE readings to chart + flash values ──
-  // startTransition defers state updates out of the synchronous effect tick,
-  // satisfying React 19's react-hooks/set-state-in-effect rule.
+  // ── Append new readings to chart + flash values ──
   useEffect(() => {
     if (!latestReading) return;
 
@@ -260,9 +293,30 @@ export default function DashboardPage() {
       frequency: latestReading.frequency,
       power_factor: latestReading.power_factor,
       recorded_at: latestReading.recorded_at,
+      // 3-phase columns
+      voltage_a: latestReading.voltage_a,
+      voltage_b: latestReading.voltage_b,
+      voltage_c: latestReading.voltage_c,
+      current_a: latestReading.current_a,
+      current_b: latestReading.current_b,
+      current_c: latestReading.current_c,
+      power_a: latestReading.power_a,
+      power_b: latestReading.power_b,
+      power_c: latestReading.power_c,
+      energy_a: latestReading.energy_a,
+      energy_b: latestReading.energy_b,
+      energy_c: latestReading.energy_c,
+      frequency_a: latestReading.frequency_a,
+      frequency_b: latestReading.frequency_b,
+      frequency_c: latestReading.frequency_c,
+      power_factor_a: latestReading.power_factor_a,
+      power_factor_b: latestReading.power_factor_b,
+      power_factor_c: latestReading.power_factor_c,
+      total_power: latestReading.total_power,
+      total_energy: latestReading.total_energy,
     };
 
-    // Compute flash keys before the transition (uses ref, safe)
+    // Compute flash keys
     const prev = prevValuesRef.current;
     const flashes: Partial<typeof flashKeys> = {};
     if (prev.v !== reading.voltage) flashes.v = Date.now();
@@ -284,28 +338,25 @@ export default function DashboardPage() {
     });
   }, [latestReading]);
 
-  // ── Update date display at midnight (Philippines timezone) ──
+  // ── Update date display at midnight ──
   useEffect(() => {
     const updateDate = () => {
-      const formatted = new Intl.DateTimeFormat('en-PH', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        timeZone: 'Asia/Manila'
+      const formatted = new Intl.DateTimeFormat("en-PH", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        timeZone: "Asia/Manila",
       }).format(new Date());
       setCurrentDate(formatted);
     };
 
-    updateDate(); // Initial update
-
-    // Calculate milliseconds until next midnight
+    updateDate();
     const now = new Date();
     const tomorrow = new Date(now);
     tomorrow.setHours(24, 0, 0, 0);
     const msUntilMidnight = tomorrow.getTime() - now.getTime();
 
-    // Update at midnight, then every 24 hours
     const timeout = setTimeout(() => {
       updateDate();
       const interval = setInterval(updateDate, 24 * 60 * 60 * 1000);
@@ -315,17 +366,77 @@ export default function DashboardPage() {
     return () => clearTimeout(timeout);
   }, []);
 
-  // ── Current values (from latest reading or SSE) ──
-  const current = latestReading
-    ? {
+  // ── Computed values based on phase selection ──
+  const is3Phase = isThreePhase(latestReading as Reading | null);
+
+  const getPhaseValues = () => {
+    if (!latestReading) return null;
+
+    if (!is3Phase) {
+      // Single-phase device
+      return {
         voltage: latestReading.voltage,
         current: latestReading.current_amp,
         power: latestReading.power_w,
         energy: latestReading.energy_kwh,
         frequency: latestReading.frequency,
         pf: latestReading.power_factor,
-      }
-    : null;
+      };
+    }
+
+    // 3-phase device
+    switch (selectedPhase) {
+      case "A":
+        return {
+          voltage: latestReading.voltage_a ?? 0,
+          current: latestReading.current_a ?? 0,
+          power: latestReading.power_a ?? 0,
+          energy: latestReading.energy_a ?? 0,
+          frequency: latestReading.frequency_a ?? latestReading.frequency,
+          pf: latestReading.power_factor_a ?? latestReading.power_factor,
+        };
+      case "B":
+        return {
+          voltage: latestReading.voltage_b ?? 0,
+          current: latestReading.current_b ?? 0,
+          power: latestReading.power_b ?? 0,
+          energy: latestReading.energy_b ?? 0,
+          frequency: latestReading.frequency_b ?? latestReading.frequency,
+          pf: latestReading.power_factor_b ?? latestReading.power_factor,
+        };
+      case "C":
+        return {
+          voltage: latestReading.voltage_c ?? 0,
+          current: latestReading.current_c ?? 0,
+          power: latestReading.power_c ?? 0,
+          energy: latestReading.energy_c ?? 0,
+          frequency: latestReading.frequency_c ?? latestReading.frequency,
+          pf: latestReading.power_factor_c ?? latestReading.power_factor,
+        };
+      case "ALL":
+      default:
+        // Show average voltage, total current, total power, total energy
+        const avgVoltage =
+          ((latestReading.voltage_a ?? 0) +
+            (latestReading.voltage_b ?? 0) +
+            (latestReading.voltage_c ?? 0)) /
+          3;
+        const totalCurrent =
+          (latestReading.current_a ?? 0) +
+          (latestReading.current_b ?? 0) +
+          (latestReading.current_c ?? 0);
+        return {
+          voltage: avgVoltage,
+          current: totalCurrent,
+          power: latestReading.total_power ?? latestReading.power_w,
+          energy: latestReading.total_energy ?? latestReading.energy_kwh,
+          frequency: latestReading.frequency,
+          pf: latestReading.power_factor,
+        };
+    }
+  };
+
+  const current = getPhaseValues();
 
   const downloadReportPdf = async () => {
     if (!deviceId || isReportDownloading) return;
@@ -361,6 +472,14 @@ export default function DashboardPage() {
     }
   };
 
+  // Get chart power value based on 3-phase or single-phase
+  const getChartPower = (r: Reading) => {
+    if (isThreePhase(r)) {
+      return r.total_power ?? r.power_w;
+    }
+    return r.power_w;
+  };
+
   return (
     <div className="page-shell">
       <section className="page-header page-header-split">
@@ -368,17 +487,21 @@ export default function DashboardPage() {
           <div className="page-eyebrow">Live Monitoring</div>
           <h1 className="page-title">Realtime Dashboard</h1>
           {currentDate && (
-            <div style={{
-              fontSize: 14,
-              color: "var(--text-muted)",
-              marginTop: 4,
-              marginBottom: 8
-            }}>
+            <div
+              style={{
+                fontSize: 14,
+                color: "var(--text-muted)",
+                marginTop: 4,
+                marginBottom: 8,
+              }}
+            >
               {currentDate}
             </div>
           )}
           <p className="page-copy">
-            Live telemetry stays here. Historical review, date-based summaries, and scrollable ranges now live in the History view.
+            {is3Phase
+              ? "3-Phase monitoring active. Select a phase or view combined totals."
+              : "Live telemetry from single-phase sensor."}
           </p>
         </div>
         <Link href="/history" className="primary-btn">
@@ -424,10 +547,14 @@ export default function DashboardPage() {
                     fontSize: 12,
                   }}
                   labelFormatter={(t: string) => parseDBDate(t).toLocaleString()}
+                  formatter={(value: number) => [
+                    `${value.toFixed(1)} W`,
+                    is3Phase ? "Total Power" : "Power",
+                  ]}
                 />
                 <Area
                   type="monotone"
-                  dataKey="power_w"
+                  dataKey={getChartPower}
                   stroke="#06B6D4"
                   strokeWidth={2}
                   fill="url(#powerGrad)"
@@ -444,8 +571,12 @@ export default function DashboardPage() {
           className="bento-tile"
           style={{ gridColumn: "span 4", gridRow: "span 2", overflowY: "auto" }}
         >
-          <Link href="/alerts" className="tile-label" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            🔔 Alerts
+          <Link
+            href="/alerts"
+            className="tile-label"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            Alerts
             {alerts.length > 0 && (
               <span className="alert-badge" style={{ marginLeft: 2 }}>
                 {alerts.length}
@@ -463,7 +594,9 @@ export default function DashboardPage() {
               No active alerts. System nominal.
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}
+              >
               {alerts.map((alert) => (
                 <Link
                   key={alert.id}
@@ -478,11 +611,24 @@ export default function DashboardPage() {
                     display: "block",
                   }}
                 >
-                  <div style={{ fontWeight: 600, color: "var(--accent-rose)", marginBottom: 4 }}>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      color: "var(--accent-rose)",
+                      marginBottom: 4,
+                    }}
+                  >
                     {alert.type.replace("_", " ")}
                   </div>
                   <div style={{ color: "var(--text-secondary)" }}>{alert.message}</div>
-                  <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-muted)", textDecoration: "underline" }}>
+                  <div
+                    style={{
+                      marginTop: 6,
+                      fontSize: 11,
+                      color: "var(--text-muted)",
+                      textDecoration: "underline",
+                    }}
+                  >
                     Open Alerts
                   </div>
                 </Link>
@@ -491,9 +637,38 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* ──── PHASE SELECTOR (only for 3-phase) ──── */}
+        {is3Phase && (
+          <div
+            className="bento-tile phase-selector-tile"
+            style={{ gridColumn: "span 12", padding: "12px 20px" }}
+          >
+            <div className="phase-selector-row">
+              <div className="phase-indicator">
+                <span className="phase-dot" />
+                3-Phase System Active
+              </div>
+              <div className="phase-selector">
+                {(["A", "B", "C", "ALL"] as PhaseSelection[]).map((phase) => (
+                  <button
+                    key={phase}
+                    className={`phase-btn ${selectedPhase === phase ? "active" : ""} phase-${phase.toLowerCase()}`}
+                    onClick={() => setSelectedPhase(phase)}
+                  >
+                    {phase === "ALL" ? "All Phases" : `Phase ${phase}`}
+                  </button>
+                ))}
+              </div>
+              <Link href="/dashboard/phases" className="phase-details-link">
+                View Phase Details
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* ──── VOLTAGE TILE ──── */}
         <MetricTile
-          label="Voltage"
+          label={is3Phase && selectedPhase !== "ALL" ? `Voltage (Phase ${selectedPhase})` : is3Phase ? "Avg Voltage" : "Voltage"}
           value={current?.voltage ?? 0}
           unit="V"
           decimals={1}
@@ -503,7 +678,7 @@ export default function DashboardPage() {
 
         {/* ──── CURRENT TILE ──── */}
         <MetricTile
-          label="Current"
+          label={is3Phase && selectedPhase !== "ALL" ? `Current (Phase ${selectedPhase})` : is3Phase ? "Total Current" : "Current"}
           value={current?.current ?? 0}
           unit="A"
           decimals={3}
@@ -513,7 +688,7 @@ export default function DashboardPage() {
 
         {/* ──── POWER TILE ──── */}
         <MetricTile
-          label="Power"
+          label={is3Phase && selectedPhase !== "ALL" ? `Power (Phase ${selectedPhase})` : is3Phase ? "Total Power" : "Power"}
           value={current?.power ?? 0}
           unit="W"
           decimals={1}
@@ -524,7 +699,7 @@ export default function DashboardPage() {
 
         {/* ──── POWER FACTOR TILE ──── */}
         <MetricTile
-          label="Power Factor"
+          label={is3Phase && selectedPhase !== "ALL" ? `PF (Phase ${selectedPhase})` : "Power Factor"}
           value={current?.pf ?? 0}
           unit=""
           decimals={2}
@@ -536,7 +711,10 @@ export default function DashboardPage() {
         <div className="bento-tile" style={{ gridColumn: "span 4" }}>
           <div className="tile-label">Estimated Bill (This Month)</div>
           <div className="tile-value" style={{ color: "var(--accent-amber)" }}>
-            ₱{billing?.estimatedCostPhp?.toLocaleString("en-PH", { minimumFractionDigits: 2 }) ?? "---"}
+            ₱
+            {billing?.estimatedCostPhp?.toLocaleString("en-PH", {
+              minimumFractionDigits: 2,
+            }) ?? "---"}
           </div>
           <div style={{ marginTop: 8, fontSize: 13, color: "var(--text-muted)" }}>
             {billing?.totalKwh?.toFixed(4) ?? "0.0000"} kWh consumed
@@ -545,7 +723,11 @@ export default function DashboardPage() {
 
         {/* ──── ENERGY (kWh) TILE ──── */}
         <div className="bento-tile" style={{ gridColumn: "span 4" }}>
-          <div className="tile-label">Total Energy</div>
+          <div className="tile-label">
+            {is3Phase && selectedPhase !== "ALL"
+              ? `Energy (Phase ${selectedPhase})`
+              : "Total Energy"}
+          </div>
           <div className="tile-value">
             {current?.energy?.toFixed(4) ?? "0.0000"}
             <span className="tile-unit">kWh</span>
@@ -567,13 +749,44 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* ──── 3-PHASE QUICK VIEW (only when ALL selected) ──── */}
+        {is3Phase && selectedPhase === "ALL" && latestReading && (
+          <div className="bento-tile" style={{ gridColumn: "span 12" }}>
+            <div className="tile-label">Phase Overview</div>
+            <div className="phase-overview-grid">
+              <PhaseQuickCard
+                phase="A"
+                voltage={latestReading.voltage_a ?? 0}
+                current={latestReading.current_a ?? 0}
+                power={latestReading.power_a ?? 0}
+                color="#fb7185"
+              />
+              <PhaseQuickCard
+                phase="B"
+                voltage={latestReading.voltage_b ?? 0}
+                current={latestReading.current_b ?? 0}
+                power={latestReading.power_b ?? 0}
+                color="#F59E0B"
+              />
+              <PhaseQuickCard
+                phase="C"
+                voltage={latestReading.voltage_c ?? 0}
+                current={latestReading.current_c ?? 0}
+                power={latestReading.power_c ?? 0}
+                color="#06B6D4"
+              />
+            </div>
+          </div>
+        )}
+
         {/* ──── REPORT SUMMARY TILE ──── */}
         <div className="bento-tile report-tile" style={{ gridColumn: "span 12" }}>
           <div className="report-header">
             <div>
               <div className="tile-label">Consumption Summary Report</div>
               <div className="report-subtitle">
-                Averages: day (last 30d), week (last 8 full calendar weeks), month (last 6 complete months)
+                Averages: day (last 30d), week (last 8 full calendar weeks), month
+                (last 6 complete months)
               </div>
             </div>
             <button
@@ -634,6 +847,42 @@ export default function DashboardPage() {
   );
 }
 
+function PhaseQuickCard({
+  phase,
+  voltage,
+  current,
+  power,
+  color,
+}: {
+  phase: string;
+  voltage: number;
+  current: number;
+  power: number;
+  color: string;
+}) {
+  return (
+    <div className="phase-quick-card" style={{ borderColor: `${color}40` }}>
+      <div className="phase-quick-label" style={{ color }}>
+        Phase {phase}
+      </div>
+      <div className="phase-quick-metrics">
+        <div className="phase-quick-row">
+          <span className="phase-quick-name">Voltage</span>
+          <span className="phase-quick-value">{voltage.toFixed(1)} V</span>
+        </div>
+        <div className="phase-quick-row">
+          <span className="phase-quick-name">Current</span>
+          <span className="phase-quick-value">{current.toFixed(3)} A</span>
+        </div>
+        <div className="phase-quick-row">
+          <span className="phase-quick-name">Power</span>
+          <span className="phase-quick-value" style={{ color }}>{power.toFixed(1)} W</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ReportMetric({
   label,
   kwh,
@@ -648,7 +897,11 @@ function ReportMetric({
       <div className="report-metric-label">{label}</div>
       <div className="report-metric-kwh">{kwh.toFixed(3)} kWh</div>
       <div className="report-metric-cost">
-        ~ ₱{cost.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        ~ ₱
+        {cost.toLocaleString("en-PH", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}
       </div>
     </div>
   );
@@ -656,7 +909,6 @@ function ReportMetric({
 
 // ════════════════════════════════════════════════════════════
 // METRIC TILE COMPONENT (with flash animation)
-// DOM ref approach: toggle CSS class directly to avoid setState-in-effect
 // ════════════════════════════════════════════════════════════
 
 function MetricTile({
@@ -682,19 +934,24 @@ function MetricTile({
   useEffect(() => {
     if (flashKey === 0 || !valueRef.current) return;
     const el = valueRef.current;
-    // Force reflow to restart animation if already flashing
     el.classList.remove("value-flash");
     void el.offsetWidth;
     el.classList.add("value-flash");
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => el.classList.remove("value-flash"), 600);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, [flashKey]);
 
   return (
     <div className="bento-tile" style={{ gridColumn: `span ${span}` }}>
       <div className="tile-label">{label}</div>
-      <div ref={valueRef} className="tile-value" style={accentColor ? { color: accentColor } : {}}>
+      <div
+        ref={valueRef}
+        className="tile-value"
+        style={accentColor ? { color: accentColor } : {}}
+      >
         {value.toFixed(decimals)}
         {unit && <span className="tile-unit">{unit}</span>}
       </div>
