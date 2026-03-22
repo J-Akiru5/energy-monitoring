@@ -569,12 +569,18 @@ export default function DashboardPage() {
         {/* ──── ALERTS PANEL ──── */}
         <div
           className="bento-tile"
-          style={{ gridColumn: "span 4", gridRow: "span 2", overflowY: "auto" }}
+          style={{
+            gridColumn: "span 4",
+            gridRow: "span 2",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden"
+          }}
         >
           <Link
             href="/alerts"
             className="tile-label"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}
           >
             Alerts
             {alerts.length > 0 && (
@@ -595,9 +601,17 @@ export default function DashboardPage() {
             </div>
           ) : (
               <div
-                style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                  marginTop: 8,
+                  overflowY: "auto",
+                  flex: 1,
+                  minHeight: 0
+                }}
               >
-              {alerts.map((alert) => (
+              {alerts.slice(0, 10).map((alert) => (
                 <Link
                   key={alert.id}
                   href="/alerts"
@@ -633,6 +647,22 @@ export default function DashboardPage() {
                   </div>
                 </Link>
               ))}
+              {alerts.length > 10 && (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "12px",
+                    fontSize: 12,
+                    color: "var(--text-muted)",
+                    borderTop: "1px solid rgba(148, 163, 184, 0.1)",
+                  }}
+                >
+                  + {alerts.length - 10} more alerts.{" "}
+                  <Link href="/alerts" style={{ color: "var(--accent-cyan)", textDecoration: "underline" }}>
+                    View all
+                  </Link>
+                </div>
+              )}
             </div>
           )}
         </div>
