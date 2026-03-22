@@ -1,11 +1,11 @@
 /*
  * ═══════════════════════════════════════════════════════════════
  * SMART ENERGY MONITORING SYSTEM — ESP32 + PZEM-004T v3.0
- * Single Phase | Wi-Fi → Cloud API (Vercel)
+ * 3-Phase Monitoring | Wi-Fi → Cloud API (Vercel)
  * ═══════════════════════════════════════════════════════════════
  *
  * ⚡ HIGH-VOLTAGE WARNING ⚡
- * The PZEM-004T is connected to mains AC power.
+ * The PZEM-004T sensors are connected to mains AC power.
  * All physical installation MUST be performed by a licensed
  * electrician. Never work on live wires.
  *
@@ -14,14 +14,17 @@
  *   - ArduinoJson       by Benoit Blanchon
  *   - RTClib            by Adafruit
  *   - WebSocketsClient  by Links2004 (v2.4.0+)
+ *   - EspSoftwareSerial by Dirk Kaar (for Software Serial on ESP32)
  *   - WiFi              (built-in ESP32)
  *   - HTTPClient        (built-in ESP32)
  *   - WiFiClientSecure  (built-in ESP32)
  *
- * Wiring:
- *   RTC DS3231  → SDA=GPIO21, SCL=GPIO22 (I2C default)
- *   PZEM-004T   → RX2=GPIO16 (from PZEM TX), TX2=GPIO17 (to PZEM RX)
- *   RELAY       → GPIO25 (Normally Open: HIGH=Power ON, LOW=Power OFF)
+ * Wiring (3-Phase Configuration):
+ *   RTC DS3231    → SDA=GPIO21, SCL=GPIO22 (I2C default)
+ *   PZEM Phase A  → Hardware Serial2: RX=GPIO17 (from PZEM TX), TX=GPIO16 (to PZEM RX)
+ *   PZEM Phase B  → Software Serial:  RX=GPIO5,  TX=GPIO4
+ *   PZEM Phase C  → Software Serial:  RX=GPIO19, TX=GPIO18
+ *   RELAY         → GPIO25 (Normally Open: HIGH=Power ON, LOW=Power OFF)
  *
  * Board: ESP32 Dev Module (ESP32-WROOM-32U recommended)
  * ═══════════════════════════════════════════════════════════════
@@ -56,8 +59,19 @@ const unsigned long READ_INTERVAL = 5000; // 5 seconds
 // Timezone: Philippines (UTC+8) — applied to RTC local time
 const char* TZ_OFFSET_STR = "+08:00";
 
-// ──── PZEM SETUP (UART2: GPIO16=RX, GPIO17=TX) ─────────────
-PZEM004Tv30 pzem(Serial2, 16, 17);
+// ──── 3-PHASE PZEM SETUP (Hardware UARTs Only) ──────────────
+// Phase A: Hardware Serial 2 (keep current - working)
+// RX = GPIO17 (from PZEM TX), TX = GPIO16 (to PZEM RX)
+PZEM004Tv30 pzemA(Serial2, 17, 16);
+
+// Phase B: Hardware Serial 1 with custom pins
+// RX = GPIO5 (from PZEM TX), TX = GPIO4 (to PZEM RX)
+PZEM004Tv30 pzemB(Serial1, 5, 4);
+
+// Phase C: Hardware Serial 0 with reassigned pins
+// RX = GPIO19 (from PZEM TX), TX = GPIO18 (to PZEM RX)
+// NOTE: This reassigns Serial, losing debug output capability
+PZEM004Tv30 pzemC(Serial, 19, 18);
 
 // ──── RTC SETUP ─────────────────────────────────────────────
 RTC_DS3231 rtc;
@@ -107,7 +121,7 @@ unsigned long wsDisconnectTime = 0;                 // Track how long WS has bee
 void setup() {
   Serial.begin(115200);
   Serial.println("\n═══════════════════════════════════");
-  Serial.println(" Energy Monitor v2.0 — Booting...");
+  Serial.println(" Energy Monitor v3.0 — 3-PHASE");
   Serial.println("═══════════════════════════════════\n");
 
   // 1. Initialize RTC
@@ -122,8 +136,13 @@ void setup() {
   // 3.5. Fetch safety thresholds from cloud for local hardware override
   fetchThresholdsFromCloud();
 
-  // 4. Initialize PZEM
-  Serial.println("[PZEM] Initializing PZEM-004T on UART2 (GPIO16/17)...");
+  // 4. Initialize PZEM sensors (3-phase)
+  Serial.println("[PZEM] Initializing 3-Phase PZEM-004T sensors...");
+  Serial.println("[PZEM]   Phase A: Hardware Serial2 (GPIO17/16)");
+  Serial.println("[PZEM]   Phase B: Hardware Serial1 (GPIO5/4)");
+  Serial.println("[PZEM]   Phase C: Hardware Serial  (GPIO19/18)");
+  Serial.println("[PZEM] All 3 PZEM sensors initialized on hardware UARTs.");
+  Serial.println("[PZEM] ⚠ NOTE: Serial debugging will stop after boot (reassigned to Phase C)");
   delay(1000);
 
   // 5. Initialize Relay (default: normal operation, power flowing)
@@ -134,7 +153,7 @@ void setup() {
   // 6. Initialize Supabase Realtime WebSocket for relay control
   initSupabaseRealtime();
 
-  Serial.println("[BOOT] System ready. Starting measurement loop.\n");
+  Serial.println("[BOOT] System ready. Starting 3-phase measurement loop.\n");
 }
 
 // ════════════════════════════════════════════════════════════
@@ -184,7 +203,7 @@ void loop() {
   // Read and send at the configured interval
   if (now - lastReadTime >= READ_INTERVAL) {
     lastReadTime = now;
-    readAndSend();
+    readAndSend3Phase();
   }
 }
 
@@ -203,8 +222,6 @@ void setupRTC() {
   rtcAvailable = true;
 
   if (rtc.lostPower()) {
-    // RTC coin cell died or first boot — do NOT use the stale compile-time
-    // stamp. Set the flag so syncNTP() will write the correct time after WiFi.
     Serial.println("[RTC] ⚠ RTC lost power — will sync from NTP after WiFi connects.");
     rtcNeedSync = true;
   } else {
@@ -236,13 +253,9 @@ void syncNTP() {
     strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &timeinfo);
     Serial.printf(" OK → %s%s\n", buf, TZ_OFFSET_STR);
 
-    // Write NTP time back into RTC for persistent accuracy.
-    // IMPORTANT: configTime() already applies GMT_OFFSET_SEC, so `timeinfo`
-    // holds LOCAL time (UTC+8). The DS3231 should store pure UTC.
-    // We subtract the offset to convert back to UTC before saving.
     if (rtcAvailable) {
       time_t localEpoch = mktime(&timeinfo);
-      time_t utcEpoch   = localEpoch - GMT_OFFSET_SEC; // convert to UTC
+      time_t utcEpoch   = localEpoch - GMT_OFFSET_SEC;
       rtc.adjust(DateTime((uint32_t)utcEpoch));
       Serial.println("[RTC] ✓ RTC calibrated from NTP (stored as UTC).");
     }
@@ -261,14 +274,11 @@ void syncNTP() {
 
 // ════════════════════════════════════════════════════════════
 // TIMESTAMP HELPER
-// Returns ISO 8601 with correct UTC+8 offset: "2026-03-15T14:30:00+08:00"
 // ════════════════════════════════════════════════════════════
 
 String getTimestamp() {
-  // Primary: RTC (no WiFi dependency, works offline)
   if (rtcAvailable) {
     DateTime utcNow = rtc.now();
-    // DS3231 stores UTC. Convert to UTC+8 before appending +08:00.
     DateTime localNow(utcNow.unixtime() + GMT_OFFSET_SEC);
     char buf[30];
     sprintf(buf, "%04d-%02d-%02dT%02d:%02d:%02d+08:00",
@@ -277,7 +287,6 @@ String getTimestamp() {
     return String(buf);
   }
 
-  // Fallback: NTP system time
   struct tm timeinfo;
   if (getLocalTime(&timeinfo)) {
     char buf[30];
@@ -285,36 +294,53 @@ String getTimestamp() {
     return String(buf) + "+08:00";
   }
 
-  // Last resort: epoch placeholder (Zod will accept it, DB will show epoch)
   Serial.println("[TIME] ⚠ No time source available — using epoch.");
   return "1970-01-01T00:00:00+08:00";
 }
 
 // ════════════════════════════════════════════════════════════
-// READ PZEM + SEND TO CLOUD
+// READ 3-PHASE PZEM + SEND TO CLOUD
 // ════════════════════════════════════════════════════════════
 
-void readAndSend() {
-  float voltage     = pzem.voltage();
-  float current     = pzem.current();
-  float power       = pzem.power();
-  float energy      = pzem.energy();
-  float frequency   = pzem.frequency();
-  float powerFactor = pzem.pf();
+void readAndSend3Phase() {
+  // ── Read Phase A (Hardware Serial - fastest) ──
+  float voltageA     = pzemA.voltage();
+  float currentA     = pzemA.current();
+  float powerA       = pzemA.power();
+  float energyA      = pzemA.energy();
+  float frequencyA   = pzemA.frequency();
+  float powerFactorA = pzemA.pf();
+
+  // ── Read Phase B (Software Serial) ──
+  float voltageB     = pzemB.voltage();
+  float currentB     = pzemB.current();
+  float powerB       = pzemB.power();
+  float energyB      = pzemB.energy();
+  float frequencyB   = pzemB.frequency();
+  float powerFactorB = pzemB.pf();
+
+  // ── Read Phase C (Software Serial) ──
+  float voltageC     = pzemC.voltage();
+  float currentC     = pzemC.current();
+  float powerC       = pzemC.power();
+  float energyC      = pzemC.energy();
+  float frequencyC   = pzemC.frequency();
+  float powerFactorC = pzemC.pf();
 
   // ══════════════════════════════════════════════════════════
-  // PZEM OFFLINE DETECTION
-  // When PZEM returns NaN, the ESP32 is online but cannot
-  // communicate with the sensor (wiring issue, sensor failure, etc.)
-  // We still send a payload so the cloud knows the sensor is offline.
+  // SENSOR OFFLINE DETECTION
+  // If ALL phases return NaN, the ESP32 is online but cannot
+  // communicate with any sensor
   // ══════════════════════════════════════════════════════════
-  if (isnan(voltage) || isnan(current)) {
-    Serial.println("[PZEM] ⚠ Sensor offline (NaN readings)!");
-    Serial.println("[PZEM]   → Voltage pin wired to Line/Neutral?");
-    Serial.println("[PZEM]   → CT clamp secured around the live wire?");
+  bool phaseAOffline = isnan(voltageA) || isnan(currentA);
+  bool phaseBOffline = isnan(voltageB) || isnan(currentB);
+  bool phaseCOffline = isnan(voltageC) || isnan(currentC);
+
+  if (phaseAOffline && phaseBOffline && phaseCOffline) {
+    Serial.println("[PZEM] ⚠ All sensors offline (NaN readings)!");
+    Serial.println("[PZEM]   → Check wiring for all 3 phases");
     Serial.println("[PZEM]   → Sending sensorOffline notification to cloud...");
 
-    // Send sensorOffline payload to API
     JsonDocument doc;
     doc["deviceId"] = DEVICE_ID;
     doc["timestamp"] = getTimestamp();
@@ -326,61 +352,128 @@ void readAndSend() {
     return;
   }
 
+  // Handle individual phase offline (use 0 for offline phases)
+  if (phaseAOffline) {
+    Serial.println("[PZEM] ⚠ Phase A offline - using zeros");
+    voltageA = currentA = powerA = energyA = frequencyA = powerFactorA = 0;
+  }
+  if (phaseBOffline) {
+    Serial.println("[PZEM] ⚠ Phase B offline - using zeros");
+    voltageB = currentB = powerB = energyB = frequencyB = powerFactorB = 0;
+  }
+  if (phaseCOffline) {
+    Serial.println("[PZEM] ⚠ Phase C offline - using zeros");
+    voltageC = currentC = powerC = energyC = frequencyC = powerFactorC = 0;
+  }
+
   // Print to Serial Monitor
-  Serial.println("─── PZEM Reading ───────────────────");
-  Serial.printf("  Voltage:      %.2f V\n",  voltage);
-  Serial.printf("  Current:      %.3f A\n",  current);
-  Serial.printf("  Power:        %.2f W\n",  power);
-  Serial.printf("  Energy:       %.4f kWh\n", energy);
-  Serial.printf("  Frequency:    %.1f Hz\n", frequency);
-  Serial.printf("  Power Factor: %.2f\n",    powerFactor);
-  Serial.printf("  Timestamp:    %s\n",      getTimestamp().c_str());
-  Serial.println("────────────────────────────────────");
+  Serial.println("─── 3-PHASE PZEM Reading ───────────────────");
+  Serial.printf("  Phase A: %.1fV  %.3fA  %.1fW  %.4fkWh  PF:%.2f\n",
+                voltageA, currentA, powerA, energyA, powerFactorA);
+  Serial.printf("  Phase B: %.1fV  %.3fA  %.1fW  %.4fkWh  PF:%.2f\n",
+                voltageB, currentB, powerB, energyB, powerFactorB);
+  Serial.printf("  Phase C: %.1fV  %.3fA  %.1fW  %.4fkWh  PF:%.2f\n",
+                voltageC, currentC, powerC, energyC, powerFactorC);
+
+  float totalPower = powerA + powerB + powerC;
+  float totalEnergy = energyA + energyB + energyC;
+  Serial.printf("  TOTAL:   %.1fW  %.4fkWh\n", totalPower, totalEnergy);
+  Serial.printf("  Timestamp: %s\n", getTimestamp().c_str());
+  Serial.println("────────────────────────────────────────────");
 
   // ══════════════════════════════════════════════════════════
-  // LOCAL HARDWARE SAFETY OVERRIDE
-  // This runs BEFORE sending to cloud, ensuring immediate protection
-  // even if WiFi/WebSocket is disconnected.
+  // LOCAL HARDWARE SAFETY OVERRIDE — Check ALL phases
+  // Trip if ANY phase exceeds thresholds
   // ══════════════════════════════════════════════════════════
   bool localTrip = false;
   const char* localTripReason = nullptr;
+  float tripVoltage = 0;
 
-  if (localSafetyEnabled && !relayState && voltage > 0) {
-    // Only check if: local safety is enabled, relay not already tripped, and not a blackout
-    if (voltage > localOvervoltageThreshold) {
-      localTrip = true;
-      localTripReason = "LOCAL_OVERVOLTAGE";
-      Serial.println("════════════════════════════════════════════════════════");
-      Serial.println("[ALERT] LOCAL HARDWARE OVERRIDE: DANGEROUS VOLTAGE! Killing Power...");
-      Serial.printf("[ALERT]   Measured: %.2fV > Threshold: %.1fV\n", voltage, localOvervoltageThreshold);
-      Serial.println("════════════════════════════════════════════════════════");
-    } else if (voltage < localUndervoltageThreshold) {
-      localTrip = true;
-      localTripReason = "LOCAL_UNDERVOLTAGE";
-      Serial.println("════════════════════════════════════════════════════════");
-      Serial.println("[ALERT] LOCAL HARDWARE OVERRIDE: DANGEROUS VOLTAGE! Killing Power...");
-      Serial.printf("[ALERT]   Measured: %.2fV < Threshold: %.1fV\n", voltage, localUndervoltageThreshold);
-      Serial.println("════════════════════════════════════════════════════════");
+  if (localSafetyEnabled && !relayState) {
+    // Check Phase A
+    if (!phaseAOffline && voltageA > 0) {
+      if (voltageA > localOvervoltageThreshold) {
+        localTrip = true;
+        localTripReason = "LOCAL_OVERVOLTAGE_PHASE_A";
+        tripVoltage = voltageA;
+      } else if (voltageA < localUndervoltageThreshold) {
+        localTrip = true;
+        localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_A";
+        tripVoltage = voltageA;
+      }
+    }
+
+    // Check Phase B
+    if (!localTrip && !phaseBOffline && voltageB > 0) {
+      if (voltageB > localOvervoltageThreshold) {
+        localTrip = true;
+        localTripReason = "LOCAL_OVERVOLTAGE_PHASE_B";
+        tripVoltage = voltageB;
+      } else if (voltageB < localUndervoltageThreshold) {
+        localTrip = true;
+        localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_B";
+        tripVoltage = voltageB;
+      }
+    }
+
+    // Check Phase C
+    if (!localTrip && !phaseCOffline && voltageC > 0) {
+      if (voltageC > localOvervoltageThreshold) {
+        localTrip = true;
+        localTripReason = "LOCAL_OVERVOLTAGE_PHASE_C";
+        tripVoltage = voltageC;
+      } else if (voltageC < localUndervoltageThreshold) {
+        localTrip = true;
+        localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_C";
+        tripVoltage = voltageC;
+      }
     }
 
     if (localTrip) {
+      Serial.println("════════════════════════════════════════════════════════");
+      Serial.println("[ALERT] LOCAL HARDWARE OVERRIDE: DANGEROUS VOLTAGE! Killing Power...");
+      Serial.printf("[ALERT]   Reason: %s  Voltage: %.2fV\n", localTripReason, tripVoltage);
+      Serial.println("════════════════════════════════════════════════════════");
+
       relayState = true;
-      digitalWrite(RELAY_PIN, LOW);   // LOW = Power OFF (tripped, relay de-energized)
+      digitalWrite(RELAY_PIN, LOW);   // LOW = Power OFF (tripped)
       Serial.println("[RELAY] ⚡ LOCAL TRIP EXECUTED — Power disconnected.");
     }
   }
 
-  // Build JSON payload using ArduinoJson (safe, no string concatenation bugs)
+  // Build 3-phase JSON payload using ArduinoJson
   JsonDocument doc;
   doc["deviceId"] = DEVICE_ID;
 
-  JsonObject reading = doc["reading"].to<JsonObject>();
-  reading["voltage"]     = round(voltage     * 100)   / 100.0;
-  reading["current"]     = round(current     * 1000)  / 1000.0;
-  reading["power"]       = round(power       * 100)   / 100.0;
-  reading["energy"]      = round(energy      * 10000) / 10000.0;
-  reading["frequency"]   = round(frequency   * 10)    / 10.0;
-  reading["powerFactor"] = round(powerFactor * 100)   / 100.0;
+  // 3-Phase reading structure
+  JsonObject threePhase = doc["threePhase"].to<JsonObject>();
+
+  // Phase A
+  JsonObject phaseA = threePhase["phase_a"].to<JsonObject>();
+  phaseA["voltage"]     = round(voltageA     * 100)   / 100.0;
+  phaseA["current"]     = round(currentA     * 1000)  / 1000.0;
+  phaseA["power"]       = round(powerA       * 100)   / 100.0;
+  phaseA["energy"]      = round(energyA      * 10000) / 10000.0;
+  phaseA["frequency"]   = round(frequencyA   * 100)   / 100.0;
+  phaseA["powerFactor"] = round(powerFactorA * 1000)  / 1000.0;
+
+  // Phase B
+  JsonObject phaseB = threePhase["phase_b"].to<JsonObject>();
+  phaseB["voltage"]     = round(voltageB     * 100)   / 100.0;
+  phaseB["current"]     = round(currentB     * 1000)  / 1000.0;
+  phaseB["power"]       = round(powerB       * 100)   / 100.0;
+  phaseB["energy"]      = round(energyB      * 10000) / 10000.0;
+  phaseB["frequency"]   = round(frequencyB   * 100)   / 100.0;
+  phaseB["powerFactor"] = round(powerFactorB * 1000)  / 1000.0;
+
+  // Phase C
+  JsonObject phaseC_obj = threePhase["phase_c"].to<JsonObject>();
+  phaseC_obj["voltage"]     = round(voltageC     * 100)   / 100.0;
+  phaseC_obj["current"]     = round(currentC     * 1000)  / 1000.0;
+  phaseC_obj["power"]       = round(powerC       * 100)   / 100.0;
+  phaseC_obj["energy"]      = round(energyC      * 10000) / 10000.0;
+  phaseC_obj["frequency"]   = round(frequencyC   * 100)   / 100.0;
+  phaseC_obj["powerFactor"] = round(powerFactorC * 1000)  / 1000.0;
 
   doc["timestamp"] = getTimestamp();
 
@@ -390,10 +483,10 @@ void readAndSend() {
     doc["localTripReason"] = localTripReason;
   }
 
-  // If voltage is exactly 0.00 (but not NaN), it means mains AC power is cut (Blackout)
-  if (voltage == 0.0) {
+  // If ALL voltages are 0 (but not NaN), it means mains AC power is cut (Blackout)
+  if (voltageA == 0.0 && voltageB == 0.0 && voltageC == 0.0) {
     doc["blackout"] = true;
-    Serial.println("[ALERT] Mains blackout detected (0V). Flagging payload.");
+    Serial.println("[ALERT] Mains blackout detected (0V on all phases). Flagging payload.");
   }
 
   String payload;
@@ -432,7 +525,6 @@ void sendToCloud(const String& payload) {
       return;
     }
 
-    // Print the full server response to help diagnose 401, 422, 429, etc.
     String response = "(no response body)";
     if (httpCode > 0) {
       response = http.getString();
@@ -447,9 +539,8 @@ void sendToCloud(const String& payload) {
 
     http.end();
 
-    // Exponential backoff before next retry
     if (attempt < MAX_RETRIES - 1) {
-      int backoff = BASE_DELAY_MS * (1 << attempt); // 1s, 2s, 4s
+      int backoff = BASE_DELAY_MS * (1 << attempt);
       Serial.printf("[API] Retrying in %d ms...\n", backoff);
       delay(backoff);
     }
@@ -497,7 +588,6 @@ void connectWiFi() {
 
 // ════════════════════════════════════════════════════════════
 // FETCH THRESHOLDS FROM CLOUD ON BOOT
-// ESP32 needs these values for local hardware override
 // ════════════════════════════════════════════════════════════
 
 void fetchThresholdsFromCloud() {
@@ -550,7 +640,6 @@ void fetchThresholdsFromCloud() {
 
 // ════════════════════════════════════════════════════════════
 // SUPABASE REALTIME — WebSocket Connection for Relay Control
-// Provides <1 second latency for relay trip/reset commands
 // ════════════════════════════════════════════════════════════
 
 void initSupabaseRealtime() {
@@ -561,20 +650,14 @@ void initSupabaseRealtime() {
 
   Serial.println("[WS] Connecting to Supabase Realtime...");
 
-  // Build WebSocket path with API key
   String wsPath = "/realtime/v1/websocket?apikey=";
   wsPath += SUPABASE_ANON_KEY;
   wsPath += "&vsn=1.0.0";
 
-  // Connect to Supabase Realtime endpoint (SSL on port 443)
   webSocket.beginSSL(SUPABASE_HOST, 443, wsPath.c_str());
-
-  // Set event handler
   webSocket.onEvent(webSocketEvent);
-
-  // Configure reconnection and heartbeat
-  webSocket.setReconnectInterval(5000);           // 5s between reconnect attempts
-  webSocket.enableHeartbeat(30000, 3000, 2);      // Ping every 30s, timeout 3s, 2 retries
+  webSocket.setReconnectInterval(5000);
+  webSocket.enableHeartbeat(30000, 3000, 2);
 
   Serial.println("[WS] WebSocket initialized.");
 }
@@ -589,12 +672,10 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
     case WStype_CONNECTED:
       Serial.println("[WS] ✓ Connected to Supabase Realtime!");
       wsConnected = true;
-      // Subscribe to relay_state table changes for this device
       subscribeToRelayState();
       break;
 
     case WStype_TEXT:
-      // Handle incoming messages (relay state changes)
       handleRealtimeMessage((char*)payload);
       break;
 
@@ -604,11 +685,7 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
       break;
 
     case WStype_PING:
-      // Ping received, pong will be sent automatically
-      break;
-
     case WStype_PONG:
-      // Heartbeat acknowledged
       break;
 
     default:
@@ -617,8 +694,6 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
 }
 
 void subscribeToRelayState() {
-  // Supabase Realtime uses Phoenix Channels protocol
-  // Subscribe to changes on relay_state table filtered by device_id
   JsonDocument doc;
   doc["topic"] = String("realtime:public:relay_state:device_id=eq.") + DEVICE_ID;
   doc["event"] = "phx_join";
@@ -647,7 +722,6 @@ void handleRealtimeMessage(char* payload) {
 
   const char* event = doc["event"];
 
-  // Handle subscription confirmation
   if (strcmp(event, "phx_reply") == 0) {
     const char* status = doc["payload"]["status"];
     if (status && strcmp(status, "ok") == 0) {
@@ -656,11 +730,6 @@ void handleRealtimeMessage(char* payload) {
     return;
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // PHOENIX HEARTBEAT HANDLER (CRITICAL for connection stability)
-  // Supabase Realtime sends "heartbeat" events every 30s.
-  // We MUST respond with a matching "phx_reply" to keep connection alive.
-  // ═══════════════════════════════════════════════════════════════
   if (strcmp(event, "heartbeat") == 0 || strcmp(event, "phx_heartbeat") == 0) {
     const char* topic = doc["topic"] | "phoenix";
     const char* ref = doc["ref"];
@@ -679,28 +748,22 @@ void handleRealtimeMessage(char* payload) {
     return;
   }
 
-  // Handle system messages (presence, heartbeat, etc.)
   if (strcmp(event, "system") == 0 || strcmp(event, "presence_state") == 0) {
-    return; // Ignore system messages
+    return;
   }
 
-  // Handle database changes (INSERT, UPDATE, DELETE)
   if (strcmp(event, "postgres_changes") == 0) {
     const char* changeType = doc["payload"]["data"]["type"];
     JsonObject record = doc["payload"]["data"]["record"];
 
     if (!record.isNull()) {
-      // Verify this update is for our device
       const char* recordDeviceId = record["device_id"];
       if (recordDeviceId && strcmp(recordDeviceId, DEVICE_ID) == 0) {
         bool newTrippedState = record["is_tripped"] | false;
         const char* tripReason = record["trip_reason"] | "UNKNOWN";
 
-        // Only actuate relay if state actually changed
         if (newTrippedState != relayState) {
           relayState = newTrippedState;
-
-          // Actuate relay: LOW = Power OFF (tripped), HIGH = Power ON (normal)
           digitalWrite(RELAY_PIN, relayState ? LOW : HIGH);
 
           Serial.println("════════════════════════════════════════");
@@ -718,21 +781,19 @@ void handleRealtimeMessage(char* payload) {
     return;
   }
 
-  // Log unknown events for debugging
   if (strcmp(event, "phx_reply") != 0) {
     Serial.printf("[WS] Received event: %s\n", event);
   }
 }
 
 // ════════════════════════════════════════════════════════════
-// MANUAL RELAY CONTROL (for testing without WebSocket)
-// Can be called from Serial commands or other triggers
+// MANUAL RELAY CONTROL
 // ════════════════════════════════════════════════════════════
 
 void tripRelay(const char* reason) {
   if (!relayState) {
     relayState = true;
-    digitalWrite(RELAY_PIN, LOW);   // LOW = Power OFF (tripped, relay de-energized)
+    digitalWrite(RELAY_PIN, LOW);
     Serial.println("════════════════════════════════════════");
     Serial.printf("[RELAY] ⚡ MANUALLY TRIPPED! Reason: %s\n", reason);
     Serial.println("[RELAY] ⚠ Power disconnected.");
@@ -743,7 +804,7 @@ void tripRelay(const char* reason) {
 void resetRelay() {
   if (relayState) {
     relayState = false;
-    digitalWrite(RELAY_PIN, HIGH);  // HIGH = Power ON (normal operation, power flowing)
+    digitalWrite(RELAY_PIN, HIGH);
     Serial.println("════════════════════════════════════════");
     Serial.println("[RELAY] ✓ MANUALLY RESET. Power restored.");
     Serial.println("════════════════════════════════════════");

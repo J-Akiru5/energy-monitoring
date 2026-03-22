@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { TelemetryPayloadSchema } from "@energy/types";
+import { TelemetryPayloadSchema, isThreePhasePayload } from "@energy/types";
+import type { ThreePhaseReading } from "@energy/types";
 import {
   insertReading,
   validateDeviceToken,
@@ -20,11 +21,13 @@ const lastPostTime = new Map<string, number>();
  * POST /api/ingest
  *
  * Receives telemetry from ESP32 (or mock sensor).
+ * Supports both single-phase and 3-phase payloads.
+ *
  * 1. Validates X-Device-Token header
  * 2. Validates body with Zod schema
  * 3. Rate-limits to 1 req/sec per device
  * 4. Writes to power_readings
- * 5. Checks alert thresholds
+ * 5. Checks alert thresholds (per-phase for 3-phase)
  */
 export async function POST(req: NextRequest) {
   try {
@@ -76,22 +79,27 @@ export async function POST(req: NextRequest) {
         type: "PZEM_OFFLINE",
         value: 0,
         threshold: 0,
-        message: "PZEM sensor offline: ESP32 cannot communicate with power meter. Check wiring and sensor connection.",
+        message:
+          "PZEM sensor offline: ESP32 cannot communicate with power meter. Check wiring and sensor connection.",
       });
 
       // Don't insert a reading (no valid data), just acknowledge
-      return NextResponse.json({ status: "ok", sensorOffline: true }, { status: 200 });
+      return NextResponse.json(
+        { status: "ok", sensorOffline: true },
+        { status: 200 }
+      );
     }
 
-    // ── 4b. Write Reading to Database ──
-    // Validate that reading exists before proceeding
-    if (!payload.reading) {
+    // ── 4b. Validate that reading data exists ──
+    const is3Phase = isThreePhasePayload(payload);
+    if (!is3Phase && !payload.reading) {
       return NextResponse.json(
         { error: "Missing reading data" },
         { status: 422 }
       );
     }
 
+    // ── 4c. Write Reading to Database ──
     // IMPORTANT: We override the timestamp with the server's UTC time.
     // The ESP32's RTC stores UTC but incorrectly labels it as +08:00,
     // causing all recorded_at values to be stored 8 hours behind reality.
@@ -107,6 +115,11 @@ export async function POST(req: NextRequest) {
     const wasInBlackout = blackoutState?.inBlackout ?? false;
     const isBlackout = payload.blackout === true;
 
+    // Get voltage for blackout end message (use Phase A for 3-phase, or single-phase voltage)
+    const currentVoltage = is3Phase
+      ? payload.threePhase!.phase_a.voltage
+      : payload.reading!.voltage;
+
     if (isBlackout && !wasInBlackout) {
       // BLACKOUT START: First 0V reading after normal operation
       const alert = await createAlert({
@@ -118,8 +131,9 @@ export async function POST(req: NextRequest) {
       });
 
       await startBlackoutEvent(payload.deviceId, alert?.id);
-      console.log(`[Blackout] Started tracking blackout for device ${payload.deviceId}`);
-
+      console.log(
+        `[Blackout] Started tracking blackout for device ${payload.deviceId}`
+      );
     } else if (!isBlackout && wasInBlackout) {
       // BLACKOUT END: First non-0V reading after blackout
       const ended = await endBlackoutEvent(payload.deviceId);
@@ -128,31 +142,52 @@ export async function POST(req: NextRequest) {
         await createAlert({
           deviceId: payload.deviceId,
           type: "BLACKOUT",
-          value: payload.reading.voltage,
+          value: currentVoltage,
           threshold: 0,
-          message: `BLACKOUT ENDED: Power restored at ${payload.reading.voltage}V.`,
+          message: `BLACKOUT ENDED: Power restored at ${currentVoltage}V.`,
         });
-        console.log(`[Blackout] Ended blackout for device ${payload.deviceId}`);
+        console.log(
+          `[Blackout] Ended blackout for device ${payload.deviceId}`
+        );
       }
 
       // Continue with normal threshold checks
-      await checkThresholds(payload.deviceId, payload.reading);
-
+      if (is3Phase) {
+        await checkThreePhaseThresholds(payload.deviceId, payload.threePhase!);
+      } else {
+        await checkThresholds(payload.deviceId, payload.reading!);
+      }
     } else if (isBlackout && wasInBlackout) {
       // ONGOING BLACKOUT: Don't create duplicate alerts
-      console.log(`[Blackout] Ongoing blackout for device ${payload.deviceId} (no new alert)`);
-
+      console.log(
+        `[Blackout] Ongoing blackout for device ${payload.deviceId} (no new alert)`
+      );
     } else {
       // NORMAL OPERATION: Check thresholds as usual
-      await checkThresholds(payload.deviceId, payload.reading);
+      if (is3Phase) {
+        await checkThreePhaseThresholds(payload.deviceId, payload.threePhase!);
+      } else {
+        await checkThresholds(payload.deviceId, payload.reading!);
+      }
     }
 
     // ── 6. Handle Local Safety Trips from ESP32 ──
-    if (payload.localTrip && payload.localTripReason && payload.reading) {
+    if (payload.localTrip && payload.localTripReason) {
+      const reading = is3Phase
+        ? {
+          voltage: payload.threePhase!.phase_a.voltage,
+          current: payload.threePhase!.phase_a.current,
+          power:
+            payload.threePhase!.phase_a.power +
+            payload.threePhase!.phase_b.power +
+            payload.threePhase!.phase_c.power,
+        }
+        : payload.reading!;
+
       await handleLocalTrip({
         deviceId: payload.deviceId,
         localTripReason: payload.localTripReason,
-        reading: payload.reading,
+        reading,
       });
     }
 
@@ -167,7 +202,112 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * Check reading against alert thresholds and create alerts if needed.
+ * Check 3-phase reading against alert thresholds.
+ * Each phase is checked individually, and alerts include phase identifier.
+ */
+async function checkThreePhaseThresholds(
+  deviceId: string,
+  threePhase: ThreePhaseReading
+) {
+  try {
+    const thresholds = await getAlertThresholds();
+    if (!thresholds) return;
+
+    const relayConfig = await getRelayConfig(deviceId);
+    const shouldAutoTrip = relayConfig?.autoTripEnabled ?? false;
+
+    const phases = [
+      { name: "A", data: threePhase.phase_a },
+      { name: "B", data: threePhase.phase_b },
+      { name: "C", data: threePhase.phase_c },
+    ];
+
+    for (const phase of phases) {
+      // Check overvoltage per phase
+      if (phase.data.voltage > thresholds.overvoltage) {
+        const alert = await createAlert({
+          deviceId,
+          type: "OVERVOLTAGE",
+          value: phase.data.voltage,
+          threshold: thresholds.overvoltage,
+          message: `Phase ${phase.name} overvoltage: ${phase.data.voltage}V (threshold: ${thresholds.overvoltage}V)`,
+        });
+
+        if (shouldAutoTrip && relayConfig?.tripOnOvervoltage && alert) {
+          await triggerRelayTrip(
+            deviceId,
+            `OVERVOLTAGE_PHASE_${phase.name}`,
+            phase.data.voltage,
+            thresholds.overvoltage,
+            alert.id
+          );
+        }
+      }
+
+      // Check undervoltage per phase
+      if (phase.data.voltage < thresholds.undervoltage) {
+        const alert = await createAlert({
+          deviceId,
+          type: "UNDERVOLTAGE",
+          value: phase.data.voltage,
+          threshold: thresholds.undervoltage,
+          message: `Phase ${phase.name} undervoltage: ${phase.data.voltage}V (threshold: ${thresholds.undervoltage}V)`,
+        });
+
+        if (shouldAutoTrip && relayConfig?.tripOnUndervoltage && alert) {
+          await triggerRelayTrip(
+            deviceId,
+            `UNDERVOLTAGE_PHASE_${phase.name}`,
+            phase.data.voltage,
+            thresholds.undervoltage,
+            alert.id
+          );
+        }
+      }
+
+      // Check overcurrent per phase
+      if (phase.data.current > thresholds.overcurrent) {
+        const alert = await createAlert({
+          deviceId,
+          type: "OVERCURRENT",
+          value: phase.data.current,
+          threshold: thresholds.overcurrent,
+          message: `Phase ${phase.name} overcurrent: ${phase.data.current}A (threshold: ${thresholds.overcurrent}A)`,
+        });
+
+        if (shouldAutoTrip && relayConfig?.tripOnOvercurrent && alert) {
+          await triggerRelayTrip(
+            deviceId,
+            `OVERCURRENT_PHASE_${phase.name}`,
+            phase.data.current,
+            thresholds.overcurrent,
+            alert.id
+          );
+        }
+      }
+    }
+
+    // Check total power (sum of all phases)
+    const totalPower =
+      threePhase.phase_a.power +
+      threePhase.phase_b.power +
+      threePhase.phase_c.power;
+    if (totalPower > thresholds.high_power) {
+      await createAlert({
+        deviceId,
+        type: "HIGH_POWER",
+        value: totalPower,
+        threshold: thresholds.high_power,
+        message: `High total power draw: ${totalPower.toFixed(1)}W (threshold: ${thresholds.high_power}W)`,
+      });
+    }
+  } catch (err) {
+    console.error("[Alert Engine] 3-phase threshold check error:", err);
+  }
+}
+
+/**
+ * Check single-phase reading against alert thresholds and create alerts if needed.
  * Also triggers relay auto-trip if configured.
  */
 async function checkThresholds(
@@ -286,7 +426,9 @@ async function triggerRelayTrip(
       "SYSTEM",
       "Auto-trip triggered by alert"
     );
-    console.log(`[Relay] Auto-tripped relay for device ${deviceId} due to ${trigger}`);
+    console.log(
+      `[Relay] Auto-tripped relay for device ${deviceId} due to ${trigger}`
+    );
   } catch (err) {
     console.error("[Relay] Failed to trip relay:", err);
   }
