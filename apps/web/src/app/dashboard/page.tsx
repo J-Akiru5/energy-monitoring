@@ -616,30 +616,31 @@ export default function DashboardPage() {
                   key={alert.id}
                   href="/alerts"
                   style={{
-                    background: "rgba(225, 29, 72, 0.1)",
-                    border: "1px solid rgba(225, 29, 72, 0.3)",
+                    background: "rgba(225, 29, 72, 0.2)",
+                    border: "1px solid rgba(225, 29, 72, 0.6)",
                     borderRadius: 14,
                     padding: "10px 12px",
                     fontSize: 13,
                     cursor: "pointer",
                     display: "block",
+                    boxShadow: "0 0 12px rgba(225, 29, 72, 0.2)",
                   }}
                 >
                   <div
                     style={{
                       fontWeight: 600,
-                      color: "var(--accent-rose)",
+                      color: "#FF5C7C",
                       marginBottom: 4,
                     }}
                   >
                     {alert.type.replace("_", " ")}
                   </div>
-                  <div style={{ color: "var(--text-secondary)" }}>{alert.message}</div>
+                  <div style={{ color: "#E2E8F0" }}>{alert.message}</div>
                   <div
                     style={{
                       marginTop: 6,
                       fontSize: 11,
-                      color: "var(--text-muted)",
+                      color: "#94A3B8",
                       textDecoration: "underline",
                     }}
                   >
