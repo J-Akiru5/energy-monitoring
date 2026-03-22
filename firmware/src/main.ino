@@ -102,7 +102,6 @@ bool relayState = false;                 // false = normal (power ON), true = tr
 float localOvervoltageThreshold = 250.0;   // Default: 250V (will be overwritten from cloud)
 float localUndervoltageThreshold = 200.0;  // Default: 200V (will be overwritten from cloud)
 bool localSafetyEnabled = true;            // Enable local hardware override by default
-float minConnectedVoltage = 100.0;         // Voltage threshold to consider a phase "connected"
 
 // ──── SUPABASE REALTIME (WebSocket) ─────────────────────────
 // Replace these with your Supabase project credentials
@@ -331,11 +330,11 @@ void readAndSend3Phase() {
   // ══════════════════════════════════════════════════════════
   // SENSOR OFFLINE DETECTION
   // If ALL phases return NaN, the ESP32 is online but cannot
-  // communicate with any sensor
+  // communicate with any sensor. 0V readings indicate brownout/blackout.
   // ══════════════════════════════════════════════════════════
-  bool phaseAOffline = isnan(voltageA) || isnan(currentA) || voltageA < minConnectedVoltage;
-  bool phaseBOffline = isnan(voltageB) || isnan(currentB) || voltageB < minConnectedVoltage;
-  bool phaseCOffline = isnan(voltageC) || isnan(currentC) || voltageC < minConnectedVoltage;
+  bool phaseAOffline = isnan(voltageA) || isnan(currentA);
+  bool phaseBOffline = isnan(voltageB) || isnan(currentB);
+  bool phaseCOffline = isnan(voltageC) || isnan(currentC);
 
   if (phaseAOffline && phaseBOffline && phaseCOffline) {
     Serial.println("[PZEM] ⚠ All sensors offline (NaN readings)!");
@@ -355,30 +354,15 @@ void readAndSend3Phase() {
 
   // Handle individual phase offline (use 0 for offline phases)
   if (phaseAOffline) {
-    if (isnan(voltageA)) {
-      Serial.println("[PZEM] ⚠ Phase A offline - NaN reading");
-    } else if (voltageA < minConnectedVoltage) {
-      Serial.printf("[PZEM] ⚠ Phase A offline - voltage too low (%.1fV < %.1fV)\n",
-                    voltageA, minConnectedVoltage);
-    }
+    Serial.println("[PZEM] ⚠ Phase A offline - NaN reading (sensor comm failed)");
     voltageA = currentA = powerA = energyA = frequencyA = powerFactorA = 0;
   }
   if (phaseBOffline) {
-    if (isnan(voltageB)) {
-      Serial.println("[PZEM] ⚠ Phase B offline - NaN reading");
-    } else if (voltageB < minConnectedVoltage) {
-      Serial.printf("[PZEM] ⚠ Phase B offline - voltage too low (%.1fV < %.1fV)\n",
-                    voltageB, minConnectedVoltage);
-    }
+    Serial.println("[PZEM] ⚠ Phase B offline - NaN reading (sensor comm failed)");
     voltageB = currentB = powerB = energyB = frequencyB = powerFactorB = 0;
   }
   if (phaseCOffline) {
-    if (isnan(voltageC)) {
-      Serial.println("[PZEM] ⚠ Phase C offline - NaN reading");
-    } else if (voltageC < minConnectedVoltage) {
-      Serial.printf("[PZEM] ⚠ Phase C offline - voltage too low (%.1fV < %.1fV)\n",
-                    voltageC, minConnectedVoltage);
-    }
+    Serial.println("[PZEM] ⚠ Phase C offline - NaN reading (sensor comm failed)");
     voltageC = currentC = powerC = energyC = frequencyC = powerFactorC = 0;
   }
 
@@ -399,48 +383,37 @@ void readAndSend3Phase() {
 
   // ══════════════════════════════════════════════════════════
   // LOCAL HARDWARE SAFETY OVERRIDE — Check ALL phases
-  // Trip if ANY phase exceeds thresholds
+  // Trip ONLY on overvoltage (>250V) for testing purposes
+  // Undervoltage/brownout detection disabled to allow single-phase testing
   // ══════════════════════════════════════════════════════════
   bool localTrip = false;
   const char* localTripReason = nullptr;
   float tripVoltage = 0;
 
   if (localSafetyEnabled && !relayState) {
-    // Check Phase A
-    if (!phaseAOffline) {
+    // Check Phase A - OVERVOLTAGE ONLY
+    if (!phaseAOffline && voltageA > 0) {
       if (voltageA > localOvervoltageThreshold) {
         localTrip = true;
         localTripReason = "LOCAL_OVERVOLTAGE_PHASE_A";
         tripVoltage = voltageA;
-      } else if (voltageA < localUndervoltageThreshold) {
-        localTrip = true;
-        localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_A";
-        tripVoltage = voltageA;
       }
     }
 
-    // Check Phase B
-    if (!localTrip && !phaseBOffline) {
+    // Check Phase B - OVERVOLTAGE ONLY
+    if (!localTrip && !phaseBOffline && voltageB > 0) {
       if (voltageB > localOvervoltageThreshold) {
         localTrip = true;
         localTripReason = "LOCAL_OVERVOLTAGE_PHASE_B";
         tripVoltage = voltageB;
-      } else if (voltageB < localUndervoltageThreshold) {
-        localTrip = true;
-        localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_B";
-        tripVoltage = voltageB;
       }
     }
 
-    // Check Phase C
-    if (!localTrip && !phaseCOffline) {
+    // Check Phase C - OVERVOLTAGE ONLY
+    if (!localTrip && !phaseCOffline && voltageC > 0) {
       if (voltageC > localOvervoltageThreshold) {
         localTrip = true;
         localTripReason = "LOCAL_OVERVOLTAGE_PHASE_C";
-        tripVoltage = voltageC;
-      } else if (voltageC < localUndervoltageThreshold) {
-        localTrip = true;
-        localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_C";
         tripVoltage = voltageC;
       }
     }
@@ -611,7 +584,6 @@ void fetchThresholdsFromCloud() {
     Serial.println("[THRESHOLDS] WiFi not connected, using defaults.");
     Serial.printf("[THRESHOLDS]   Overvoltage:  %.1fV\n", localOvervoltageThreshold);
     Serial.printf("[THRESHOLDS]   Undervoltage: %.1fV\n", localUndervoltageThreshold);
-    Serial.printf("[THRESHOLDS]   Min Connected: %.1fV\n", minConnectedVoltage);
     return;
   }
 
@@ -637,12 +609,10 @@ void fetchThresholdsFromCloud() {
       localOvervoltageThreshold = doc["overvoltage"] | 250.0;
       localUndervoltageThreshold = doc["undervoltage"] | 200.0;
       localSafetyEnabled = doc["localSafetyEnabled"] | true;
-      minConnectedVoltage = doc["minConnectedVoltage"] | 100.0;
 
       Serial.println("[THRESHOLDS] ✓ Thresholds fetched successfully:");
       Serial.printf("[THRESHOLDS]   Overvoltage:  %.1fV\n", localOvervoltageThreshold);
       Serial.printf("[THRESHOLDS]   Undervoltage: %.1fV\n", localUndervoltageThreshold);
-      Serial.printf("[THRESHOLDS]   Min Connected: %.1fV\n", minConnectedVoltage);
       Serial.printf("[THRESHOLDS]   Local Safety: %s\n", localSafetyEnabled ? "ENABLED" : "DISABLED");
     } else {
       Serial.printf("[THRESHOLDS] ⚠ JSON parse error: %s\n", error.c_str());
@@ -652,7 +622,6 @@ void fetchThresholdsFromCloud() {
     Serial.printf("[THRESHOLDS] ⚠ HTTP %d — using defaults.\n", httpCode);
     Serial.printf("[THRESHOLDS]   Overvoltage:  %.1fV\n", localOvervoltageThreshold);
     Serial.printf("[THRESHOLDS]   Undervoltage: %.1fV\n", localUndervoltageThreshold);
-    Serial.printf("[THRESHOLDS]   Min Connected: %.1fV\n", minConnectedVoltage);
   }
 
   http.end();
