@@ -611,7 +611,7 @@ export default function DashboardPage() {
                   minHeight: 0
                 }}
               >
-              {alerts.slice(0, 10).map((alert) => (
+              {alerts.slice(0, 3).map((alert) => (
                 <Link
                   key={alert.id}
                   href="/alerts"
@@ -647,7 +647,7 @@ export default function DashboardPage() {
                   </div>
                 </Link>
               ))}
-              {alerts.length > 10 && (
+              {alerts.length > 3 && (
                 <div
                   style={{
                     textAlign: "center",
@@ -657,7 +657,7 @@ export default function DashboardPage() {
                     borderTop: "1px solid rgba(148, 163, 184, 0.1)",
                   }}
                 >
-                  + {alerts.length - 10} more alerts.{" "}
+                  + {alerts.length - 3} more alerts.{" "}
                   <Link href="/alerts" style={{ color: "var(--accent-cyan)", textDecoration: "underline" }}>
                     View all
                   </Link>
