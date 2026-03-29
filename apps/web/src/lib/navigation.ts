@@ -13,6 +13,12 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     icon: "M3 12L12 3l9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9",
   },
   {
+    href: "/sensors",
+    label: "Sensors",
+    shortLabel: "Sensors",
+    icon: "M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18",
+  },
+  {
     href: "/history",
     label: "History",
     shortLabel: "History",
@@ -44,4 +50,10 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
   },
 ];
 
-export const MOBILE_PRIMARY_NAV = APP_NAV_ITEMS.slice(0, 4);
+// Mobile bottom bar shows: Dashboard, Sensors, Alerts, History
+export const MOBILE_PRIMARY_NAV = [
+  APP_NAV_ITEMS[0], // Dashboard
+  APP_NAV_ITEMS[1], // Sensors
+  APP_NAV_ITEMS[3], // Alerts
+  APP_NAV_ITEMS[2], // History
+];
