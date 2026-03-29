@@ -42,7 +42,7 @@ export const RelayConfigSchema = z.object({
   tripOnOvercurrent: z.boolean().default(true),
   tripOnBlackout: z.boolean().default(false),
   manualControlAllowed: z.boolean().default(true),
-  updatedAt: z.string().datetime().optional(),
+  updatedAt: z.string().optional(),
 });
 
 export type RelayConfig = z.infer<typeof RelayConfigSchema>;
@@ -53,11 +53,11 @@ export const RelayStateSchema = z.object({
   id: z.number().optional(),
   deviceId: z.string().uuid(),
   isTripped: z.boolean(),
-  lastTripAt: z.string().datetime().optional(),
-  lastResetAt: z.string().datetime().optional(),
+  lastTripAt: z.string().optional(),
+  lastResetAt: z.string().optional(),
   tripReason: z.string().optional(),
   tripAlertId: z.string().uuid().optional(),
-  updatedAt: z.string().datetime().optional(),
+  updatedAt: z.string().optional(),
 });
 
 export type RelayState = z.infer<typeof RelayStateSchema>;
