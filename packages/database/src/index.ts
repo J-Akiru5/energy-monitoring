@@ -14,10 +14,22 @@ export {
 // Alert queries
 export {
   createAlert,
+  promoteAlertToIncident,
   getUnreadAlerts,
   markAlertRead,
   getAlertThresholds,
 } from "./queries/alerts";
+
+// Alert incident state machine (migration 002)
+export {
+  getAlertState,
+  getAllActiveAlertStates,
+  startAlertIncident,
+  setAlertRecovery,
+  cancelAlertRecovery,
+  endAlertIncident,
+} from "./queries/alertState";
+export type { AlertState } from "./queries/alertState";
 
 // Billing queries
 export { getBillingRate, updateBillingRate } from "./queries/billing";
