@@ -21,10 +21,10 @@
  *
  * Wiring (3-Phase Configuration):
  *   RTC DS3231    → SDA=GPIO21, SCL=GPIO22 (I2C default)
- *   PZEM Phase A  → Hardware Serial2: RX=GPIO17 (from PZEM TX), TX=GPIO16 (to PZEM RX)
- *   PZEM Phase B  → Software Serial:  RX=GPIO5,  TX=GPIO4
- *   PZEM Phase C  → Software Serial:  RX=GPIO19, TX=GPIO18
- *   RELAY         → GPIO25 (Normally Open: HIGH=Power ON, LOW=Power OFF)
+ *   PZEM Phase A  → Hardware Serial2: RX=GPIO16 (from PZEM TX), TX=GPIO17 (to
+ * PZEM RX) PZEM Phase B  → Hardware Serial1: RX=GPIO5,  TX=GPIO4 PZEM Phase C
+ * → Hardware Serial0: RX=GPIO19, TX=GPIO18 RELAY         → GPIO25 (Normally
+ * Open: HIGH=Power ON, LOW=Power OFF)
  *
  * Board: ESP32 Dev Module (ESP32-WROOM-32U recommended)
  * ═══════════════════════════════════════════════════════════════
@@ -61,8 +61,8 @@ const char* TZ_OFFSET_STR = "+08:00";
 
 // ──── 3-PHASE PZEM SETUP (Hardware UARTs Only) ──────────────
 // Phase A: Hardware Serial 2 (keep current - working)
-// RX = GPIO17 (from PZEM TX), TX = GPIO16 (to PZEM RX)
-PZEM004Tv30 pzemA(Serial2, 17, 16);
+// RX = GPIO16 (from PZEM TX), TX = GPIO17 (to PZEM RX)
+PZEM004Tv30 pzemA(Serial2, 16, 17);
 
 // Phase B: Hardware Serial 1 with custom pins
 // RX = GPIO5 (from PZEM TX), TX = GPIO4 (to PZEM RX)
@@ -138,7 +138,7 @@ void setup() {
 
   // 4. Initialize PZEM sensors (3-phase)
   Serial.println("[PZEM] Initializing 3-Phase PZEM-004T sensors...");
-  Serial.println("[PZEM]   Phase A: Hardware Serial2 (GPIO17/16)");
+  Serial.println("[PZEM]   Phase A: Hardware Serial2 (GPIO16/17)");
   Serial.println("[PZEM]   Phase B: Hardware Serial1 (GPIO5/4)");
   Serial.println("[PZEM]   Phase C: Hardware Serial  (GPIO19/18)");
   Serial.println("[PZEM] All 3 PZEM sensors initialized on hardware UARTs.");
