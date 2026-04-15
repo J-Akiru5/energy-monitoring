@@ -23,7 +23,7 @@
  *   RTC DS3231    → SDA=GPIO21, SCL=GPIO22 (I2C default)
  *   PZEM Phase A  → Hardware Serial2: RX=GPIO16 (from PZEM TX), TX=GPIO17 (to
  * PZEM RX) PZEM Phase B  → Hardware Serial1: RX=GPIO5,  TX=GPIO4 PZEM Phase C
- * → Hardware Serial0: RX=GPIO19, TX=GPIO18 RELAY         → GPIO25 (Normally
+ * → Hardware Serial0: RX=GPIO18, TX=GPIO19 RELAY         → GPIO25 (Normally
  * Open: HIGH=Power ON, LOW=Power OFF)
  *
  * Board: ESP32 Dev Module (ESP32-WROOM-32U recommended)
@@ -69,9 +69,9 @@ PZEM004Tv30 pzemA(Serial2, 16, 17);
 PZEM004Tv30 pzemB(Serial1, 5, 4);
 
 // Phase C: Hardware Serial 0 with reassigned pins
-// RX = GPIO19 (from PZEM TX), TX = GPIO18 (to PZEM RX)
+// RX = GPIO18 (from PZEM TX), TX = GPIO19 (to PZEM RX)
 // NOTE: This reassigns Serial, losing debug output capability
-PZEM004Tv30 pzemC(Serial, 19, 18);
+PZEM004Tv30 pzemC(Serial, 18, 19);
 
 // ──── RTC SETUP ─────────────────────────────────────────────
 RTC_DS3231 rtc;
@@ -140,7 +140,7 @@ void setup() {
   Serial.println("[PZEM] Initializing 3-Phase PZEM-004T sensors...");
   Serial.println("[PZEM]   Phase A: Hardware Serial2 (GPIO16/17)");
   Serial.println("[PZEM]   Phase B: Hardware Serial1 (GPIO5/4)");
-  Serial.println("[PZEM]   Phase C: Hardware Serial  (GPIO19/18)");
+  Serial.println("[PZEM]   Phase C: Hardware Serial  (GPIO18/19)");
   Serial.println("[PZEM] All 3 PZEM sensors initialized on hardware UARTs.");
   Serial.println("[PZEM] ⚠ NOTE: Serial debugging will stop after boot (reassigned to Phase C)");
   delay(1000);
