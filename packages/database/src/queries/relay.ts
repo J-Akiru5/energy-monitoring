@@ -51,8 +51,9 @@ export async function updateRelayConfig(config: RelayConfig): Promise<boolean> {
       trip_on_blackout: config.tripOnBlackout,
       manual_control_allowed: config.manualControlAllowed,
       updated_at: new Date().toISOString(),
-    })
-    .eq("device_id", config.deviceId);
+    }, {
+      onConflict: "device_id",
+    });
 
   if (error) {
     console.error("[updateRelayConfig] Error:", error);
@@ -117,8 +118,9 @@ export async function updateRelayState(
 
   const { error } = await supabase
     .from("relay_state")
-    .upsert(updateData)
-    .eq("device_id", deviceId);
+    .upsert(updateData, {
+      onConflict: "device_id",
+    });
 
   if (error) {
     console.error("[updateRelayState] Error:", error);
