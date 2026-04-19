@@ -529,6 +529,20 @@ select {
   line-height: 1.5;
 }
 
+.reports-filter-card {
+  margin-bottom: 20px;
+}
+
+.reports-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.reports-checkbox-field {
+  min-width: 180px;
+}
 .history-alert-time {
   margin-top: 8px;
   color: var(--text-muted);

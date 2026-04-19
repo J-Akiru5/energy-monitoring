@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildConsumptionSummary } from "../_lib";
+import { buildConsumptionSummary, parseReportFilters } from "../_lib";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Missing deviceId" }, { status: 400 });
     }
 
-    const summary = await buildConsumptionSummary(deviceId);
+    const filters = parseReportFilters(req.nextUrl.searchParams);
+    const summary = await buildConsumptionSummary(deviceId, filters);
 
     return NextResponse.json(summary, {
       headers: {
