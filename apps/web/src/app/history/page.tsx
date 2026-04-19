@@ -246,8 +246,6 @@ export default function HistoryPage() {
               className={`segmented-control-btn ${period === option ? "active" : ""}`}
               onClick={() => {
                 setPeriod(option);
-                // Reset to today when switching back to week/month to avoid confusion
-                if (option !== "day") setSelectedDate(getPhTodayKey());
               }}
             >
               {option}
