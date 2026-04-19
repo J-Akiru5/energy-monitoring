@@ -229,6 +229,20 @@ function averagePowerSince(rows: Array<{ ts: number; power: number }>, sinceTs: 
   return sample.reduce((sum, row) => sum + row.power, 0) / sample.length;
 }
 
+function monotonicDelta(energySeries: number[]): number {
+  if (energySeries.length < 2) return 0;
+
+  let total = 0;
+  for (let i = 1; i < energySeries.length; i += 1) {
+    const diff = energySeries[i] - energySeries[i - 1];
+    // Counter resets/noisy backward jumps are ignored instead of producing negative usage.
+    if (diff > 0) {
+      total += diff;
+    }
+  }
+  return total;
+}
+
 function deltaWithinWindow(
   rows: Array<{ ts: number; energy: number }>,
   startTs: number,
@@ -236,7 +250,7 @@ function deltaWithinWindow(
 ): number {
   const inRange = rows.filter((row) => row.ts >= startTs && row.ts <= endTs);
   if (inRange.length < 2) return 0;
-  return Math.max(0, inRange[inRange.length - 1].energy - inRange[0].energy);
+  return monotonicDelta(inRange.map((row) => row.energy));
 }
 
 export async function buildConsumptionSummary(
@@ -365,35 +379,35 @@ export async function buildConsumptionSummary(
   const powerMonthAvg = round(averagePowerSince(reduced, monthStartTs), 2);
   const currentPower = round(latest.power, 2);
 
-  const byMonth = new Map<
-    string,
-    { firstEnergy: number; lastEnergy: number; powerSum: number; powerCount: number }
-  >();
+  const byMonth = new Map<string, { powerSum: number; powerCount: number }>();
 
   for (const row of reduced) {
     const key = monthLabel(new Date(row.at));
     const existing = byMonth.get(key);
     if (!existing) {
       byMonth.set(key, {
-        firstEnergy: row.energy,
-        lastEnergy: row.energy,
         powerSum: row.power,
         powerCount: 1,
       });
       continue;
     }
 
-    existing.lastEnergy = row.energy;
     existing.powerSum += row.power;
     existing.powerCount += 1;
   }
 
   const monthlyHistory = Array.from(byMonth.entries())
-    .map(([period, value]) => ({
-      period,
-      totalKwh: round(Math.max(0, value.lastEnergy - value.firstEnergy), 4),
-      avgPower: value.powerCount > 0 ? value.powerSum / value.powerCount : 0,
-    }))
+    .map(([period, value]) => {
+      const monthRows = reduced
+        .filter((row) => monthLabel(new Date(row.at)) === period)
+        .map((row) => row.energy);
+
+      return {
+        period,
+        totalKwh: round(monotonicDelta(monthRows), 4),
+        avgPower: value.powerCount > 0 ? value.powerSum / value.powerCount : 0,
+      };
+    })
     .sort((a, b) => a.period.localeCompare(b.period));
 
   const selectedSeries = monthlyHistory.map((item) => {
