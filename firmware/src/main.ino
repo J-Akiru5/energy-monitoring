@@ -332,9 +332,11 @@ void readAndSend3Phase() {
   // If ALL phases return NaN, the ESP32 is online but cannot
   // communicate with any sensor. 0V readings indicate brownout/blackout.
   // ══════════════════════════════════════════════════════════
-  bool phaseAOffline = isnan(voltageA) || isnan(currentA);
-  bool phaseBOffline = isnan(voltageB) || isnan(currentB);
-  bool phaseCOffline = isnan(voltageC) || isnan(currentC);
+  // Treat a phase as offline only when all core telemetry fields are NaN.
+  // This avoids false "offline" when a single field glitches.
+  bool phaseAOffline = isnan(voltageA) && isnan(currentA) && isnan(powerA) && isnan(energyA);
+  bool phaseBOffline = isnan(voltageB) && isnan(currentB) && isnan(powerB) && isnan(energyB);
+  bool phaseCOffline = isnan(voltageC) && isnan(currentC) && isnan(powerC) && isnan(energyC);
 
   if (phaseAOffline && phaseBOffline && phaseCOffline) {
     Serial.println("[PZEM] ⚠ All sensors offline (NaN readings)!");
@@ -357,13 +359,58 @@ void readAndSend3Phase() {
     Serial.println("[PZEM] ⚠ Phase A offline - NaN reading (sensor comm failed)");
     voltageA = currentA = powerA = energyA = frequencyA = powerFactorA = 0;
   }
+  else
+  {
+    if (isnan(voltageA))
+      voltageA = 0;
+    if (isnan(currentA))
+      currentA = 0;
+    if (isnan(powerA))
+      powerA = 0;
+    if (isnan(energyA))
+      energyA = 0;
+    if (isnan(frequencyA))
+      frequencyA = 0;
+    if (isnan(powerFactorA))
+      powerFactorA = 0;
+  }
   if (phaseBOffline) {
     Serial.println("[PZEM] ⚠ Phase B offline - NaN reading (sensor comm failed)");
     voltageB = currentB = powerB = energyB = frequencyB = powerFactorB = 0;
   }
+  else
+  {
+    if (isnan(voltageB))
+      voltageB = 0;
+    if (isnan(currentB))
+      currentB = 0;
+    if (isnan(powerB))
+      powerB = 0;
+    if (isnan(energyB))
+      energyB = 0;
+    if (isnan(frequencyB))
+      frequencyB = 0;
+    if (isnan(powerFactorB))
+      powerFactorB = 0;
+  }
   if (phaseCOffline) {
     Serial.println("[PZEM] ⚠ Phase C offline - NaN reading (sensor comm failed)");
     voltageC = currentC = powerC = energyC = frequencyC = powerFactorC = 0;
+  }
+  else
+  {
+    if (isnan(voltageC))
+      voltageC = 0;
+    if (isnan(currentC))
+      currentC = 0;
+    if (isnan(powerC))
+      powerC = 0;
+    if (isnan(energyC))
+      energyC = 0;
+    if (isnan(frequencyC))
+      frequencyC = 0;
+    if (isnan(powerFactorC))
+      powerFactorC = 0;
   }
 
   // Print to Serial Monitor
