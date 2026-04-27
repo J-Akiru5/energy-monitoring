@@ -62,6 +62,7 @@ CREATE INDEX IF NOT EXISTS idx_readings_device_time
   ON power_readings (device_id, recorded_at DESC);
 
 -- ──── Alerts ─────────────────────────────────────────────────
+-- Includes all columns added by migration 002_alert_incidents.sql.
 CREATE TABLE IF NOT EXISTS alerts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   device_id UUID NOT NULL REFERENCES devices(id),
@@ -70,7 +71,16 @@ CREATE TABLE IF NOT EXISTS alerts (
   threshold NUMERIC,
   message TEXT NOT NULL,
   is_read BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  -- Incident time-range fields (migration 002_alert_incidents)
+  phase TEXT,
+  -- 'A', 'B', 'C' for per-phase alerts. NULL for single-phase / totals.
+  is_incident BOOLEAN NOT NULL DEFAULT false,
+  -- false = transient spike; true = sustained incident (fault lasted ≥60 s)
+  ended_at TIMESTAMPTZ,
+  -- NULL = incident is currently ongoing; stamped when the incident closes.
+  duration_seconds INTEGER
+  -- Calculated on close: EXTRACT(EPOCH FROM (ended_at - created_at))::INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_alerts_device_unread
@@ -157,6 +167,35 @@ ON CONFLICT (device_id) DO NOTHING;
 INSERT INTO relay_state (device_id, is_tripped)
 SELECT id, false FROM devices
 ON CONFLICT (device_id) DO NOTHING;
+
+-- ══════════════════════════════════════════════════════════════
+-- ALERT INCIDENT STATE (migration 002_alert_incidents)
+-- One row per (device_id, alert_type, phase) tuple.
+-- Tracks whether a given fault type is currently in an active incident.
+-- The empty string '' is used for `phase` when not applicable (single-phase,
+-- PZEM_OFFLINE, HIGH_POWER totals) to enable a simple UNIQUE constraint.
+-- ══════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS device_alert_state (
+  id                   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  device_id            UUID        NOT NULL REFERENCES devices(id),
+  alert_type           TEXT        NOT NULL,
+  phase                TEXT        NOT NULL DEFAULT '',
+  --   ''          → no-phase (PZEM_OFFLINE, HIGH_POWER total, single-phase)
+  --   'A'|'B'|'C' → per-phase 3-phase incidents
+  is_active            BOOLEAN     NOT NULL DEFAULT false,
+  in_recovery          BOOLEAN     NOT NULL DEFAULT false,
+  --   in_recovery = true: fault cleared, waiting 30s debounce before closing
+  current_alert_id     UUID        REFERENCES alerts(id),
+  started_at           TIMESTAMPTZ,
+  recovery_started_at  TIMESTAMPTZ,
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (device_id, alert_type, phase)
+);
+
+CREATE INDEX IF NOT EXISTS idx_device_alert_state_active
+  ON device_alert_state (device_id, is_active)
+  WHERE is_active = true;
 
 -- ══════════════════════════════════════════════════════════════
 -- BLACKOUT EVENTS (Event-Based Tracking with Duration)
