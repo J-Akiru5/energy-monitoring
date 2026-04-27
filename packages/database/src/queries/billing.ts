@@ -11,8 +11,10 @@ export async function getBillingRate() {
     .select("*")
     .order("id", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
+  // maybeSingle() returns null (not an error) when no rows exist, so PGRST116
+  // ("no rows") is handled gracefully and a default rate is used by the caller.
   if (error) throw new Error(`Fetch billing rate failed: ${error.message}`);
   return data;
 }
