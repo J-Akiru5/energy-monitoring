@@ -52,6 +52,23 @@ export default function LandingPage() {
               Access is per-resident. Ask your building manager for an account.
             </span>
           </div>
+
+          <div className="landing-hero-photo">
+            <div className="landing-hero-photo-frame">
+              <img
+                src="/hardware-build.jpg"
+                alt="Breadboard prototype of the energy monitor: an ESP32 dev board, three PZEM-004T current sensor modules, a relay cutoff board, a DS3231 RTC module, and an 18650 battery shield, wired together on a perfboard."
+                width={960}
+                height={723}
+                loading="eager"
+                decoding="async"
+              />
+              <span className="landing-hero-photo-caption">
+                <span className="landing-hero-photo-eyebrow">The prototype</span>
+                ESP32 &middot; 3&times; PZEM-004T &middot; relay cutoff
+              </span>
+            </div>
+          </div>
         </div>
       </section>
 
