@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@energy/auth": ["../../packages/auth/src/index.ts"]
     }
   },
   "include": [

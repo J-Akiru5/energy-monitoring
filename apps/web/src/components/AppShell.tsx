@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { usePolling } from "@/hooks/usePolling";
 import { usePrimaryDevice } from "@/hooks/usePrimaryDevice";
 import { APP_NAV_ITEMS, MOBILE_PRIMARY_NAV } from "@/lib/navigation";
+import { logout } from "@/app/actions";
 
 function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -100,6 +101,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="app-shell-status-muted">Last seen {lastSeen}</span>
           )}
           {alertsCount > 0 && <span className="alert-badge">{alertsCount}</span>}
+          <form action={logout} className="desktop-only">
+            <button type="submit" className="app-shell-signout" title="Sign out">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
+              </svg>
+              <span>Sign out</span>
+            </button>
+          </form>
         </div>
       </header>
 
@@ -139,6 +148,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
+
+        <form action={logout} className="app-shell-drawer-signout-form">
+          <button type="submit" className="app-shell-drawer-link app-shell-drawer-signout">
+            <span>Sign out</span>
+          </button>
+        </form>
       </aside>
 
       <main className="app-shell-main">{children}</main>

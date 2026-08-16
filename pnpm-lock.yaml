@@ -97,6 +97,9 @@ importers:
       '@ducanh2912/next-pwa':
         specifier: ^10.2.9
         version: 10.2.9(next@16.1.6(@babel/core@7.29.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(webpack@5.105.4)
+      '@energy/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@energy/database':
         specifier: workspace:*
         version: link:../../packages/database

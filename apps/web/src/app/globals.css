@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..600&display=swap");
 @import "tailwindcss";
 
 :root {
@@ -23,6 +23,7 @@
   /* ── Typography ── */
   --font-ui: "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
+  --font-serif: "Fraunces", Georgia, serif;
 }
 
 * {
@@ -137,6 +138,42 @@ select {
 
 .app-shell-status-muted {
   color: var(--text-muted);
+}
+
+.app-shell-signout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(71, 85, 105, 0.75);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.app-shell-signout:hover {
+  color: var(--text-primary);
+  border-color: rgba(225, 29, 72, 0.4);
+}
+
+.app-shell-drawer-signout-form {
+  margin-top: auto;
+}
+
+.app-shell-drawer-signout {
+  width: 100%;
+  justify-content: center;
+  border-color: rgba(225, 29, 72, 0.28);
+  color: #fb7185;
+  cursor: pointer;
+}
+
+.app-shell-drawer-signout:hover {
+  border-color: rgba(225, 29, 72, 0.5);
+  background: rgba(225, 29, 72, 0.08);
 }
 
 .app-shell-menu-btn {
@@ -1154,4 +1191,88 @@ select {
   .phase-overview-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   AUTH (LOGIN)
+   ══════════════════════════════════════════════════════════════ */
+
+.auth-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  padding: 24px;
+}
+
+.auth-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.auth-card {
+  width: min(400px, 100%);
+  border: 1px solid rgba(71, 85, 105, 0.72);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.96));
+  padding: 28px;
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue));
+}
+
+.auth-title {
+  margin: 6px 0 0;
+  font-size: 1.6rem;
+}
+
+.auth-form {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-input {
+  width: 100%;
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.auth-error {
+  border: 1px solid rgba(225, 29, 72, 0.35);
+  background: rgba(225, 29, 72, 0.1);
+  color: #fb7185;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  text-align: center;
+}
+
+.auth-back {
+  display: inline-block;
+  margin-top: 20px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.auth-back:hover {
+  color: var(--text-secondary);
 }
