@@ -1,4 +1,9 @@
 {
+  "framework": "nextjs",
+  "installCommand": "cd ../.. && pnpm install",
+  "buildCommand": "cd ../.. && pnpm turbo build --filter=web --env-mode=loose --force",
+  "outputDirectory": ".next",
+  "ignoreCommand": "npx turbo-ignore web",
   "headers": [
     {
       "source": "/(.*)",
