@@ -38,17 +38,14 @@
 #include <Wire.h>
 #include <RTClib.h>
 #include <WebSocketsClient.h>
+#include "secrets.h"
 
 // ──── CONFIGURATION ─────────────────────────────────────────
-// Wi-Fi Credentials
-const char* WIFI_SSID     = "PLDTHOMEFIBRD2EsF";
-const char* WIFI_PASSWORD = "PLDTWIFIH8xVh";
+// Wi-Fi, device token, and Supabase Realtime credentials live in secrets.h (gitignored).
+// Copy firmware/src/secrets.h.example to firmware/src/secrets.h and fill in real values.
 
 // Cloud API Endpoint (Vercel deployment)
 const char* API_ENDPOINT  = "https://energy-monitoring-web.vercel.app/api/ingest";
-
-// Device Authentication Token (matches DEVICE_API_KEY in .env / Admin dashboard)
-const char* DEVICE_TOKEN  = "cict_monitor_8829_x92_secret";
 
 // Device ID (UUID from Supabase devices table)
 const char* DEVICE_ID     = "d566ef3b-3e6e-4ed2-acb7-9de59aaf4d6b";
@@ -104,9 +101,6 @@ float localUndervoltageThreshold = 200.0;  // Default: 200V (will be overwritten
 bool localSafetyEnabled = true;            // Enable local hardware override by default
 
 // ──── SUPABASE REALTIME (WebSocket) ─────────────────────────
-// Replace these with your Supabase project credentials
-const char* SUPABASE_HOST = "your-project.supabase.co";  // e.g., "xyzcompany.supabase.co"
-const char* SUPABASE_ANON_KEY = "your-anon-key-here";    // Settings → API → anon/public key
 
 WebSocketsClient webSocket;
 bool wsConnected = false;

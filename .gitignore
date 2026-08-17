@@ -11,6 +11,9 @@ dist/
 .env.local
 .env.*.local
 
+# Firmware secrets (copy from firmware/src/secrets.h.example; never commit)
+firmware/src/secrets.h
+
 # IDE
 .vscode/
 .idea/
