@@ -39,24 +39,10 @@ trigger: always_on
 
 #### 3. AUTHENTICATION & MIDDLEWARE (NEXT.JS 16)
 
-* **RBAC (Role-Based Access Control):**
-* Utilizes **Next.js Middleware** to protect the `/admin` bento dashboard.
-* **JWT Protection:** All dashboard sessions are managed via **Supabase Auth** with a 24-hour expiry for security.
+Authentication is split into **two separate mechanisms** — do not conflate them:
 
-
-
-```typescript
-// Next.js 16 Middleware logic for IoT Security
-export async function middleware(req) {
-  const token = req.headers.get('x-device-token');
-  const isValid = await verifyDeviceToken(token); // Checks against DB
-  
-  if (!isValid) {
-    return new NextResponse('Unauthorized Device', { status: 401 });
-  }
-}
-
-```
+* **Device Telemetry Auth (`X-Device-Token`):** Every ESP32 POST to an ingest-style route (e.g. `/api/ingest`, `/api/thresholds/esp32`) must carry an `X-Device-Token` header. The **route handler** validates it via `validateDeviceToken()` from `@energy/database` (SHA-256-hashed comparison against `devices.api_key_hash`). This check happens inside the route handler, **not** in middleware.
+* **Resident/Admin Session Auth (Supabase):** Dashboard and API access for residents (`apps/web`) and admins (`apps/admin`) is gated by a Supabase session. Each app wires `updateSession()` from `packages/auth` through its own `proxy.ts` (Next.js Proxy/Middleware). The ESP32-facing routes are excluded from the session gate because they self-authenticate via `X-Device-Token`.
 
 #### 4. PERFORMANCE STANDARDS ("SUB-SECOND SENSING")
 

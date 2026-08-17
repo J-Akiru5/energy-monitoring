@@ -11,8 +11,8 @@ trigger: always_on
 
 * **Framework:** Next.js 16.1 (App Router, **React 19**).
 * **Architecture:** **Turborepo** (Monorepo) + **Syncpack** (for dependency version enforcement).
-* **Real-time Engine:** **WebSockets (Socket.io)** or **Server-Sent Events (SSE)** for sub-second wattage updates.
-* **Database:** **InfluxDB** (Optimized for time-series energy data) or **PostgreSQL + TimescaleDB**.
+* **Real-time Engine:** **Supabase Realtime** — `postgres_changes` subscriptions over WebSocket for live relay state and sensor updates.
+* **Database:** **PostgreSQL via Supabase** — plain Postgres tables (`readings`, `alerts`, `relay_config`, `relay_state`, `relay_logs`) accessed through the shared `@energy/database` package.
 * **UI System:** Tailwind CSS + **Shadcn/ui** + **Dnd-kit** (for editable Bento tiles).
 
 #### 2. 🎨 Visual Constitution (Industrial "Cool" Mode)
