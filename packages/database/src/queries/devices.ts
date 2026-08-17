@@ -1,6 +1,20 @@
 import { getSupabaseAdmin } from "../client";
 import type { DeviceCreate } from "@energy/types";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
+
+/**
+ * SHA-256 hex digest of a device API key.
+ *
+ * Device tokens are high-entropy generated secrets (`em_<uuid>`), not user
+ * passwords, so a plain SHA-256 digest is sufficient — no bcrypt/argon2.
+ *
+ * NOTE: existing rows in `devices.api_key_hash` still hold the RAW token.
+ * Run `packages/database/src/migrations/003_hash_device_tokens.sql` against
+ * every environment BEFORE deploying this code, or every device gets 401s.
+ */
+function hashDeviceToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 /**
  * Register a new ESP32 device. Returns the raw API key (show once!).
@@ -9,14 +23,12 @@ export async function registerDevice(input: DeviceCreate) {
   const supabase = getSupabaseAdmin();
   const rawApiKey = `em_${randomUUID().replace(/-/g, "")}`;
 
-  // In production, hash the API key before storing.
-  // For MVP we store a simple hash placeholder.
   const { data, error } = await supabase
     .from("devices")
     .insert({
       name: input.name,
       location: input.location ?? null,
-      api_key_hash: rawApiKey, // TODO: bcrypt hash in production
+      api_key_hash: hashDeviceToken(rawApiKey),
     })
     .select()
     .single();
@@ -32,11 +44,10 @@ export async function registerDevice(input: DeviceCreate) {
 export async function validateDeviceToken(token: string) {
   const supabase = getSupabaseAdmin();
 
-  // TODO: In production, hash the incoming token and compare
   const { data, error } = await supabase
     .from("devices")
     .select("*")
-    .eq("api_key_hash", token)
+    .eq("api_key_hash", hashDeviceToken(token))
     .eq("is_active", true)
     .single();
 
