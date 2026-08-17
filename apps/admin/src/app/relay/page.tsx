@@ -72,7 +72,7 @@ export default function RelayPage() {
     try {
       const [configRes, stateRes, logsRes] = await Promise.all([
         fetch(`/api/relay/config?deviceId=${selectedDevice}`),
-        fetch(`https://energy-monitoring-web.vercel.app/api/relay?deviceId=${selectedDevice}`),
+        fetch(`/api/relay?deviceId=${selectedDevice}`),
         fetch(`/api/relay/logs?deviceId=${selectedDevice}`),
       ]);
 
@@ -153,7 +153,7 @@ export default function RelayPage() {
     setActionInProgress(true);
 
     try {
-      const res = await fetch("https://energy-monitoring-web.vercel.app/api/relay", {
+      const res = await fetch("/api/relay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
