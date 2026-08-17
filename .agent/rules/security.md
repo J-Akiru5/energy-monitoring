@@ -67,6 +67,6 @@ Authentication is split into **two separate mechanisms** — do not conflate the
 | --- | --- | --- |
 | **Hardware** | AES-128 Encryption on Packet | Reduced payload size vs. JSON stringing. |
 | **API Route** | Zod Schema Validation | Prevents database "bloat" from junk data. |
-| **Database** | TimescaleDB Hypertables | Faster queries for 1,000,000+ power logs. |
+| **Database** | PostgreSQL via Supabase | Faster queries for 1,000,000+ power logs. |
 | **Frontend** | React Server Components (RSC) | Instant initial load of the Bento Grid. |
 
