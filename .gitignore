@@ -11,6 +11,9 @@ dist/
 .env.local
 .env.*.local
 
+# Firmware secrets (use secrets.example.h as template)
+firmware/src/secrets.h
+
 # IDE
 .vscode/
 .idea/
