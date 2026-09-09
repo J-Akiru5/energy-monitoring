@@ -6,7 +6,9 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <RTClib.h>
 
+extern RTC_DS3231 rtc;
 extern bool rtcAvailable;
 extern bool rtcNeedSync;
 extern unsigned long lastNtpSyncTime;

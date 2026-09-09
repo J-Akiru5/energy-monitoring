@@ -1,6 +1,7 @@
 #ifndef NETWORK_H
 #define NETWORK_H
 
+#include <Arduino.h>
 #include <cstdint>
 
 // Connect to WiFi with timeout and exponential backoff.
