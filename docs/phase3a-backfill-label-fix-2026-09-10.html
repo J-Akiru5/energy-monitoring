@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 3a — EMU Label Fix</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 40px 20px;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 26px; margin-bottom: 6px; }
+  h2 { font-size: 20px; margin-top: 32px; margin-bottom: 12px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 16px; margin-top: 20px; margin-bottom: 8px; }
+  .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 32px; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 8px;
+  }
+  .badge-phase { background: rgba(88,166,255,0.15); color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
+  .badge-date { background: rgba(139,148,158,0.15); color: var(--text-muted); border: 1px solid rgba(139,148,158,0.3); }
+  .badge-warn { background: rgba(210,153,34,0.15); color: var(--yellow); border: 1px solid rgba(210,153,34,0.3); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+  }
+  th {
+    background: var(--surface);
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 13px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.5;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    margin: 12px 0;
+  }
+  .status-pass { color: var(--green); font-weight: 600; }
+  .status-fail { color: var(--red); font-weight: 600; }
+  .status-note { color: var(--yellow); font-weight: 600; }
+  ul { margin-left: 20px; margin-bottom: 12px; }
+  li { margin-bottom: 4px; }
+  .section { margin-bottom: 40px; }
+  .commit-hash { font-family: monospace; color: var(--purple); }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Phase 3a — EMU Label Fix</h1>
+<p class="subtitle">
+  <span class="badge badge-phase">Phase 3a</span>
+  <span class="badge badge-date">2026-09-10</span>
+  <span class="badge badge-warn">Backfill script update</span>
+</p>
+
+<div class="section">
+
+<h2>Problem</h2>
+<p>The original backfill script reused <code>devices.name</code> (e.g., <code>ESP32-CICT-001</code>) as the EMU label. This tied EMU identity to device/controller identity, violating domain decisions #4 and #9:</p>
+
+<ul>
+  <li><strong>Decision #4:</strong> EMU identity must survive controller replacement</li>
+  <li><strong>Decision #9:</strong> EMU identity must be independent of controller identity</li>
+</ul>
+
+<p>Because EMU labels were derived from device names, if a controller was replaced and the device renamed, the EMU would lose its historical identity.</p>
+
+</div>
+
+<div class="section">
+
+<h2>Fix Applied</h2>
+
+<h3>EMU Label Scheme</h3>
+<p>EMUs now use a sequential numbering scheme independent of device/controller naming:</p>
+<pre>EMU-001, EMU-002, EMU-003, ...</pre>
+<p>The counter reads the current max from existing EMU labels matching the pattern <code>^EMU-\d+$</code>, so reruns continue the sequence correctly.</p>
+
+<h3>Idempotency Check</h3>
+<p>Previously, the idempotency check looked up EMUs by <code>label = v_device.name</code>. Now it checks <code>controllers.legacy_device_id</code> — if a controller already bridges this device, the device was already backfilled and all entity creation is skipped.</p>
+
+<h3>Unchanged</h3>
+<ul>
+  <li>Installation and config lookups key on <code>emu_id</code> (not label) — no change needed</li>
+  <li>Telemetry stamping works via <code>v_emu_id</code> and <code>v_controller_id</code> — unchanged</li>
+  <li>Customer/site/building idempotency — unchanged</li>
+</ul>
+
+</div>
+
+<div class="section">
+
+<h2>Files Changed</h2>
+
+<table>
+  <tr>
+    <th>File</th>
+    <th>Change</th>
+    <th>Status</th>
+  </tr>
+  <tr>
+    <td><code>supabase/migrations/20260910120002_phase3a_backfill_wvsu.sql</code></td>
+    <td>EMU label logic rewritten + header comments updated</td>
+    <td class="status-pass">Committed</td>
+  </tr>
+  <tr>
+    <td><code>supabase/migrations/DRY_RUN_phase3a_backfill.sql</code></td>
+    <td>Corrected script wrapped in BEGIN/ROLLBACK for manual dry-run</td>
+    <td class="status-pass">Committed</td>
+  </tr>
+  <tr>
+    <td><code>supabase/migrations/dry_run_backfill.sql</code></td>
+    <td>Stale file from previous session — deleted</td>
+    <td class="status-note">Deleted</td>
+  </tr>
+</table>
+
+</div>
+
+<div class="section">
+
+<h2>Commit</h2>
+<pre><span class="commit-hash">f1606fe</span> fix(backfill): decouple EMU labels from device names — use EMU-NNN scheme</pre>
+
+</div>
+
+<div class="section">
+
+<h2>Logic Comparison</h2>
+
+<h3>Before (Broken)</h3>
+<pre>-- EMU lookup: tied to device name
+SELECT id INTO v_emu_id
+FROM emus
+WHERE label = v_device.name
+  AND owner_customer_id = v_customer_id
+LIMIT 1;
+
+IF v_emu_id IS NULL THEN
+  INSERT INTO emus (label, ...)
+  VALUES (v_device.name, ...);  -- label = 'ESP32-CICT-001'
+END IF;
+
+-- Controller lookup: separate from EMU
+SELECT id INTO v_controller_id FROM controllers
+WHERE legacy_device_id = v_device.id;</pre>
+
+<h3>After (Fixed)</h3>
+<pre>-- EMU counter: read max from existing labels
+SELECT COALESCE(MAX(CAST(SUBSTRING(label FROM 'EMU-(\d+)') AS INTEGER)), 0)
+  INTO v_emu_counter FROM emus WHERE label ~ '^EMU-\d+$';
+
+-- Controller lookup FIRST (idempotency gate)
+SELECT id INTO v_controller_id FROM controllers
+WHERE legacy_device_id = v_device.id;
+
+IF v_controller_id IS NOT NULL THEN
+  -- Already backfilled — skip everything
+  SELECT emu_id INTO v_emu_id FROM controllers WHERE id = v_controller_id;
+ELSE
+  -- Create EMU with sequential label
+  v_emu_counter := v_emu_counter + 1;
+  INSERT INTO emus (label, ...)
+  VALUES ('EMU-' || LPAD(v_emu_counter::text, 3, '0'), ...);  -- label = 'EMU-001'
+END IF;</pre>
+
+</div>
+
+<div class="section">
+
+<h2>Next Steps</h2>
+
+<table>
+  <tr>
+    <th>Stage</th>
+    <th>Action</th>
+    <th>Status</th>
+  </tr>
+  <tr>
+    <td>0</td>
+    <td>Schema migrations pushed to live</td>
+    <td class="status-pass">Complete</td>
+  </tr>
+  <tr>
+    <td>1</td>
+    <td>Fix EMU label generation</td>
+    <td class="status-pass">Complete</td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td>Produce DRY_RUN file</td>
+    <td class="status-pass">Complete</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td>Jeff reviews DRY_RUN output in SQL editor</td>
+    <td class="status-note">Pending</td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td>Run real backfill (Stage 3)</td>
+    <td class="status-note">Blocked on Stage 3</td>
+  </tr>
+  <tr>
+    <td>5</td>
+    <td>Deploy ingest code changes</td>
+    <td class="status-note">Blocked on Stage 4</td>
+  </tr>
+</table>
+
+<p><strong>What Jeff needs to do:</strong> Paste <code>DRY_RUN_phase3a_backfill.sql</code> into the Supabase SQL Editor, run it, review the RAISE NOTICE output, and confirm.</p>
+
+</div>
+
+</div>
+</body>
+</html>
