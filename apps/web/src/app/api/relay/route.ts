@@ -26,8 +26,8 @@ export async function OPTIONS() {
     status: 204,
     headers: {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET,OPTIONS,PATCH,DELETE,POST,PUT",
-      "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-Device-Token, Authorization",
+      "Access-Control-Allow-Methods": "POST,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type,X-Relay-Secret",
     },
   });
 }
@@ -70,6 +70,23 @@ export async function GET(req: NextRequest) {
  * 3. ESP32 (status updates - via WebSocket subscriptions)
  */
 export async function POST(req: NextRequest) {
+  const relaySecret = process.env.RELAY_ADMIN_SECRET;
+  if (!relaySecret) {
+    console.error("[/api/relay] POST: RELAY_ADMIN_SECRET env var is not set");
+    return NextResponse.json(
+      { error: "Server misconfigured" },
+      { status: 500 }
+    );
+  }
+
+  const provided = req.headers.get("x-relay-secret");
+  if (!provided || provided !== relaySecret) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+
   const configError = getRelayConfigError();
   if (configError) {
     return NextResponse.json(

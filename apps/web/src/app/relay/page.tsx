@@ -25,6 +25,7 @@ export default function RelayPage() {
   const [config, setConfig] = useState<RelayConfig | null>(null);
   const [mode, setMode] = useState<ControlMode>("AUTOMATIC");
   const [actionInProgress, setActionInProgress] = useState(false);
+  const [controlUnavailable, setControlUnavailable] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -90,6 +91,9 @@ export default function RelayPage() {
           `Relay ${action === "MANUAL_TRIP" ? "tripped" : "reset"} successfully.`
         );
         fetchRelayData();
+      } else if (res.status === 401) {
+        setControlUnavailable(true);
+        setMessage("Manual control temporarily unavailable.");
       } else {
         const data = await res.json();
         setMessage(`Error: ${data.error}`);
@@ -342,19 +346,19 @@ export default function RelayPage() {
             <div style={{ display: "flex", gap: 12 }}>
               <button
                 onClick={() => handleRelayAction("MANUAL_TRIP")}
-                disabled={actionInProgress || state?.isTripped}
+                disabled={actionInProgress || state?.isTripped || controlUnavailable}
                 style={{
                   flex: 1,
                   padding: "16px",
                   border: "none",
                   borderRadius: 12,
-                  background: state?.isTripped
+                  background: state?.isTripped || controlUnavailable
                     ? "var(--bg-tertiary)"
                     : "var(--color-error)",
-                  color: state?.isTripped ? "var(--text-muted)" : "white",
+                  color: state?.isTripped || controlUnavailable ? "var(--text-muted)" : "white",
                   fontWeight: 600,
                   fontSize: 15,
-                  cursor: state?.isTripped ? "not-allowed" : "pointer",
+                  cursor: state?.isTripped || controlUnavailable ? "not-allowed" : "pointer",
                   opacity: actionInProgress ? 0.7 : 1,
                 }}
               >
@@ -362,25 +366,40 @@ export default function RelayPage() {
               </button>
               <button
                 onClick={() => handleRelayAction("MANUAL_RESET")}
-                disabled={actionInProgress || !state?.isTripped}
+                disabled={actionInProgress || !state?.isTripped || controlUnavailable}
                 style={{
                   flex: 1,
                   padding: "16px",
                   border: "none",
                   borderRadius: 12,
-                  background: !state?.isTripped
+                  background: !state?.isTripped || controlUnavailable
                     ? "var(--bg-tertiary)"
                     : "var(--color-success)",
-                  color: !state?.isTripped ? "var(--text-muted)" : "white",
+                  color: !state?.isTripped || controlUnavailable ? "var(--text-muted)" : "white",
                   fontWeight: 600,
                   fontSize: 15,
-                  cursor: !state?.isTripped ? "not-allowed" : "pointer",
+                  cursor: !state?.isTripped || controlUnavailable ? "not-allowed" : "pointer",
                   opacity: actionInProgress ? 0.7 : 1,
                 }}
               >
                 {actionInProgress ? "Processing..." : "✓ Reset Relay"}
               </button>
             </div>
+
+            {controlUnavailable && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 12,
+                  background: "rgba(239,68,68,0.1)",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  color: "var(--color-error)",
+                }}
+              >
+                Manual control temporarily unavailable.
+              </div>
+            )}
 
             {message && (
               <div
