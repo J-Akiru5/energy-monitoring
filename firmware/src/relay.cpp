@@ -4,6 +4,7 @@
 #include <ArduinoJson.h>
 #include <WebSocketsClient.h>
 #include <WiFi.h>
+#include <Preferences.h>
 
 extern WebSocketsClient webSocket;
 extern bool wsConnected;
@@ -151,6 +152,7 @@ static void handleRealtimeMessage(char* payload) {
         if (newTrippedState != relayState) {
           relayState = newTrippedState;
           digitalWrite(RELAY_PIN, relayState ? LOW : HIGH);
+          saveRelayStateToNVS(relayState);
 
           Serial.println("========================================");
           if (relayState) {
@@ -178,6 +180,7 @@ void tripRelay(const char* reason) {
   if (!relayState) {
     relayState = true;
     digitalWrite(RELAY_PIN, LOW);
+    saveRelayStateToNVS(true);
     Serial.println("========================================");
     Serial.printf("[RELAY] MANUALLY TRIPPED! Reason: %s\n", reason);
     Serial.println("[RELAY] Power disconnected.");
@@ -189,6 +192,7 @@ void resetRelay() {
   if (relayState) {
     relayState = false;
     digitalWrite(RELAY_PIN, HIGH);
+    saveRelayStateToNVS(false);
     Serial.println("========================================");
     Serial.println("[RELAY] MANUALLY RESET. Power restored.");
     Serial.println("========================================");
@@ -197,4 +201,35 @@ void resetRelay() {
 
 bool isRelayTripped() {
   return relayState;
+}
+
+// ──── NVS PERSISTENCE ─────────────────────────────────────
+// Relay state is persisted to NVS flash so that a protective
+// trip survives reboots (power blip, watchdog reset, WiFi
+// driver crash). The boot sequence reads this as a fallback
+// when the cloud is unreachable.
+
+static Preferences nvsPrefs;
+
+void saveRelayStateToNVS(bool tripped) {
+  nvsPrefs.begin("relay", false);
+  nvsPrefs.putBool("tripped", tripped);
+  nvsPrefs.end();
+  Serial.printf("[NVS] Relay state saved: %s\n", tripped ? "TRIPPED" : "NORMAL");
+}
+
+bool loadRelayStateFromNVS(bool& tripped) {
+  nvsPrefs.begin("relay", true);
+  bool hasKey = nvsPrefs.isKey("tripped");
+  if (hasKey) {
+    tripped = nvsPrefs.getBool("tripped", false);
+  }
+  nvsPrefs.end();
+
+  if (hasKey) {
+    Serial.printf("[NVS] Relay state loaded: %s\n", tripped ? "TRIPPED" : "NORMAL");
+  } else {
+    Serial.println("[NVS] No relay state record found.");
+  }
+  return hasKey;
 }

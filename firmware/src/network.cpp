@@ -196,3 +196,57 @@ void fetchThresholdsFromCloud() {
 
   http.end();
 }
+
+// ──── FETCH RELAY STATE FROM CLOUD (BOOT) ─────────────────
+// Called once on boot to reconcile relay state with the
+// cloud. The GET /api/relay endpoint is deliberately open
+// (no auth) so the ESP32 can always reach it. Uses a short
+// timeout (5s) to avoid blocking boot on slow networks.
+//
+// Returns: 1 = tripped, 0 = normal, -1 = failed/unreachable.
+int8_t fetchRelayStateFromCloud() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[RELAY-BOOT] WiFi not connected, cannot fetch cloud state.");
+    return -1;
+  }
+
+  Serial.println("[RELAY-BOOT] Fetching current relay state from cloud...");
+
+  // Derive relay endpoint from API_ENDPOINT
+  // API_ENDPOINT = "https://host/api/ingest" → strip "/api/ingest", append "/api/relay"
+  String baseUrl = String(API_ENDPOINT);
+  int apiPathIdx = baseUrl.indexOf("/api/ingest");
+  if (apiPathIdx > 0) {
+    baseUrl = baseUrl.substring(0, apiPathIdx);
+  }
+  String relayUrl = baseUrl + "/api/relay?deviceId=" + DEVICE_ID;
+
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient http;
+  http.begin(client, relayUrl);
+  http.setTimeout(5000); // 5s — don't block boot indefinitely
+
+  int httpCode = http.GET();
+
+  if (httpCode == 200) {
+    String response = http.getString();
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, response);
+
+    if (!error && doc["state"].is<JsonObject>()) {
+      bool tripped = doc["state"]["isTripped"] | false;
+      Serial.printf("[RELAY-BOOT] Cloud state: %s\n", tripped ? "TRIPPED" : "NORMAL");
+      http.end();
+      return tripped ? 1 : 0;
+    }
+
+    Serial.println("[RELAY-BOOT] Failed to parse cloud response.");
+  } else {
+    Serial.printf("[RELAY-BOOT] HTTP %d — cloud unreachable.\n", httpCode);
+  }
+
+  http.end();
+  return -1;
+}
