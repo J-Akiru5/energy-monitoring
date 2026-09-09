@@ -18,6 +18,7 @@ import {
   setAlertRecovery,
   cancelAlertRecovery,
   endAlertIncident,
+  lookupControllerByDevice,
 } from "@energy/database";
 
 // ──── Rate limiting (in-memory, per device) ────────────────────────────
@@ -79,6 +80,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ── 1b. Tenant Lookup (Phase 3a bridging) ──
+    // Look up the controllers row for this device to get the
+    // customer/EMU/installation stamp. If no match (pre-backfill),
+    // ingest proceeds without tenant columns — never fails the request.
+    const tenantStamp = await lookupControllerByDevice(device.id);
+
     // ── 2. Parse & Validate Body ──
     const body = await req.json();
     const parsed = TelemetryPayloadSchema.safeParse(body);
@@ -129,7 +136,7 @@ export async function POST(req: NextRequest) {
       ...payload,
       timestamp: new Date().toISOString(),
     };
-    await insertReading(serverPayload);
+    await insertReading(serverPayload, tenantStamp);
 
     // ── 5. Smart Blackout Detection & Event Tracking (unchanged) ──
     const blackoutState = await getDeviceBlackoutState(payload.deviceId);

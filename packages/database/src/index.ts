@@ -11,6 +11,10 @@ export {
   getMonthlyEnergy,
 } from "./queries/readings";
 
+// Tenant bridging (Phase 3a)
+export { lookupControllerByDevice } from "./queries/tenant";
+export type { TenantStamp } from "./queries/tenant";
+
 // Alert queries
 export {
   createAlert,

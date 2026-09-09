@@ -1,13 +1,21 @@
 import { getSupabaseAdmin } from "../client";
 import type { TelemetryPayload } from "@energy/types";
 import { isThreePhasePayload } from "@energy/types";
+import type { TenantStamp } from "./tenant";
 
 /**
  * Insert a power reading (supports both single-phase and 3-phase).
  * - Single-phase: uses legacy columns (voltage, current_amp, power_w, energy_kwh)
  * - 3-phase: populates all phase columns + totals, also fills legacy columns for backward compat
+ *
+ * @param payload - Telemetry data from the device
+ * @param stamp   - Optional tenant stamp (customer/EMU/installation/controller).
+ *                  If null, the insert proceeds without tenant columns (pre-backfill).
  */
-export async function insertReading(payload: TelemetryPayload) {
+export async function insertReading(
+  payload: TelemetryPayload,
+  stamp?: TenantStamp | null
+) {
   const supabase = getSupabaseAdmin();
 
   // Handle 3-phase readings
@@ -72,6 +80,12 @@ export async function insertReading(payload: TelemetryPayload) {
       // 3-Phase: Totals
       total_power: totalPower,
       total_energy: totalEnergy,
+      // Tenant stamp (nullable — NULL if no controller match)
+      customer_id:    stamp?.customerId     ?? null,
+      emu_id:         stamp?.emuId          ?? null,
+      installation_id: stamp?.installationId ?? null,
+      controller_id:  stamp?.controllerId   ?? null,
+      phase_config:   stamp?.phaseConfig    ?? null,
     });
 
     if (error) throw new Error(`Insert 3-phase reading failed: ${error.message}`);
@@ -94,6 +108,12 @@ export async function insertReading(payload: TelemetryPayload) {
     frequency: reading.frequency,
     power_factor: reading.powerFactor,
     recorded_at: payload.timestamp,
+    // Tenant stamp (nullable — NULL if no controller match)
+    customer_id:    stamp?.customerId     ?? null,
+    emu_id:         stamp?.emuId          ?? null,
+    installation_id: stamp?.installationId ?? null,
+    controller_id:  stamp?.controllerId   ?? null,
+    phase_config:   stamp?.phaseConfig    ?? null,
   });
 
   if (error) throw new Error(`Insert reading failed: ${error.message}`);
