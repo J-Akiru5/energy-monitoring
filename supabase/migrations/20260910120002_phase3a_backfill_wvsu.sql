@@ -11,8 +11,8 @@
 --   3. The pgcrypto extension must be enabled:
 --      CREATE EXTENSION IF NOT EXISTS pgcrypto;
 --
--- PLACEHOLDER VALUES (Jeff must confirm before running):
---   - Site name: 'WVSU Main Campus' (line ~28)
+-- CONFIRMED VALUES (Jeff confirmed 2026-09-10):
+--   - Site name: 'WVSU Pototan Campus' — confirmed by Jeff
 --   - Phase mode: 'THREE_PHASE' (line ~55)
 --     Based on firmware config.h which hardcodes 3 PZEM sensors.
 --     If any device is single-phase, change this to 'SINGLE_PHASE'
@@ -41,9 +41,9 @@ DECLARE
   v_device_count   INTEGER;
   v_phase_mode     TEXT := 'THREE_PHASE';
   -- ══════════════════════════════════════════════════════════
-  -- PLACEHOLDER: Confirm or edit this name before running
+  -- CONFIRMED by Jeff: WVSU Pototan Campus
   -- ══════════════════════════════════════════════════════════
-  v_site_name      TEXT := 'WVSU Main Campus';
+  v_site_name      TEXT := 'WVSU Pototan Campus';
   v_building_name  TEXT := 'CICT Building';
 BEGIN
   -- ── Count existing devices ──────────────────────────────────
