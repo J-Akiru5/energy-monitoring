@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 3a — Tenant Schema, Token Hashing &amp; WVSU Backfill</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 40px 20px;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 26px; margin-bottom: 6px; }
+  h2 { font-size: 20px; margin-top: 32px; margin-bottom: 12px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 16px; margin-top: 20px; margin-bottom: 8px; }
+  .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 32px; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 8px;
+  }
+  .badge-phase { background: rgba(88,166,255,0.15); color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
+  .badge-date { background: rgba(139,148,158,0.15); color: var(--text-muted); border: 1px solid rgba(139,148,158,0.3); }
+  .badge-warn { background: rgba(210,153,34,0.15); color: var(--yellow); border: 1px solid rgba(210,153,34,0.3); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+  }
+  th {
+    background: var(--surface);
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 13px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.5;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    margin: 12px 0;
+  }
+  pre code { background: none; border: none; padding: 0; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 16px 0;
+  }
+  .card-green { border-left: 3px solid var(--green); }
+  .card-yellow { border-left: 3px solid var(--yellow); }
+  .card-red { border-left: 3px solid var(--red); }
+  .card-purple { border-left: 3px solid var(--purple); }
+  ul, ol { margin: 8px 0 8px 24px; }
+  li { margin-bottom: 4px; font-size: 14px; }
+  .file-path { color: var(--accent); font-weight: 500; }
+  .tag { font-size: 11px; padding: 1px 6px; border-radius: 3px; font-weight: 600; }
+  .tag-decided { background: rgba(63,185,80,0.15); color: var(--green); }
+  .tag-inference { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  .tag-unresolved { background: rgba(248,81,73,0.15); color: var(--red); }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Phase 3a — Tenant Schema, Token Hashing &amp; WVSU Backfill</h1>
+<p class="subtitle">
+  <span class="badge badge-phase">PHASE 3a</span>
+  <span class="badge badge-date">2026-09-10</span>
+  <span class="badge badge-warn">NOT PUSHED TO LIVE</span>
+</p>
+
+<h2>1. Environment Constraints</h2>
+
+<div class="card card-yellow">
+  <ul>
+    <li><strong>Supabase CLI:</strong> Not available (<code>supabase</code> not on PATH)</li>
+    <li><strong>Docker:</strong> Not available</li>
+    <li><strong>Local testing:</strong> Impossible — no <code>supabase start</code>, no <code>supabase db pull</code></li>
+    <li><strong>Migrations:</strong> Written manually in <code>supabase/migrations/</code>, not via <code>supabase migration new</code></li>
+    <li><strong>Live database:</strong> Untouched — <code>supabase db push</code> NOT run</li>
+  </ul>
+</div>
+
+<h2>2. Design Decisions</h2>
+
+<table>
+  <thead>
+    <tr><th>Decision</th><th>Tag</th><th>Value</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Bridging approach (legacy_device_id on controllers)</td>
+      <td><span class="tag tag-inference">INFERENCE</span></td>
+      <td>Existing <code>devices</code> table and auth path untouched. Controllers bridge via <code>legacy_device_id</code>. Jeff should confirm.</td>
+    </tr>
+    <tr>
+      <td>Site name placeholder</td>
+      <td><span class="tag tag-unresolved">UNRESOLVED</span></td>
+      <td><code>'WVSU Main Campus'</code> — Jeff must confirm or edit before running backfill</td>
+    </tr>
+    <tr>
+      <td>Phase mode for all devices</td>
+      <td><span class="tag tag-inference">INFERENCE</span></td>
+      <td><code>'THREE_PHASE'</code> — based on <code>config.h</code> hardcoding 3 PZEM sensors. No <code>phase_mode</code> column exists in current schema.</td>
+    </tr>
+    <tr>
+      <td>EMU label source</td>
+      <td><span class="tag tag-decided">DECIDED</span></td>
+      <td>Reuse <code>devices.name</code> — task requires checking; this is the only meaningful source</td>
+    </tr>
+    <tr>
+      <td>Token hashing algorithm</td>
+      <td><span class="tag tag-decided">DECIDED</span></td>
+      <td><code>SHA-256(devices.api_key_hash)</code> via <code>pgcrypto</code></td>
+    </tr>
+    <tr>
+      <td>Customer identity</td>
+      <td><span class="tag tag-decided">DECIDED</span></td>
+      <td><code>'Western Visayas State University'</code>, type=ORGANIZATION</td>
+    </tr>
+    <tr>
+      <td>Building name</td>
+      <td><span class="tag tag-decided">DECIDED</span></td>
+      <td><code>'CICT Building'</code></td>
+    </tr>
+    <tr>
+      <td>Same Supabase project</td>
+      <td><span class="tag tag-decided">DECIDED</span></td>
+      <td>Targeting live WVSU project (<code>fweqqpgxfpaifmkrnmsx</code>). Accepting schema/code mismatch risk.</td>
+    </tr>
+    <tr>
+      <td>No RLS in this phase</td>
+      <td><span class="tag tag-decided">DECIDED</span></td>
+      <td>RLS deferred to Phase 3b</td>
+    </tr>
+    <tr>
+      <td>Strictly additive</td>
+      <td><span class="tag tag-decided">DECIDED</span></td>
+      <td>No existing table shape changed. No columns dropped or renamed.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>3. Files Changed</h2>
+
+<table>
+  <thead>
+    <tr><th>File</th><th>Status</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="file-path">supabase/migrations/20260910120000_phase3a_tenant_schema.sql</td>
+      <td>NEW</td>
+      <td>10 new tables: customers, sites, buildings, emus, emu_installations, emu_configurations, controllers, memberships, membership_permissions, membership_scopes</td>
+    </tr>
+    <tr>
+      <td class="file-path">supabase/migrations/20260910120001_phase3a_additive_columns.sql</td>
+      <td>NEW</td>
+      <td>Additive nullable FK columns on power_readings, alerts, relay_logs, blackout_events, device_alert_state</td>
+    </tr>
+    <tr>
+      <td class="file-path">supabase/migrations/20260910120002_phase3a_backfill_wvsu.sql</td>
+      <td>NEW</td>
+      <td>PL/pgSQL DO block: creates WVSU customer, site, building, per-device EMU+controller+installation, stamps all telemetry</td>
+    </tr>
+    <tr>
+      <td class="file-path">packages/database/src/queries/tenant.ts</td>
+      <td>NEW</td>
+      <td><code>lookupControllerByDevice()</code> — resolves legacy device → controller → tenant stamp</td>
+    </tr>
+    <tr>
+      <td class="file-path">packages/database/src/queries/readings.ts</td>
+      <td>MODIFIED</td>
+      <td><code>insertReading()</code> accepts optional <code>TenantStamp</code> parameter</td>
+    </tr>
+    <tr>
+      <td class="file-path">packages/database/src/index.ts</td>
+      <td>MODIFIED</td>
+      <td>Exports <code>lookupControllerByDevice</code> and <code>TenantStamp</code> type</td>
+    </tr>
+    <tr>
+      <td class="file-path">apps/web/src/app/api/ingest/route.ts</td>
+      <td>MODIFIED</td>
+      <td>Tenant lookup after auth, stamp passed to <code>insertReading()</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>4. Schema Changes</h2>
+
+<h3>4a. New Tables (10)</h3>
+
+<table>
+  <thead>
+    <tr><th>Table</th><th>Purpose</th><th>Key Columns</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>customers</code></td>
+      <td>Top-level tenant</td>
+      <td>id, parent_id (self-ref), name, type, status, delete_after</td>
+    </tr>
+    <tr>
+      <td><code>sites</code></td>
+      <td>Campus / location group</td>
+      <td>id, customer_id → customers, name</td>
+    </tr>
+    <tr>
+      <td><code>buildings</code></td>
+      <td>Building within a site</td>
+      <td>id, site_id → sites, name</td>
+    </tr>
+    <tr>
+      <td><code>emus</code></td>
+      <td>Energy Monitoring Units</td>
+      <td>id, label, owner_type, owner_customer_id → customers, status</td>
+    </tr>
+    <tr>
+      <td><code>emu_installations</code></td>
+      <td>Where an EMU is placed</td>
+      <td>id, emu_id → emus, customer_id, site_id, building_id, started_at, ended_at</td>
+    </tr>
+    <tr>
+      <td><code>emu_configurations</code></td>
+      <td>Phase mode over time</td>
+      <td>id, emu_id → emus, phase_mode, started_at, ended_at</td>
+    </tr>
+    <tr>
+      <td><code>controllers</code></td>
+      <td>ESP32 hardware tokens</td>
+      <td>id, emu_id → emus, token_hash (SHA-256, UNIQUE), legacy_device_id → devices, status</td>
+    </tr>
+    <tr>
+      <td><code>memberships</code></td>
+      <td>User ↔ customer binding</td>
+      <td>id, user_id, customer_id → customers, role, is_external</td>
+    </tr>
+    <tr>
+      <td><code>membership_permissions</code></td>
+      <td>Granular permission grants</td>
+      <td>membership_id → memberships, permission, granted</td>
+    </tr>
+    <tr>
+      <td><code>membership_scopes</code></td>
+      <td>What a membership can see</td>
+      <td>membership_id → memberships, scope_type, scope_id</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>4b. Additive Columns (5 tables)</h3>
+
+<table>
+  <thead>
+    <tr><th>Table</th><th>New Columns</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>power_readings</code></td>
+      <td><code>customer_id</code> → customers, <code>emu_id</code> → emus, <code>installation_id</code> → emu_installations, <code>controller_id</code> → controllers, <code>phase_config</code> TEXT</td>
+    </tr>
+    <tr>
+      <td><code>alerts</code></td>
+      <td><code>customer_id</code> → customers, <code>emu_id</code> → emus</td>
+    </tr>
+    <tr>
+      <td><code>relay_logs</code></td>
+      <td><code>customer_id</code> → customers, <code>emu_id</code> → emus</td>
+    </tr>
+    <tr>
+      <td><code>blackout_events</code></td>
+      <td><code>customer_id</code> → customers, <code>emu_id</code> → emus</td>
+    </tr>
+    <tr>
+      <td><code>device_alert_state</code></td>
+      <td><code>customer_id</code> → customers, <code>emu_id</code> → emus</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>5. Backfill Script Logic</h2>
+
+<div class="card card-purple">
+  <h3>What it does (runtime query, not hardcoded)</h3>
+  <ol>
+    <li>Ensures <code>pgcrypto</code> extension is available</li>
+    <li>Creates <strong>Customer</strong>: "Western Visayas State University" (type=ORGANIZATION, status=ACTIVE)</li>
+    <li>Creates <strong>Site</strong>: placeholder "WVSU Main Campus" (Jeff must confirm)</li>
+    <li>Creates <strong>Building</strong>: "CICT Building"</li>
+    <li>For EACH row in <code>devices</code> (queried at runtime):
+      <ul>
+        <li>Creates <strong>EMU</strong> with label = <code>devices.name</code></li>
+        <li>Creates <strong>Controller</strong> with <code>token_hash = SHA-256(devices.api_key_hash)</code> and <code>legacy_device_id = devices.id</code></li>
+        <li>Creates <strong>Installation</strong> linking EMU to CICT Building</li>
+        <li>Creates <strong>EMU Configuration</strong> with phase_mode = THREE_PHASE</li>
+      </ul>
+    </li>
+    <li>Stamps all existing rows in: power_readings, alerts, relay_logs, blackout_events, device_alert_state</li>
+    <li>Logs verification counts at the end</li>
+  </ol>
+</div>
+
+<h3>Why the script can't report actual row counts here</h3>
+<div class="card card-yellow">
+  <p>Supabase CLI and Docker are unavailable in this environment. The script queries the live database at runtime. Actual before/after counts will only be visible after <code>supabase db push</code> runs against the real project.</p>
+</div>
+
+<h2>6. Ingest Route Changes</h2>
+
+<pre><code>// After existing device auth succeeds:
+const tenantStamp = await lookupControllerByDevice(device.id);
+
+// Pass to insertReading (graceful if null):
+await insertReading(serverPayload, tenantStamp);</code></pre>
+
+<p style="margin-top: 12px; font-size: 14px;">
+  <strong>Behavior:</strong> If <code>controllers.legacy_device_id</code> matches the authenticated device, the stamp
+  (customer_id, emu_id, installation_id, controller_id, phase_config) is written to the new columns on
+  <code>power_readings</code>. If no match exists (pre-backfill or orphaned device), the insert proceeds without
+  the new columns — <strong>telemetry ingestion never breaks</strong>.
+</p>
+
+<h2>7. Verification Commands (Post-Deploy)</h2>
+
+<pre><code>-- After running the migrations:
+-- 1. Check customer hierarchy
+SELECT c.name, s.name as site, b.name as building
+FROM customers c
+JOIN sites s ON s.customer_id = c.id
+JOIN buildings b ON b.site_id = s.id;
+
+-- 2. Check EMU-to-device mapping
+SELECT e.label, d.name as device_name, t.token_hash, t.legacy_device_id
+FROM emus e
+JOIN controllers t ON t.emu_id = e.id
+JOIN devices d ON d.id = t.legacy_device_id;
+
+-- 3. Check stamp coverage on power_readings
+SELECT
+  COUNT(*) as total,
+  COUNT(customer_id) as stamped,
+  COUNT(*) - COUNT(customer_id) as unstamped
+FROM power_readings;
+
+-- 4. Check stamp coverage on alerts
+SELECT
+  COUNT(*) as total,
+  COUNT(customer_id) as stamped,
+  COUNT(*) - COUNT(customer_id) as unstamped
+FROM alerts;
+
+-- 5. Verify controller token hashes
+SELECT legacy_device_id, token_hash, status
+FROM controllers;</code></pre>
+
+<h2>8. What Must Happen Next</h2>
+
+<div class="card card-red">
+  <h3>Before running <code>supabase db push</code>:</h3>
+  <ol>
+    <li><strong>Jeff confirms the Site name</strong> — currently set to "WVSU Main Campus" (placeholder)</li>
+    <li><strong>Jeff confirms THREE_PHASE</strong> — if any device is single-phase, the backfill must be adjusted</li>
+    <li><strong>Jeff confirms bridging approach</strong> — the <code>legacy_device_id</code> column on controllers is an INFERENCE, not explicitly specified</li>
+    <li><strong>Install Supabase CLI + Docker</strong> — for local testing via <code>supabase db reset</code> before pushing to live</li>
+    <li><strong>Run locally first</strong> — <code>supabase db reset</code>, verify backfill counts, then <code>supabase db push</code></li>
+  </ol>
+</div>
+
+<h2>9. Verification Status</h2>
+
+<table>
+  <thead>
+    <tr><th>Check</th><th>Status</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Type check (<code>pnpm run type-check</code>)</td>
+      <td style="color: var(--green);">PASS (0 errors)</td>
+      <td>All 5 packages clean</td>
+    </tr>
+    <tr>
+      <td>Lint (<code>pnpm run lint</code>)</td>
+      <td style="color: var(--green);">PASS (0 new errors)</td>
+      <td>Web app clean. 4 pre-existing admin errors unrelated.</td>
+    </tr>
+    <tr>
+      <td>Local migration test</td>
+      <td style="color: var(--yellow);">BLOCKED</td>
+      <td>Supabase CLI + Docker unavailable</td>
+    </tr>
+    <tr>
+      <td>Backfill row counts</td>
+      <td style="color: var(--yellow);">UNKNOWN</td>
+      <td>Cannot query devices table without DB access</td>
+    </tr>
+    <tr>
+      <td>Live migration (<code>supabase db push</code>)</td>
+      <td style="color: var(--red);">NOT RUN</td>
+      <td>Waiting for Jeff's explicit confirmation</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>10. Branch State</h2>
+
+<pre><code>feature/phase3a-tenant-schema    de5f88c  (pushed, NOT merged)
+origin/develop                   83a18b5
+origin/main                      83a18b5</code></pre>
+
+<hr style="margin-top: 40px; border-color: var(--border);">
+<p style="color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 16px;">
+  Generated 2026-09-10 · Migrations NOT applied to live project · Waiting for Jeff's confirmation
+</p>
+
+</div>
+</body>
+</html>
