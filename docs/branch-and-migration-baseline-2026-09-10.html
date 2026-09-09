@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Branch & Migration Baseline — Infrastructure Report</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 40px 20px;
+  }
+  .container { max-width: 920px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 8px; }
+  h2 { font-size: 20px; margin-top: 32px; margin-bottom: 12px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 16px; margin-top: 20px; margin-bottom: 8px; }
+  .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 32px; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 8px;
+  }
+  .badge-infra { background: rgba(188,140,255,0.15); color: var(--purple); border: 1px solid rgba(188,140,255,0.3); }
+  .badge-branch { background: rgba(88,166,255,0.15); color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
+  .badge-date { background: rgba(139,148,158,0.15); color: var(--text-muted); border: 1px solid rgba(139,148,158,0.3); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+  }
+  th {
+    background: var(--surface);
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 13px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.5;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    margin: 12px 0;
+  }
+  pre code { background: none; border: none; padding: 0; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 16px 0;
+  }
+  .card-green { border-left: 3px solid var(--green); }
+  .card-yellow { border-left: 3px solid var(--yellow); }
+  .card-red { border-left: 3px solid var(--red); }
+  .card-purple { border-left: 3px solid var(--purple); }
+  ul, ol { margin: 8px 0 8px 24px; }
+  li { margin-bottom: 4px; font-size: 14px; }
+  .file-path { color: var(--accent); font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Branch & Migration Baseline — Infrastructure Report</h1>
+<p class="subtitle">
+  <span class="badge badge-infra">INFRASTRUCTURE</span>
+  <span class="badge badge-branch">5 branches</span>
+  <span class="badge badge-date">2026-09-10</span>
+</p>
+
+<h2>1. State Found (Stream 1)</h2>
+
+<table>
+  <thead>
+    <tr><th>Ref</th><th>Hash</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Local <code>develop</code></td>
+      <td><code>83a18b5</code></td>
+      <td>Reset to main — <strong>never pushed</strong> (from previous session)</td>
+    </tr>
+    <tr>
+      <td><code>origin/develop</code></td>
+      <td><code>4859add</code></td>
+      <td><strong>NOT reset</strong> — old stale Aug 17 commit, 55 behind main</td>
+    </tr>
+    <tr>
+      <td><code>main</code> (local &amp; origin)</td>
+      <td><code>83a18b5</code></td>
+      <td>Current tip — firmware refactor merged</td>
+    </tr>
+    <tr>
+      <td><code>fix/relay-auth-gate</code></td>
+      <td><code>2c9101e</code></td>
+      <td>Branched from main, committed, not on origin</td>
+    </tr>
+    <tr>
+      <td><code>fix/relay-safety-gaps</code></td>
+      <td><code>83a18b5</code></td>
+      <td>Branch created but all work was <strong>uncommitted</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="card card-yellow">
+  <p><strong>Conclusion:</strong> Local develop was reset to main in the previous session but never pushed to origin. Origin/develop was still the stale Aug 17 commit. fix/relay-safety-gaps had code written to the working tree but never committed — the branch itself was just pointing at main's tip.</p>
+</div>
+
+<h2>2. Actions Taken</h2>
+
+<h3>Stream 2 — develop reset &amp; force-push</h3>
+<div class="card card-green">
+  <ol>
+    <li>Tagged old origin/develop tip as <code>archive/develop-pre-reset</code> (<code>10a771d</code>) and pushed tag to origin — preserving the token-hashing commit and all develop history</li>
+    <li>Force-pushed local develop (<code>83a18b5</code>) to origin/develop, replacing the stale <code>4859add</code></li>
+    <li><strong>Jeff confirmed the force-push in real-time</strong> before execution</li>
+  </ol>
+</div>
+
+<h3>Stream 3 — feature branch commits &amp; pushes</h3>
+<div class="card card-green">
+  <ul>
+    <li>Committed the 6 uncommitted firmware files + docs report on <code>fix/relay-safety-gaps</code></li>
+    <li>Pushed <code>fix/relay-auth-gate</code> (<code>2c9101e</code>) to origin — no rebase needed (branched from main)</li>
+    <li>Pushed <code>fix/relay-safety-gaps</code> (<code>de860a7</code>) to origin</li>
+  </ul>
+</div>
+
+<h3>Stream 4 — firmware compile verification</h3>
+<div class="card card-green">
+  <p><strong>Result: PASS — 0 errors, 0 warnings</strong></p>
+  <p style="margin-top: 8px;">PlatformIO compile against ESP32 Dev Module:</p>
+  <pre><code>RAM:   [=         ]  14.8% (used 48372 bytes from 327680 bytes)
+Flash: [========  ]  76.2% (used 998329 bytes from 1310720 bytes)
+========================= [SUCCESS] Took 34.24 seconds =========================</code></pre>
+  <p style="margin-top: 8px;">Build fixes required (pre-existing issues from firmware refactor):</p>
+  <ul>
+    <li><code>secrets.h</code>: added <code>inline</code> to variables (multiple-definition linker error in PlatformIO's separate-TU model)</li>
+    <li><code>rtc.h</code>, <code>network.h</code>: added <code>#include &lt;Arduino.h&gt;</code> (String type not found)</li>
+    <li><code>network.cpp</code>: added <code>#include &lt;RTClib.h&gt;</code> and <code>extern RTC_DS3231</code> (DateTime scope)</li>
+    <li>Created <code>firmware/platformio.ini</code> with ESP32 board config and C++17 flag</li>
+  </ul>
+</div>
+
+<h3>Stream 5 — Supabase CLI baseline</h3>
+<div class="card card-green">
+  <ul>
+    <li>Initialized Supabase CLI (<code>supabase init</code>)</li>
+    <li>Linked to project <code>fweqqpgxfpaifmkrnmsx</code></li>
+    <li><code>supabase db pull</code> failed — Docker not available in this environment</li>
+    <li>Fell back to manual baseline: created <code>supabase/migrations/20260101000000_baseline_schema.sql</code> from the current <code>schema.sql</code></li>
+    <li>Renumbered <code>002_alert_incidents.sql</code> → <code>003_alert_incidents.sql</code> (git history confirmed it was created 2026-04-02, after <code>002_three_phase_columns.sql</code> from 2026-03-22)</li>
+  </ul>
+</div>
+
+<h2>3. Final Origin State</h2>
+
+<table>
+  <thead>
+    <tr><th>Branch</th><th>Hash</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>develop</code></td>
+      <td><code>83a18b5</code></td>
+      <td>Reset to main's tip</td>
+    </tr>
+    <tr>
+      <td><code>main</code></td>
+      <td><code>83a18b5</code></td>
+      <td>Current tip (unchanged)</td>
+    </tr>
+    <tr>
+      <td><code>fix/relay-auth-gate</code></td>
+      <td><code>2c9101e</code></td>
+      <td>Shared-secret gate on POST /api/relay</td>
+    </tr>
+    <tr>
+      <td><code>fix/relay-safety-gaps</code></td>
+      <td><code>de860a7</code></td>
+      <td>Undervoltage protection + boot-state reconciliation</td>
+    </tr>
+    <tr>
+      <td><code>chore/supabase-cli-baseline</code></td>
+      <td><code>2b1952f</code></td>
+      <td>Supabase CLI init + baseline migration + 002→003 renumber</td>
+    </tr>
+    <tr>
+      <td><code>archive/develop-pre-reset</code> (tag)</td>
+      <td><code>10a771d</code></td>
+      <td>Old develop tip with token-hashing commit</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>4. Migration Files (post-fix)</h2>
+
+<table>
+  <thead>
+    <tr><th>File</th><th>Date</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="file-path">packages/database/src/migrations/001_relay_tables.sql</td>
+      <td>2026-03-20</td>
+      <td>Relay config, state, logs tables</td>
+    </tr>
+    <tr>
+      <td class="file-path">packages/database/src/migrations/002_three_phase_columns.sql</td>
+      <td>2026-03-22</td>
+      <td>3-phase voltage/current/power/energy columns</td>
+    </tr>
+    <tr>
+      <td class="file-path">packages/database/src/migrations/003_alert_incidents.sql</td>
+      <td>2026-04-02</td>
+      <td>Alert incident tracking + device_alert_state</td>
+    </tr>
+    <tr>
+      <td class="file-path">supabase/migrations/20260101000000_baseline_schema.sql</td>
+      <td>2026-09-10</td>
+      <td>CLI baseline — full live schema snapshot</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>5. How to Make Future Schema Changes</h2>
+
+<div class="card card-purple">
+  <p><strong>Going forward, use the Supabase CLI for all schema changes:</strong></p>
+  <pre><code># Create a new migration
+supabase migration new add_device_location_column
+
+# Edit the generated file in supabase/migrations/
+# Apply to local dev database
+supabase db reset
+
+# Push to production (after review)
+supabase db push</code></pre>
+  <p style="margin-top: 12px; color: var(--text-muted); font-size: 13px;">
+    <strong>Do not</strong> hand-write files in <code>packages/database/src/migrations/</code> anymore.
+    The CLI's migration history in <code>supabase/migrations/</code> is now the source of truth.
+    The old hand-written files are preserved for reference only.
+  </p>
+</div>
+
+<h2>6. Compiler Output (verbatim)</h2>
+
+<pre><code>Processing esp32dev (platform: espressif32; board: esp32dev; framework: arduino)
+--------------------------------------------------------------------------------
+CONFIGURATION: https://docs.platformio.org/page/boards/espressif32/esp32dev.html
+PLATFORM: Espressif 32 (7.1.2) > Espressif ESP32 Dev Module
+HARDWARE: ESP32 240MHz, 320KB RAM, 4MB Flash
+PACKAGES:
+ - framework-arduinoespressif32 @ 4.20017.260907+sha.dcc1105b
+ - tool-esptoolpy @ 2.41100.260830 (4.11.0)
+ - toolchain-xtensa-esp32 @ 8.4.0+2021r2-patch5
+Dependency Graph
+|-- PZEM-004T-v30 @ 1.1.2
+|-- ArduinoJson @ 7.4.3
+|-- RTClib @ 2.1.4
+|-- WebSockets @ 2.7.3
+|-- WiFi @ 2.0.0
+|-- Wire @ 2.0.0
+|-- HTTPClient @ 2.0.0
+|-- WiFiClientSecure @ 2.0.0
+|-- Preferences @ 2.0.0
+Building in release mode
+Compiling .pio\build\esp32dev\src\main.ino.cpp.o
+Compiling .pio\build\esp32dev\src\monitor.cpp.o
+Compiling .pio\build\esp32dev\src\network.cpp.o
+Compiling .pio\build\esp32dev\src\relay.cpp.o
+Compiling .pio\build\esp32dev\src\rtc.cpp.o
+Linking .pio\build\esp32dev\firmware.elf
+Retrieving maximum program size .pio\build\esp32dev\firmware.elf
+Checking size .pio\build\esp32dev\firmware.elf
+RAM:   [=         ]  14.8% (used 48372 bytes from 327680 bytes)
+Flash: [========  ]  76.2% (used 998329 bytes from 1310720 bytes)
+Building .pio\build\esp32dev\firmware.bin
+Successfully created esp32 image.
+========================= [SUCCESS] Took 34.24 seconds =========================</code></pre>
+
+<h2>7. Force-Push Confirmation Exchange</h2>
+
+<div class="card card-yellow">
+  <p><strong>Agent (Stream 2 proposal):</strong></p>
+  <p style="margin-top: 4px; color: var(--text-muted); font-size: 13px;">
+    "Before I proceed with the force-push: do you confirm rewriting <code>origin/develop</code>? This is the one irreversible action — anyone else with a local <code>develop</code> cloned from the old origin will need to <code>git fetch &amp;&amp; git reset --hard origin/develop</code> afterward."
+  </p>
+  <p style="margin-top: 12px;"><strong>Jeff:</strong></p>
+  <p style="margin-top: 4px; color: var(--green); font-size: 13px;">
+    "Yes I confirm and go"
+  </p>
+  <p style="margin-top: 12px; color: var(--text-muted); font-size: 13px;">
+    Force-push executed: <code>4859add...83a18b5 develop -> develop (forced update)</code>
+  </p>
+</div>
+
+<hr style="margin-top: 40px; border-color: var(--border);">
+<p style="color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 16px;">
+  Generated 2026-09-10 · all branches pushed to origin, none merged
+</p>
+
+</div>
+</body>
+</html>
