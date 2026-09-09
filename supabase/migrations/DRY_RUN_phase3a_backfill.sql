@@ -1,43 +1,24 @@
 -- ══════════════════════════════════════════════════════════════
--- PHASE 3a — Backfill WVSU as Customer #1
--- Energy Monitoring System
---
--- Creates the initial tenant hierarchy for WVSU and links all
--- existing devices/telemetry to it.
---
--- PREREQUISITES:
---   1. Run 20260910120000_phase3a_tenant_schema.sql first
---   2. Run 20260910120001_phase3a_additive_columns.sql second
---   3. The pgcrypto extension must be enabled:
---      CREATE EXTENSION IF NOT EXISTS pgcrypto;
---
--- CONFIRMED VALUES (Jeff confirmed 2026-09-10):
---   - Site name: 'WVSU Pototan Campus' — confirmed by Jeff
---   - Phase mode: 'THREE_PHASE' (line ~55)
---     Based on firmware config.h which hardcodes 3 PZEM sensors.
---     If any device is single-phase, change this to 'SINGLE_PHASE'
---     or split the logic per-device.
---
--- EMU LABEL SCHEME:
---   EMUs are labeled EMU-001, EMU-002, etc. — independent of device/
---   controller naming. The counter reads the current max from existing
---   EMU labels matching '^EMU-\d+$' so reruns continue the sequence.
---   EMU identity must survive controller replacement (domain decisions
---   #4 and #9), so labels never reference device names.
---
--- IDEMPOTENCY:
---   Customer/site/building: SELECT to avoid duplicates.
---   Per-device: checks controllers.legacy_device_id first — if a
---   controller already bridges this device, the device was already
---   backfilled and all entity creation is skipped.
---
--- SAFETY: This script is idempotent. Running it twice will not
--- create duplicate entities or double-stamp telemetry rows
--- (UPDATE WHERE customer_id IS NULL).
---
--- This script queries the actual devices table at runtime.
--- It does NOT hardcode device counts or names.
+-- DRY RUN — Phase 3a Backfill WVSU as Customer #1
 -- ══════════════════════════════════════════════════════════════
+--
+-- HOW TO USE:
+--   1. Open the Supabase SQL Editor for project fweqqpgxfpaifmkrnmsx
+--   2. Paste this ENTIRE file into the editor
+--   3. Click "Run"
+--   4. Check the RAISE NOTICE output — it will show what would be created
+--   5. The ROLLBACK at the end ensures NO changes are persisted
+--   6. Review the output, then run the real backfill (Stage 3)
+--
+-- WHAT THIS DOES:
+--   Wraps the corrected backfill script in BEGIN/ROLLBACK so you can
+--   see exactly what it would do without committing anything.
+--   The EMU label scheme uses EMU-001, EMU-002, etc. — independent
+--   of device/controller naming.
+--
+-- ══════════════════════════════════════════════════════════════
+
+BEGIN;
 
 -- Ensure pgcrypto is available for SHA-256 hashing
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -54,9 +35,6 @@ DECLARE
   v_device_count   INTEGER;
   v_emu_counter    INTEGER;
   v_phase_mode     TEXT := 'THREE_PHASE';
-  -- ══════════════════════════════════════════════════════════
-  -- CONFIRMED by Jeff: WVSU Pototan Campus
-  -- ══════════════════════════════════════════════════════════
   v_site_name      TEXT := 'WVSU Pototan Campus';
   v_building_name  TEXT := 'CICT Building';
 BEGIN
@@ -71,7 +49,6 @@ BEGIN
   RAISE NOTICE 'PHASE 3a BACKFILL: Found % device(s). Creating tenant hierarchy...', v_device_count;
 
   -- ── Create Customer (WVSU) ──────────────────────────────────
-  -- Idempotent: only insert if no customer with this name exists
   SELECT id INTO v_customer_id
   FROM customers
   WHERE name = 'Western Visayas State University'
@@ -234,3 +211,5 @@ BEGIN
   RAISE NOTICE '  device_alert_state stamped: %', (SELECT COUNT(*) FROM device_alert_state WHERE customer_id IS NOT NULL);
 
 END $$;
+
+ROLLBACK;
