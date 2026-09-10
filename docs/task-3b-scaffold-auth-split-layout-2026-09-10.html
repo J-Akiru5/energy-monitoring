@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Task 3b.1 — AuthSplitLayout, Super Admin Shell & Schema</title>
+  <title>Task 3b.1 — AuthSplitLayout, Super Admin Shell, Schema & Bootstrap</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -206,12 +206,13 @@
 
   <h2>Summary</h2>
   <p>
-    This task accomplished three related objectives:
+    This task accomplished four related objectives:
   </p>
   <ol>
     <li><strong>Created a shared, on-brand split-view auth layout</strong> (<code>packages/ui/src/AuthSplitLayout.tsx</code>) that both <code>apps/web</code> and <code>apps/super-admin</code> now use for their login pages.</li>
     <li><strong>Scaffolded the <code>apps/super-admin</code> app shell</strong> — a new Next.js app mirroring the existing admin structure, with a login page using the shared layout. Feature work is deferred to 3b.5+.</li>
     <li><strong>Created the <code>super_admins</code> table</strong> for platform-level admin roles, plus a dry-run seed script for the first bootstrap admin.</li>
+    <li><strong>Bootstrapped the first Super Admin account</strong> — auth user created via Admin API, <code>super_admins</code> row seeded, credentials shared with Jeff out of band.</li>
   </ol>
 
   <h2>Git Verification</h2>
@@ -377,6 +378,10 @@
       <td><code>supabase/migrations/DRY_RUN_seed_super_admin.sql</code></td>
       <td>Dry-run seed script for first bootstrap Super Admin (not run — Jeff confirms email first)</td>
     </tr>
+    <tr>
+      <td><code>scripts/bootstrap-super-admin.ts</code></td>
+      <td>One-off bootstrap script: creates auth user + seeds super_admins. Run once via <code>npx tsx scripts/bootstrap-super-admin.ts</code></td>
+    </tr>
   </table>
 
   <h3>Modified Files</h3>
@@ -429,6 +434,25 @@
     <code>DRY_RUN_seed_super_admin.sql</code> targets <code>jeff@syntaxure.dev</code> as the first bootstrap admin. Confirm or edit the email before running. The account must exist in <code>auth.users</code> first — the script does not create auth accounts.
   </div>
 
+  <h2>Bootstrap Execution</h2>
+  <div class="success">
+    <strong>✓ First Super Admin account created</strong><br>
+    Email: <code>admin@gmail.com</code><br>
+    Auth user created via <code>supabase.auth.admin.createUser</code> with <code>email_confirm: true</code>.<br>
+    <code>super_admins</code> row seeded (self-granted bootstrap pattern).<br>
+    <strong>Credentials shared with Jeff in session output only — never written to any file.</strong>
+  </div>
+  <p>
+    The bootstrap script (<code>scripts/bootstrap-super-admin.ts</code>) is a one-time tool, not a reusable admin-creation feature. It:
+  </p>
+  <ul>
+    <li>Generates a 20-character random password server-side (mixed case, digits, symbols)</li>
+    <li>Creates the auth user with <code>email_confirm: true</code> (no email verification flow exists yet)</li>
+    <li>Inserts into <code>super_admins</code> with <code>granted_by = user_id</code> (self-granted bootstrap)</li>
+    <li>Rolls back the auth user if the <code>super_admins</code> insert fails</li>
+    <li>Prints credentials to stdout only — never to files, logs, or docs reports</li>
+  </ul>
+
   <h2>AGENTS.md Update</h2>
   <p>New rule added under "Deployments & Git Hygiene":</p>
   <blockquote style="border-left: 3px solid #e2e8f0; padding-left: 1rem; color: #475569;">
@@ -480,7 +504,7 @@
   </ul>
 
   <footer style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 0.875rem;">
-    Updated on September 10, 2026 — pushed to <code>feature/phase3b-auth-shell</code>
+    Updated on September 10, 2026 — pushed to <code>feature/phase3b-auth-shell</code>, bootstrap executed
   </footer>
 </body>
 </html>
