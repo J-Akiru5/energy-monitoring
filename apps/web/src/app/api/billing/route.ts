@@ -23,8 +23,11 @@ export async function GET(req: NextRequest) {
       ? monthParam.split("-").map(Number)
       : [now.getFullYear(), now.getMonth() + 1];
 
+    // NOTE: no customer_id scoping — this route has no auth/session wiring
+    // yet (deviceId-only, unauthenticated). Out of scope for Phase 3b.3
+    // slice one; flagged for the RLS follow-up task, not silently left as-is.
     const [totalKwh, rateConfig] = await Promise.all([
-      getMonthlyEnergy(deviceId, year, month),
+      getMonthlyEnergy(deviceId, undefined, year, month),
       getBillingRate(),
     ]);
 

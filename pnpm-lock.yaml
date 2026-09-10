@@ -207,6 +207,9 @@ importers:
 
   packages/auth:
     dependencies:
+      '@energy/database':
+        specifier: workspace:*
+        version: link:../database
       '@supabase/ssr':
         specifier: ^0.5.2
         version: 0.5.2(@supabase/supabase-js@2.97.0)

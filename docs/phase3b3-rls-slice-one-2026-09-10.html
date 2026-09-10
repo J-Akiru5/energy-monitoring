@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 3b.3 — RLS Slice One Report</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 40px 20px;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 26px; margin-bottom: 6px; }
+  h2 { font-size: 20px; margin-top: 32px; margin-bottom: 12px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 16px; margin-top: 20px; margin-bottom: 8px; }
+  .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 32px; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 8px;
+  }
+  .badge.green { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.4); }
+  .badge.yellow { background: rgba(210,153,34,0.15); color: var(--yellow); border: 1px solid rgba(210,153,34,0.4); }
+  .badge.red { background: rgba(248,81,73,0.15); color: var(--red); border: 1px solid rgba(248,81,73,0.4); }
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--yellow);
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin: 16px 0;
+  }
+  .callout.danger { border-left-color: var(--red); }
+  .callout.ok { border-left-color: var(--green); }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; background: var(--surface); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); }
+  pre { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 14px 16px; overflow-x: auto; font-size: 13px; margin: 10px 0; }
+  ul, ol { padding-left: 22px; margin: 8px 0; }
+  li { margin: 4px 0; }
+  .file-list li { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .stat .num { font-size: 28px; font-weight: 700; }
+  .stat .label { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Phase 3b.3 — RLS Slice One</h1>
+  <div class="subtitle">power_readings — resolveAccess() + explicit scoping + RLS policies, proven with a real negative test. 2026-09-10.</div>
+
+  <div class="callout danger">
+    <strong>⚠ Live-project test data exists and has NOT been removed.</strong><br>
+    A test customer, site, building, device, EMU, controller, installation, auth user, and membership were created
+    in the live Supabase project (<code>fweqqpgxfpaifmkrnmsx</code> — the same project WVSU runs on) to run the
+    negative test below. Everything is clearly labeled <code>TEST — RLS Verification (safe to delete)</code>.
+    Per the task's own constraints, this was deliberately <strong>not</strong> torn down — Jeff removes it once
+    he's confirmed the results himself. See "Test fixtures" below for exactly what exists and how to clean it up.
+  </div>
+
+  <h2>Summary</h2>
+  <p>
+    Every query in this codebase runs through <code>getSupabaseAdmin()</code> (service role), which bypasses RLS
+    entirely. This slice proves the full two-layer pattern on <strong>one path</strong> — <code>power_readings</code>
+    reads via <code>/api/readings</code> — before it gets replicated across the other 8 query files:
+  </p>
+  <ol>
+    <li><strong>Application-layer scoping</strong> (the actual isolation boundary today): <code>resolveAccess()</code>
+      resolves which customer a logged-in user is authorized for, and that <code>customerId</code> is passed down
+      into query functions, which add an explicit <code>.eq('customer_id', ...)</code> filter.</li>
+    <li><strong>RLS policies</strong> (defense in depth / backstop for future user-context queries): enabled on the
+      7 core tables in the customer → site → building → EMU → controller → power_readings chain.</li>
+  </ol>
+
+  <div class="grid">
+    <div class="stat"><div class="num" style="color:var(--green)">✓</div><div class="label">RLS enabled + policied on 7/7 tables</div></div>
+    <div class="stat"><div class="num" style="color:var(--green)">✓</div><div class="label">Negative test: isolation holds both directions</div></div>
+    <div class="stat"><div class="num" style="color:var(--green)">✓</div><div class="label">tsc --noEmit clean</div></div>
+    <div class="stat"><div class="num" style="color:var(--green)">✓</div><div class="label">next build clean (18 routes incl. /api/readings)</div></div>
+  </div>
+
+  <h2>What changed</h2>
+  <table>
+    <tr><th>File</th><th>Change</th></tr>
+    <tr><td class="mono">packages/auth/src/access.ts</td><td>New. <code>resolveAccess(userId, requiredPermission, resourceId?)</code> — the one place membership/permission lookup happens.</td></tr>
+    <tr><td class="mono">packages/auth/src/index.ts</td><td>Export <code>resolveAccess</code>, <code>AccessDeniedError</code>.</td></tr>
+    <tr><td class="mono">packages/auth/package.json</td><td>Added <code>@energy/database</code> workspace dependency (resolveAccess needs <code>getSupabaseAdmin()</code>).</td></tr>
+    <tr><td class="mono">packages/database/src/queries/readings.ts</td><td>All 3 functions take <code>customerId</code> and filter power_readings by it. Required on <code>getLast24hReadings</code> (single caller, now authenticated). Optional on <code>getLatestReading</code> / <code>getMonthlyEnergy</code> — see "Known gap" below.</td></tr>
+    <tr><td class="mono">apps/web/src/app/api/readings/route.ts</td><td>Now requires a session (401 if none), calls <code>resolveAccess(user.id, "view_energy")</code> (403 if denied), passes the resolved <code>customerId</code> into the query functions.</td></tr>
+    <tr><td class="mono">apps/web/src/app/api/billing/route.ts</td><td>Minimal fixup for the changed <code>getMonthlyEnergy</code> signature — passes <code>undefined</code> explicitly with a comment. No scoping added (route has no auth wiring — out of scope, flagged not fixed).</td></tr>
+    <tr><td class="mono">packages/database/src/queries/tenant.ts</td><td><strong>Out-of-scope bug fix, made with your explicit go-ahead</strong> — see below.</td></tr>
+    <tr><td class="mono">supabase/migrations/20260910220000_phase3b3_rls_core_tables.sql</td><td>New. RLS enable + "members read own customer" SELECT policy on customers, sites, buildings, emus, controllers, emu_installations, power_readings.</td></tr>
+    <tr><td class="mono">scripts/create-rls-test-fixtures.ts</td><td>New. Idempotent script that created the test customer/site/building/device/EMU/controller/installation/user/membership.</td></tr>
+    <tr><td class="mono">.claude/launch.json</td><td>New. Dev-server launch config for <code>apps/web</code> (used to run the negative test against a real running server).</td></tr>
+  </table>
+
+  <div class="callout danger">
+    <h3 style="margin-top:0">Unplanned fix: tenant-stamping was silently broken</h3>
+    <p>
+      While generating test readings via mock-sensor, <code>power_readings.customer_id</code> came back
+      <code>NULL</code> on every insert. Root cause: <code>lookupControllerByDevice()</code> in
+      <code>packages/database/src/queries/tenant.ts</code> tried to embed <code>emu_installations</code> directly
+      under <code>controllers</code> in a Supabase nested-select — but there's no foreign key between those two
+      tables (only <code>controllers → emus → emu_installations</code>). PostgREST returned
+      <code>PGRST200: Could not find a relationship</code>, and that error was silently swallowed by the function's
+      graceful-degradation path (<code>if (error || !data) return null</code>), so <code>/api/ingest</code> kept
+      accepting readings and just never stamped them — no error surfaced anywhere.
+    </p>
+    <p><strong>Blast radius:</strong> WVSU's real device has 92,559 correctly-stamped rows from the original Phase
+      3a backfill and 0 NULL-stamped rows — its last reading is from <strong>2026-04-28</strong>, so it hasn't sent
+      live telemetry since before this bug could bite it. But the moment any real device resumes sending, every new
+      row would land with <code>customer_id = NULL</code> — invisible under both RLS and the explicit filtering
+      this task just added. That would look like "the dashboard went empty," not a security bug.</p>
+    <p>I stopped and asked before touching this since it's outside <code>readings.ts</code>. You said fix it now —
+      done: the query now embeds <code>emu_installations</code> under <code>emus</code> (where the FK actually is),
+      and correctly filters both <code>emu_installations</code> and <code>emu_configurations</code> for the
+      currently-active row (<code>ended_at IS NULL</code>) instead of taking an arbitrary first result.
+      Verified with a fresh mock-sensor run after the fix — see below.</p>
+  </div>
+
+  <div class="callout">
+    <h3 style="margin-top:0">Known gap, flagged not fixed</h3>
+    <p><code>getLatestReading</code> and <code>getMonthlyEnergy</code> have <code>customerId</code> as
+      <strong>optional</strong> rather than required, because each has a caller with no session to resolve access
+      from:</p>
+    <ul>
+      <li><code>/api/heartbeat</code> — a Vercel cron job that iterates <em>all</em> devices with no user context.</li>
+      <li><code>/api/billing</code> — currently unauthenticated (deviceId-only, no login check at all).</li>
+    </ul>
+    <p>Both still query unscoped, exactly as before this task. This is a real gap, not a security fix — it's called
+      out explicitly (in code comments and here) rather than silently left as-is, and belongs to the follow-up task
+      that covers the other 8 query files.</p>
+  </div>
+
+  <h2>RLS policies applied</h2>
+  <p>Verified live against the database (<code>pg_class.relrowsecurity</code> + <code>pg_policies</code>) after applying the migration via the session pooler:</p>
+  <table>
+    <tr><th>Table</th><th>RLS enabled</th><th>Policy</th></tr>
+    <tr><td class="mono">customers</td><td><span class="badge green">true</span></td><td>"members read own customer" (SELECT)</td></tr>
+    <tr><td class="mono">sites</td><td><span class="badge green">true</span></td><td>"members read own customer" (SELECT)</td></tr>
+    <tr><td class="mono">buildings</td><td><span class="badge green">true</span></td><td>"members read own customer" (SELECT, via sites)</td></tr>
+    <tr><td class="mono">emus</td><td><span class="badge green">true</span></td><td>"members read own customer" (SELECT)</td></tr>
+    <tr><td class="mono">controllers</td><td><span class="badge green">true</span></td><td>"members read own customer" (SELECT, via emus)</td></tr>
+    <tr><td class="mono">emu_installations</td><td><span class="badge green">true</span></td><td>"members read own customer" (SELECT)</td></tr>
+    <tr><td class="mono">power_readings</td><td><span class="badge green">true</span></td><td>"members read own customer" (SELECT)</td></tr>
+  </table>
+  <p style="color:var(--text-muted); font-size:13px;">
+    Scope: SELECT only, membership-scoped (not the telemetry-stamp pattern — that's power_readings-specific and
+    N/A to the structural tables). Write policies are out of scope for this slice.
+    Note: historical power_readings rows with <code>customer_id = NULL</code> (pre-Phase-3a-backfill, if any exist)
+    are invisible under this policy to every non-service-role caller — a deliberate fail-closed default.
+  </p>
+
+  <h2>Test fixtures created (live project — NOT torn down)</h2>
+  <table>
+    <tr><th>Entity</th><th>Value</th></tr>
+    <tr><td>Customer</td><td><code>TEST — RLS Verification (safe to delete)</code></td></tr>
+    <tr><td>Customer ID</td><td class="mono">c892c735-c125-4880-92d3-5fdb17e73e16</td></tr>
+    <tr><td>Site</td><td>TEST Site — RLS Verification</td></tr>
+    <tr><td>Building</td><td>TEST Building — RLS Verification</td></tr>
+    <tr><td>Device</td><td>TEST Device — RLS Verification (safe to delete)</td></tr>
+    <tr><td>EMU label</td><td class="mono">EMU-TEST-RLS-001</td></tr>
+    <tr><td>Test user</td><td class="mono">test-rls-verification@example.invalid</td> (role: VIEWER, permission: view_energy only)</tr>
+    <tr><td>Test readings</td><td>3 rows, generated via mock-sensor → real <code>/api/ingest</code> POST (single-phase mode), correctly stamped after the tenant.ts fix</td></tr>
+  </table>
+  <p style="color:var(--text-muted); font-size:13px;">
+    To remove: delete the <code>power_readings</code> rows for the test device_id, then the
+    <code>controllers</code> / <code>emu_configurations</code> / <code>emu_installations</code> / <code>emus</code> /
+    <code>devices</code> / <code>buildings</code> / <code>sites</code> rows, then <code>membership_permissions</code> /
+    <code>memberships</code>, then the <code>customers</code> row, then the auth user via the Supabase dashboard or
+    <code>supabase.auth.admin.deleteUser()</code>. Everything is named <code>TEST — ...</code> / <code>test-rls-verification@example.invalid</code>
+    so it's unambiguous in the dashboard.
+  </p>
+
+  <h2>Negative test — exact results</h2>
+  <p>Run against the real, running <code>apps/web</code> dev server (session pooler, live project). Two parts, for a reason: minting an
+    impersonated HTTP session for WVSU's real owner account (<code>ronlexusplaton@gmail.com</code>) via a silent
+    admin-generated magic link was <strong>blocked by the permission classifier</strong> mid-task, and I didn't work
+    around it. Part B tests the identical application code (<code>resolveAccess()</code> + the query functions) at
+    the function level instead of over HTTP for that direction — same logic /api/readings runs, minus the
+    cookie-session wrapper.</p>
+
+  <h3>Part A — TEST user, full HTTP round-trip through <code>/api/readings</code></h3>
+  <pre>TEST user -&gt; own device (own EMU's device_id):
+  { status: 200, count: 3 }                    ✓ sees their own 3 rows
+
+TEST user -&gt; WVSU's device_id (cross-tenant attempt):
+  { status: 200, count: 0 }                    ✓ isolation holds — 0 rows, not an error, not WVSU's data</pre>
+
+  <h3>Part B — WVSU OWNER, function-level (resolveAccess + getLast24hReadings/getLatestReading)</h3>
+  <pre>resolveAccess(wvsuOwnerUserId, "view_energy") -&gt; customerId = 333fad51-...499a5c  (WVSU)
+
+WVSU owner -&gt; own device, latest reading (unwindowed):
+  1 row, recorded_at = 2026-04-28T08:47:47.474Z   ✓ positive control passes — real data returned
+
+WVSU owner -&gt; own device, last 24h window:
+  0 rows   (expected — WVSU's device has been offline since 2026-04-28; not a scoping issue,
+            confirmed separately: 92,559 total rows for this device, 0 with NULL customer_id)
+
+WVSU owner -&gt; TEST device_id (cross-tenant attempt):
+  0 rows                                          ✓ isolation holds</pre>
+
+  <div class="callout ok">
+    <strong>Result: isolation holds in both directions.</strong> Neither customer's data leaked into the other's
+    response — cross-tenant device-ID guessing returns an empty result, not an error and not the other customer's
+    rows (which would be worse — it wouldn't even look like a bug to an attacker probing for one).
+  </div>
+
+  <h2>Build verification</h2>
+  <table>
+    <tr><th>Check</th><th>Result</th></tr>
+    <tr><td><code>pnpm --filter web exec tsc --noEmit</code></td><td><span class="badge green">clean</span> — no output, no errors</td></tr>
+    <tr><td><code>pnpm --filter web build</code></td><td><span class="badge green">clean</span> — compiled successfully, all 18 routes generated including <code>ƒ /api/readings</code></td></tr>
+  </table>
+
+  <h2>Explicitly out of scope (per task constraints)</h2>
+  <ul>
+    <li>relay.ts, alerts.ts, devices.ts, billing.ts (query logic), and the other query files — untouched, same as before.</li>
+    <li>Write policies (INSERT/UPDATE/DELETE) on any of the 7 RLS tables.</li>
+    <li>Auth wiring for <code>/api/heartbeat</code> and <code>/api/billing</code> — flagged above, not added.</li>
+    <li>Tearing down the test fixtures — left for Jeff per the task's explicit instruction.</li>
+  </ul>
+
+</div>
+</body>
+</html>

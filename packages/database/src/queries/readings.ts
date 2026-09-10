@@ -122,8 +122,15 @@ export async function insertReading(
 /**
  * Get last 24 hours of readings for the hero chart.
  * Returns all columns including 3-phase data if available.
+ *
+ * @param customerId  The caller's authorized customer, resolved via
+ *                     resolveAccess() at the API-route layer and passed in —
+ *                     never re-resolved here. getSupabaseAdmin() is a
+ *                     service-role client and bypasses RLS entirely, so this
+ *                     explicit filter is the actual isolation boundary for
+ *                     this query, not just defense in depth.
  */
-export async function getLast24hReadings(deviceId: string) {
+export async function getLast24hReadings(deviceId: string, customerId: string) {
   const supabase = getSupabaseAdmin();
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
@@ -131,6 +138,7 @@ export async function getLast24hReadings(deviceId: string) {
     .from("power_readings")
     .select("*")
     .eq("device_id", deviceId)
+    .eq("customer_id", customerId)
     .gte("recorded_at", since)
     .order("recorded_at", { ascending: true })
     .order("id", { ascending: true });
@@ -142,14 +150,29 @@ export async function getLast24hReadings(deviceId: string) {
 /**
  * Get the latest reading for the live metric tiles.
  * Returns all columns including 3-phase data if available.
+ *
+ * @param customerId  See getLast24hReadings — resolved upstream, not here.
+ *                     Optional ONLY because this function also has a
+ *                     system-internal caller (the heartbeat cron route,
+ *                     which iterates all devices with no user session to
+ *                     resolve access from). That caller is intentionally
+ *                     out of scope for this slice — it still queries
+ *                     unscoped, same as before. Any caller with a resolved
+ *                     user session (i.e. /api/readings) MUST pass it.
  */
-export async function getLatestReading(deviceId: string) {
+export async function getLatestReading(deviceId: string, customerId?: string) {
   const supabase = getSupabaseAdmin();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("power_readings")
     .select("*")
-    .eq("device_id", deviceId)
+    .eq("device_id", deviceId);
+
+  if (customerId) {
+    query = query.eq("customer_id", customerId);
+  }
+
+  const { data, error } = await query
     .order("recorded_at", { ascending: false })
     .order("id", { ascending: false }) // tie-breaker: use DB insert order
     .limit(1)
@@ -166,8 +189,20 @@ export async function getLatestReading(deviceId: string) {
  * Get total energy consumption for a given month (for billing).
  * For 3-phase: uses total_energy column
  * For single-phase: uses energy_kwh column
+ *
+ * @param customerId  See getLast24hReadings — resolved upstream, not here.
+ *                     Optional ONLY because /api/billing has no auth/session
+ *                     wiring yet (deviceId-only, unauthenticated). Genuinely
+ *                     out of scope for this slice — flagged for the RLS
+ *                     follow-up task, not silently left insecure without a
+ *                     paper trail.
  */
-export async function getMonthlyEnergy(deviceId: string, year: number, month: number) {
+export async function getMonthlyEnergy(
+  deviceId: string,
+  customerId: string | undefined,
+  year: number,
+  month: number
+) {
   const supabase = getSupabaseAdmin();
 
   const startDate = new Date(year, month - 1, 1).toISOString();
@@ -188,10 +223,13 @@ export async function getMonthlyEnergy(deviceId: string, year: number, month: nu
   // Using two separate queries completely bypasses Supabase's default 1000 row limit.
 
   // 1. Get the FIRST reading of the month
-  const { data: firstReading, error: firstErr } = await supabase
+  let firstQuery = supabase
     .from("power_readings")
     .select("energy_kwh, total_energy")
-    .eq("device_id", deviceId)
+    .eq("device_id", deviceId);
+  if (customerId) firstQuery = firstQuery.eq("customer_id", customerId);
+
+  const { data: firstReading, error: firstErr } = await firstQuery
     .gte("recorded_at", startDate)
     .lt("recorded_at", endDate)
     .order("recorded_at", { ascending: true })
@@ -201,10 +239,13 @@ export async function getMonthlyEnergy(deviceId: string, year: number, month: nu
   if (firstErr || !firstReading) return 0;
 
   // 2. Get the LAST reading of the month
-  const { data: lastReading, error: lastErr } = await supabase
+  let lastQuery = supabase
     .from("power_readings")
     .select("energy_kwh, total_energy")
-    .eq("device_id", deviceId)
+    .eq("device_id", deviceId);
+  if (customerId) lastQuery = lastQuery.eq("customer_id", customerId);
+
+  const { data: lastReading, error: lastErr } = await lastQuery
     .gte("recorded_at", startDate)
     .lt("recorded_at", endDate)
     .order("recorded_at", { ascending: false })
