@@ -496,6 +496,58 @@
     </tr>
   </table>
 
+  <h2>Permission Set Correction</h2>
+  <div class="info">
+    <strong>9 permissions total</strong> — <code>manage_users</code> added alongside <code>manage_billing</code> per Jeff's confirmation.
+  </div>
+
+  <h3>WVSU OWNER Membership — Before/After</h3>
+  <table>
+    <tr>
+      <th>Permission</th>
+      <th>Before (8 rows)</th>
+      <th>After (9 rows)</th>
+    </tr>
+    <tr><td>view_energy</td><td>✓</td><td>✓</td></tr>
+    <tr><td>control_relay</td><td>✓</td><td>✓</td></tr>
+    <tr><td>manage_devices</td><td>✓</td><td>✓</td></tr>
+    <tr><td>provision_device</td><td>✓</td><td>✓</td></tr>
+    <tr><td>replace_device</td><td>✓</td><td>✓</td></tr>
+    <tr><td>reassign_emu</td><td>✓</td><td>✓</td></tr>
+    <tr><td>manage_billing</td><td>✓</td><td>✓</td></tr>
+    <tr><td>manage_users</td><td style="color:#dc2626">✗ missing</td><td style="color:#16a34a">✓ added</td></tr>
+    <tr><td>view_reports</td><td>✓</td><td>✓</td></tr>
+  </table>
+
+  <h3>Role Defaults (corrected)</h3>
+  <table>
+    <tr>
+      <th>Role</th>
+      <th>Permissions</th>
+      <th>Count</th>
+    </tr>
+    <tr>
+      <td>OWNER</td>
+      <td>all 9</td>
+      <td>9</td>
+    </tr>
+    <tr>
+      <td>ADMIN</td>
+      <td>all except <code>reassign_emu</code></td>
+      <td>8</td>
+    </tr>
+    <tr>
+      <td>OPERATOR</td>
+      <td>view_energy, control_relay, manage_devices, provision_device, replace_device</td>
+      <td>5</td>
+    </tr>
+    <tr>
+      <td>VIEWER</td>
+      <td>view_energy</td>
+      <td>1</td>
+    </tr>
+  </table>
+
   <h2>Next Steps</h2>
   <ul>
     <li><strong>3b.5:</strong> Migrate <code>apps/admin</code> login to use AuthSplitLayout</li>
@@ -504,7 +556,7 @@
   </ul>
 
   <footer style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 0.875rem;">
-    Updated on September 10, 2026 — pushed to <code>feature/phase3b-auth-shell</code>, bootstrap executed
+    Updated on September 10, 2026 — merged to develop, permission set corrected (9 permissions)
   </footer>
 </body>
 </html>

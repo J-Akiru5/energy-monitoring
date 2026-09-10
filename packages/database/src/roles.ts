@@ -10,6 +10,7 @@ export type Permission =
   | "replace_device"
   | "reassign_emu"
   | "manage_billing"
+  | "manage_users"
   | "view_reports";
 
 export type Role = "OWNER" | "ADMIN" | "OPERATOR" | "VIEWER";
@@ -17,8 +18,8 @@ export type Role = "OWNER" | "ADMIN" | "OPERATOR" | "VIEWER";
 /**
  * Default permissions for each role.
  *
- * OWNER  = primary Customer Admin (all 8 permissions)
- * ADMIN  = delegated Customer Admin (all except reassign_emu)
+ * OWNER  = primary Customer Admin (all 9 permissions)
+ * ADMIN  = delegated Customer Admin (all except reassign_emu — 8 total)
  * OPERATOR = merged Engineer+Technician (device + relay + energy)
  * VIEWER = read-only energy access
  *
@@ -33,6 +34,7 @@ export const ROLE_DEFAULTS: Record<Role, Permission[]> = {
     "replace_device",
     "reassign_emu",
     "manage_billing",
+    "manage_users",
     "view_reports",
   ],
   ADMIN: [
@@ -42,6 +44,7 @@ export const ROLE_DEFAULTS: Record<Role, Permission[]> = {
     "provision_device",
     "replace_device",
     "manage_billing",
+    "manage_users",
     "view_reports",
   ],
   OPERATOR: [
@@ -54,7 +57,7 @@ export const ROLE_DEFAULTS: Record<Role, Permission[]> = {
   VIEWER: ["view_energy"],
 };
 
-/** All 8 permission values (useful for validation). */
+/** All 9 permission values (useful for validation). */
 export const ALL_PERMISSIONS: Permission[] = [
   "view_energy",
   "control_relay",
@@ -63,5 +66,6 @@ export const ALL_PERMISSIONS: Permission[] = [
   "replace_device",
   "reassign_emu",
   "manage_billing",
+  "manage_users",
   "view_reports",
 ];
