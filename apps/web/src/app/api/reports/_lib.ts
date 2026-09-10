@@ -253,8 +253,19 @@ function deltaWithinWindow(
   return monotonicDelta(inRange.map((row) => row.energy));
 }
 
+/**
+ * Build a full consumption summary for the reports view.
+ *
+ * @param customerId  The caller's authorized customer, resolved via
+ *                     resolveAccess() at the API-route layer and passed in —
+ *                     never re-resolved here. getSupabaseAdmin() is a
+ *                     service-role client and bypasses RLS entirely, so this
+ *                     explicit filter is the actual isolation boundary for
+ *                     this query, not just defense in depth.
+ */
 export async function buildConsumptionSummary(
   deviceId: string,
+  customerId: string,
   filters: ReportFilters
 ): Promise<ConsumptionSummary> {
   const now = new Date();
@@ -270,6 +281,7 @@ export async function buildConsumptionSummary(
       "id, recorded_at, voltage, power_w, energy_kwh, total_power, total_energy, voltage_a, voltage_b, voltage_c, current_amp, current_a, current_b, current_c, power_a, power_b, power_c, energy_a, energy_b, energy_c, frequency, frequency_a, frequency_b, frequency_c, power_factor, power_factor_a, power_factor_b, power_factor_c"
     )
     .eq("device_id", deviceId)
+    .eq("customer_id", customerId)
     .gte("recorded_at", filters.fromIso)
     .lte("recorded_at", filters.toIso)
     .order("recorded_at", { ascending: true })
@@ -286,6 +298,7 @@ export async function buildConsumptionSummary(
       .from("alerts")
       .select("created_at, ended_at")
       .eq("device_id", deviceId)
+      .eq("customer_id", customerId)
       .lte("created_at", filters.toIso)
       .or(`ended_at.gte.${filters.fromIso},ended_at.is.null`)
       .order("created_at", { ascending: true });

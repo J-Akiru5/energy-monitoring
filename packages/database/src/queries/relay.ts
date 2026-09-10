@@ -2,6 +2,15 @@ import { getSupabaseAdmin } from "../client";
 import type { RelayConfig, RelayState, RelayLog } from "@energy/types";
 
 // ──── Get Relay Configuration ────
+/**
+ * relay_config has no customer_id column (1:1 with devices). Scoping
+ * is enforced at the RLS layer via the controllers bridge path:
+ *   devices ← controllers.legacy_device_id → controllers.emu_id →
+ *   emus.owner_customer_id → memberships.customer_id.
+ * At the application layer, this function trusts that the caller
+ * already validated device ownership via resolveAccess() before
+ * calling — the deviceId came from a customer-scoped source.
+ */
 export async function getRelayConfig(deviceId: string): Promise<RelayConfig | null> {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
@@ -64,6 +73,10 @@ export async function updateRelayConfig(config: RelayConfig): Promise<boolean> {
 }
 
 // ──── Get Relay State ────
+/**
+ * relay_state has no customer_id column (1:1 with devices). See
+ * getRelayConfig comment for the scoping rationale.
+ */
 export async function getRelayState(deviceId: string): Promise<RelayState | null> {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
@@ -163,8 +176,17 @@ export async function logRelayAction(
 }
 
 // ──── Get Relay Logs ────
+/**
+ * @param customerId  The caller's authorized customer, resolved via
+ *                     resolveAccess() at the API-route layer and passed in —
+ *                     never re-resolved here. getSupabaseAdmin() is a
+ *                     service-role client and bypasses RLS entirely, so this
+ *                     explicit filter is the actual isolation boundary for
+ *                     this query, not just defense in depth.
+ */
 export async function getRelayLogs(
   deviceId: string,
+  customerId: string,
   limit: number = 50
 ): Promise<RelayLog[]> {
   const supabase = getSupabaseAdmin();
@@ -172,6 +194,7 @@ export async function getRelayLogs(
     .from("relay_logs")
     .select("*")
     .eq("device_id", deviceId)
+    .eq("customer_id", customerId)
     .order("created_at", { ascending: false })
     .limit(limit);
 

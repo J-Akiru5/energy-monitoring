@@ -38,21 +38,34 @@ function mapRow(row: Record<string, unknown>): AlertState {
 /**
  * Get the current incident state for a specific (device, alertType, phase) key.
  * Use phase = '' (default) for non-phase-specific alert types.
+ *
+ * @param customerId  The caller's authorized customer, resolved via
+ *                     resolveAccess() at the API-route layer and passed in —
+ *                     never re-resolved here. getSupabaseAdmin() is a
+ *                     service-role client and bypasses RLS entirely, so this
+ *                     explicit filter is the actual isolation boundary for
+ *                     this query, not just defense in depth.
  */
 export async function getAlertState(
   deviceId: string,
   alertType: AlertType,
-  phase = ""
+  phase = "",
+  customerId?: string
 ): Promise<AlertState | null> {
   const supabase = getSupabaseAdmin();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("device_alert_state")
     .select("*")
     .eq("device_id", deviceId)
     .eq("alert_type", alertType)
-    .eq("phase", phase)
-    .maybeSingle();
+    .eq("phase", phase);
+
+  if (customerId) {
+    query = query.eq("customer_id", customerId);
+  }
+
+  const { data, error } = await query.maybeSingle();
 
   if (error) {
     console.error("[getAlertState] Error:", error);
@@ -66,17 +79,29 @@ export async function getAlertState(
  * Get ALL currently-active incident states for a device in one query.
  * Returns a Map keyed by `${alertType}:${phase}` for O(1) lookups inside
  * bulk threshold checks.
+ *
+ * @param customerId  See getAlertState — resolved upstream, not here.
+ *                     Optional because this function is also called by
+ *                     system-internal callers (threshold checks in the
+ *                     ingest route) that don't have a user session.
  */
 export async function getAllActiveAlertStates(
-  deviceId: string
+  deviceId: string,
+  customerId?: string
 ): Promise<Map<string, AlertState>> {
   const supabase = getSupabaseAdmin();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("device_alert_state")
     .select("*")
     .eq("device_id", deviceId)
     .eq("is_active", true);
+
+  if (customerId) {
+    query = query.eq("customer_id", customerId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("[getAllActiveAlertStates] Error:", error);

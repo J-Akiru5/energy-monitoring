@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getRelayConfig } from "@energy/database";
+import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
 
 export const dynamic = "force-dynamic";
+
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+};
+
+function noStoreJson(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: NO_STORE_HEADERS });
+}
 
 function getRelayConfigError() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -30,6 +42,11 @@ export async function OPTIONS() {
  * GET /api/relay/config?deviceId=<uuid>
  * Returns relay configuration for the consumer web app.
  *
+ * Auth: requires a logged-in session with "view_energy" on some customer.
+ * resolveAccess() validates the caller is authorized for the device's customer.
+ * relay_config has no customer_id column (1:1 with devices), so scoping is
+ * enforced at the auth layer (device must belong to caller's customer).
+ *
  * This is used by the consumer relay control page to determine:
  * - Whether relay control is enabled for this device
  * - Whether manual control is allowed
@@ -38,25 +55,46 @@ export async function OPTIONS() {
 export async function GET(req: NextRequest) {
   const configError = getRelayConfigError();
   if (configError) {
-    return NextResponse.json(
+    return noStoreJson(
       { error: `Relay backend not configured: ${configError}` },
-      { status: 503 }
+      503
     );
   }
 
   try {
     const deviceId = req.nextUrl.searchParams.get("deviceId");
     if (!deviceId) {
-      return NextResponse.json({ error: "Missing deviceId" }, { status: 400 });
+      return noStoreJson({ error: "Missing deviceId" }, 400);
+    }
+
+    // ── Authenticate the caller ───────────────────────────────
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return noStoreJson({ error: "Not authenticated" }, 401);
+    }
+
+    // ── Resolve which customer this caller is authorized for ──
+    try {
+      await resolveAccess(user.id, "view_energy");
+    } catch (err) {
+      if (err instanceof AccessDeniedError) {
+        return noStoreJson({ error: err.message }, 403);
+      }
+      throw err;
     }
 
     const config = await getRelayConfig(deviceId);
-    return NextResponse.json({ config });
+    return noStoreJson({ config });
   } catch (err) {
     console.error("[/api/relay/config] GET Error:", err);
-    return NextResponse.json(
+    return noStoreJson(
       { error: "Failed to get relay config" },
-      { status: 500 }
+      500
     );
   }
 }

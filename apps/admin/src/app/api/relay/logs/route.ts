@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getRelayLogs } from "@energy/database";
+import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +38,25 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Missing deviceId" }, { status: 400 });
     }
 
-    const logs = await getRelayLogs(deviceId, limit);
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    let customerId: string;
+    try {
+      const access = await resolveAccess(user.id, "view_energy");
+      customerId = access.customerId;
+    } catch (err) {
+      if (err instanceof AccessDeniedError) {
+        return NextResponse.json({ error: err.message }, { status: 403 });
+      }
+      throw err;
+    }
+
+    const logs = await getRelayLogs(deviceId, customerId, limit);
     return NextResponse.json({ logs });
   } catch (err) {
     console.error("[/api/relay/logs] GET Error:", err);

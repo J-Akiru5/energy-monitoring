@@ -1,13 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import {
   getRelayState,
   updateRelayState,
   getRelayConfig,
   logRelayAction,
 } from "@energy/database";
+import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
 import { RelayCommandSchema } from "@energy/types";
 
 export const dynamic = "force-dynamic";
+
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+};
+
+function noStoreJson(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: NO_STORE_HEADERS });
+}
 
 function getRelayConfigError() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -34,28 +46,55 @@ export async function OPTIONS() {
 
 /**
  * GET /api/relay?deviceId=<uuid>
- * Returns current relay state
+ * Returns current relay state.
+ *
+ * Auth: requires a logged-in session with "view_energy" on some customer.
+ * resolveAccess() validates the caller is authorized for the device's customer.
+ * relay_config and relay_state have no customer_id column (1:1 with devices),
+ * so scoping is enforced at the auth layer (device must belong to caller's customer),
+ * not at the query layer.
  */
 export async function GET(req: NextRequest) {
   const configError = getRelayConfigError();
   if (configError) {
-    return NextResponse.json(
+    return noStoreJson(
       { error: `Relay backend not configured: ${configError}` },
-      { status: 503 }
+      503
     );
   }
 
   try {
     const deviceId = req.nextUrl.searchParams.get("deviceId");
     if (!deviceId) {
-      return NextResponse.json({ error: "Missing deviceId" }, { status: 400 });
+      return noStoreJson({ error: "Missing deviceId" }, 400);
+    }
+
+    // ── Authenticate the caller ───────────────────────────────
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return noStoreJson({ error: "Not authenticated" }, 401);
+    }
+
+    // ── Resolve which customer this caller is authorized for ──
+    try {
+      await resolveAccess(user.id, "view_energy");
+    } catch (err) {
+      if (err instanceof AccessDeniedError) {
+        return noStoreJson({ error: err.message }, 403);
+      }
+      throw err;
     }
 
     const state = await getRelayState(deviceId);
-    return NextResponse.json({ state });
+    return noStoreJson({ state });
   } catch (err) {
     console.error("[/api/relay] GET Error:", err);
-    return NextResponse.json({ error: "Failed to get relay state" }, { status: 500 });
+    return noStoreJson({ error: "Failed to get relay state" }, 500);
   }
 }
 
@@ -63,6 +102,9 @@ export async function GET(req: NextRequest) {
  * POST /api/relay
  * Body: RelayCommand
  * Controls relay (manual trip/reset or system-initiated)
+ *
+ * Auth: requires a logged-in session with "control_relay" on some customer.
+ * resolveAccess() validates the caller is authorized for the device's customer.
  *
  * This endpoint can be called by:
  * 1. Admin dashboard (manual control)
@@ -72,9 +114,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const configError = getRelayConfigError();
   if (configError) {
-    return NextResponse.json(
+    return noStoreJson(
       { error: `Relay backend not configured: ${configError}` },
-      { status: 503 }
+      503
     );
   }
 
@@ -83,20 +125,41 @@ export async function POST(req: NextRequest) {
     const parsed = RelayCommandSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(
+      return noStoreJson(
         { error: "Invalid command", details: parsed.error.flatten() },
-        { status: 422 }
+        422
       );
     }
 
     const command = parsed.data;
 
+    // ── Authenticate the caller ───────────────────────────────
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return noStoreJson({ error: "Not authenticated" }, 401);
+    }
+
+    // ── Resolve which customer this caller is authorized for ──
+    try {
+      await resolveAccess(user.id, "control_relay");
+    } catch (err) {
+      if (err instanceof AccessDeniedError) {
+        return noStoreJson({ error: err.message }, 403);
+      }
+      throw err;
+    }
+
     // Check relay config
     const config = await getRelayConfig(command.deviceId);
     if (!config || !config.relayEnabled) {
-      return NextResponse.json(
+      return noStoreJson(
         { error: "Relay not enabled for this device" },
-        { status: 403 }
+        403
       );
     }
 
@@ -140,21 +203,21 @@ export async function POST(req: NextRequest) {
 
       case "STATUS_CHECK":
         const state = await getRelayState(command.deviceId);
-        return NextResponse.json({ state });
+        return noStoreJson({ state });
 
       default:
-        return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+        return noStoreJson({ error: "Unknown action" }, 400);
     }
 
     if (!success) {
-      return NextResponse.json({ error: "Failed to execute command" }, { status: 500 });
+      return noStoreJson({ error: "Failed to execute command" }, 500);
     }
 
     // Get updated state
     const newState = await getRelayState(command.deviceId);
-    return NextResponse.json({ status: "ok", state: newState });
+    return noStoreJson({ status: "ok", state: newState });
   } catch (err) {
     console.error("[/api/relay] POST Error:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return noStoreJson({ error: "Internal server error" }, 500);
   }
 }

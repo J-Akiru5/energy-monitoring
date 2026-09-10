@@ -4,6 +4,13 @@ import type { AlertType } from "@energy/types";
 /**
  * Create a new alert (transient spike or initial incident marker).
  * Returns the created alert row including the new incident time-range fields.
+ *
+ * customerId is intentionally NOT a required parameter here: this function
+ * is called by system-internal callers (heartbeat cron, ingest route) that
+ * resolve the tenant stamp via lookupControllerByDevice(), not via
+ * resolveAccess(). Those callers set customer_id through the TenantStamp
+ * already stamped on the insert. User-facing read paths that call
+ * getUnreadAlerts() do go through resolveAccess() and pass customerId.
  */
 export async function createAlert(data: {
   deviceId: string;
@@ -54,16 +61,24 @@ export async function promoteAlertToIncident(alertId: string): Promise<void> {
 }
 
 /**
- * Get unread alerts for a device (or all devices).
+ * Get unread alerts for a device (or all devices within a customer).
  * select("*") includes all incident time-range fields added in migration 002:
  * phase, is_incident, ended_at, duration_seconds.
+ *
+ * @param customerId  The caller's authorized customer, resolved via
+ *                     resolveAccess() at the API-route layer and passed in —
+ *                     never re-resolved here. getSupabaseAdmin() is a
+ *                     service-role client and bypasses RLS entirely, so this
+ *                     explicit filter is the actual isolation boundary for
+ *                     this query, not just defense in depth.
  */
-export async function getUnreadAlerts(deviceId?: string) {
+export async function getUnreadAlerts(customerId: string, deviceId?: string) {
   const supabase = getSupabaseAdmin();
 
   let query = supabase
     .from("alerts")
     .select("*")
+    .eq("customer_id", customerId)
     .eq("is_read", false)
     .order("created_at", { ascending: false })
     .limit(50);
