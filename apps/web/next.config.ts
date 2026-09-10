@@ -8,7 +8,12 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@energy/types", "@energy/database"],
+  transpilePackages: [
+    "@energy/types",
+    "@energy/database",
+    "@energy/auth",
+    "@energy/ui",
+  ],
   turbopack: {},
   async headers() {
     return [

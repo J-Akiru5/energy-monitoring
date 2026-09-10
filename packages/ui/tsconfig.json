@@ -19,20 +19,12 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"],
-      "@energy/auth": ["../../packages/auth/src/index.ts"],
-      "@energy/database": ["../../packages/database/src/index.ts"],
-      "@energy/types": ["../../packages/types/src/index.ts"],
-      "@energy/ui": ["../../packages/ui/src/index.ts"]
+      "@/*": ["./src/*"]
     }
   },
   "include": [
-    "next-env.d.ts",
     "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "**/*.tsx"
   ],
   "exclude": ["node_modules"]
 }

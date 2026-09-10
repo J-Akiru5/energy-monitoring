@@ -12,6 +12,7 @@
 - Before pushing any branch, consider whether it needs to trigger a Vercel preview deployment. If not (docs-only, WIP, not ready for review), say so rather than pushing silently.
 - **Docs-only commits** (changes touching only `docs/*.html` and nothing else) should be **batched with the code change they document**, not pushed as standalone commits. Each standalone commit triggers its own deployment cycle — batch them to avoid waste.
 - Do not modify `apps/*/vercel.json`'s `ignoreCommand`, `buildCommand`, or `installCommand` without explicit instruction. These fields are the mechanism preventing redundant deployments on every commit.
+- **Before reporting any task complete, push the branch and verify with `git ls-remote` that the commit actually exists on origin.** A task is not complete if its work only exists locally — "done" means "pushed and verifiable," not "written."
 
 ## Live Database
 

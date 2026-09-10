@@ -14,6 +14,14 @@ dist/
 # Firmware secrets (use secrets.example.h as template)
 firmware/src/secrets.h
 
+# Supabase CLI local state
+supabase/.temp/
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
 # IDE
 .vscode/
 .idea/
