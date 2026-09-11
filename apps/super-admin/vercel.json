@@ -3,5 +3,5 @@
   "installCommand": "cd ../.. && pnpm install",
   "buildCommand": "cd ../.. && pnpm turbo build --filter=@energy/super-admin --env-mode=loose --force",
   "outputDirectory": ".next",
-  "ignoreCommand": "npx turbo-ignore @energy/super-admin"
+  "ignoreCommand": "sh ../../scripts/vercel-ignore.sh @energy/super-admin"
 }

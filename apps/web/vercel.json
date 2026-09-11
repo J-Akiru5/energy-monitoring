@@ -1,5 +1,5 @@
 {
-  "ignoreCommand": "npx turbo-ignore web",
+  "ignoreCommand": "sh ../../scripts/vercel-ignore.sh web",
   "headers": [
     {
       "source": "/(.*)",
