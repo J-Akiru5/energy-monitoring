@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WVSU Account Verification Report — 2026-09-11</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --muted: #8b949e;
+            --green: #3fb950;
+            --red: #f85149;
+            --yellow: #d29922;
+            --blue: #58a6ff;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+        .subtitle { color: var(--muted); margin-bottom: 2rem; font-size: 0.95rem; }
+        .section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .section h2 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: var(--blue);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+        .step {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: var(--bg);
+            border-radius: 6px;
+            border-left: 3px solid var(--border);
+        }
+        .step.pass { border-left-color: var(--green); }
+        .step.fail { border-left-color: var(--red); }
+        .step.warn { border-left-color: var(--yellow); }
+        .step.skip { border-left-color: var(--muted); }
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+        .badge.pass { background: rgba(63, 185, 80, 0.2); color: var(--green); }
+        .badge.fail { background: rgba(248, 81, 73, 0.2); color: var(--red); }
+        .badge.warn { background: rgba(210, 153, 34, 0.2); color: var(--yellow); }
+        .badge.skip { background: rgba(139, 148, 158, 0.2); color: var(--muted); }
+        .step-content { flex: 1; }
+        .step-title { font-weight: 600; margin-bottom: 0.25rem; }
+        .step-detail { color: var(--muted); font-size: 0.9rem; }
+        .evidence {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 0.75rem;
+            margin-top: 0.5rem;
+            font-family: 'SFMono-Regular', Consolas, monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .summary-box {
+            background: var(--surface);
+            border: 2px solid var(--green);
+            border-radius: 8px;
+            padding: 1.5rem;
+            text-align: center;
+            margin-top: 2rem;
+        }
+        .summary-box.has-issues { border-color: var(--yellow); }
+        .summary-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .summary-title.pass { color: var(--green); }
+        .summary-title.warn { color: var(--yellow); }
+        .verdict { color: var(--muted); font-size: 0.95rem; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        th, td {
+            padding: 0.5rem 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        th {
+            background: var(--bg);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+        td { font-size: 0.9rem; }
+        .mono { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.85rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WVSU Account Verification Report</h1>
+        <p class="subtitle">Production Verification — 2026-09-11 — Supabase Project fweqqpgxfpaifmkrnmsx</p>
+
+        <!-- SECTION 1: Database State -->
+        <div class="section">
+            <h2>1. Database State (Live Query)</h2>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">Auth User Exists</div>
+                    <div class="step-detail">ronlexusplaton@gmail.com found in auth.users</div>
+                    <div class="evidence">User ID:    64f230db-5962-4f64-ab98-1e49865bfc24
+Email:      ronlexusplaton@gmail.com
+Created:    2026-04-19T06:41:56.181166Z
+Last SignIn: 2026-04-26T02:47:27.761288Z
+Confirmed:  2026-04-19T06:41:56.228771Z</div>
+                </div>
+            </div>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">WVSU Customer Exists</div>
+                    <div class="step-detail">Western Visayas State University organization is ACTIVE</div>
+                    <div class="evidence">Customer ID: 333fad51-50b2-4cdb-82e6-1c493f499a5c
+Name:        Western Visayas State University
+Type:        ORGANIZATION
+Status:      ACTIVE</div>
+                </div>
+            </div>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">Membership Link Exists</div>
+                    <div class="step-detail">User linked to WVSU with OWNER role</div>
+                    <div class="evidence">Membership ID: defcaf9d-e501-48c3-92ce-6ef8b3617371
+User ID:       64f230db-5962-4f64-ab98-1e49865bfc24
+Customer ID:   333fad51-50b2-4cdb-82e6-1c493f499a5c
+Role:          OWNER</div>
+                </div>
+            </div>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">All 9 Permissions Granted</div>
+                    <div class="step-detail">OWNER role permissions fully materialized in membership_permissions</div>
+                    <div class="evidence">view_energy:       ✓ granted
+control_relay:     ✓ granted
+manage_devices:    ✓ granted
+provision_device:  ✓ granted
+replace_device:    ✓ granted
+reassign_emu:      ✓ granted
+manage_billing:    ✓ granted
+view_reports:      ✓ granted
+manage_users:      ✓ granted</div>
+                </div>
+            </div>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">WVSU Device Has Relay Enabled</div>
+                    <div class="step-detail">ESP32-CICT-001 is active with relay enabled</div>
+                    <div class="evidence">Device ID:   d566ef3b-3e6e-4ed2-acb7-9de59aaf4d6b
+Device Name: ESP32-CICT-001
+Active:      true
+Relay:       enabled</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 2: resolveAccess() Simulation -->
+        <div class="section">
+            <h2>2. resolveAccess() Logic Verification</h2>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">Super Admin Bypass: Not Active</div>
+                    <div class="step-detail">User is NOT in super_admins table — standard membership path applies</div>
+                    <div class="evidence">Query: super_admins WHERE user_id = '64f230db-...' AND revoked_at IS NULL
+Result: 0 rows (not a super admin)</div>
+                </div>
+            </div>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">Membership Resolution: OWNER @ WVSU</div>
+                    <div class="step-detail">resolveAccess(user.id, "view_energy") would return customerId = 333fad51-...</div>
+                    <div class="evidence">Query: memberships WHERE user_id = '64f230db-...' JOIN membership_permissions
+Result: 1 membership, role = OWNER, customer = WVSU
+Permissions granted: 9/9
+requiredPermission "view_energy" found → access GRANTED
+returned customerId: 333fad51-50b2-4cdb-82e6-1c493f499a5c</div>
+                </div>
+            </div>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">control_relay Permission: Granted</div>
+                    <div class="step-detail">resolveAccess(user.id, "control_relay") would succeed</div>
+                    <div class="evidence">Query: membership_permissions WHERE membership_id = 'defcaf9d-...' AND permission = 'control_relay'
+Result: granted = true
+requiredPermission "control_relay" found → access GRANTED</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 3: Production API Tests -->
+        <div class="section">
+            <h2>3. Production API Endpoint Tests</h2>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">Login Page Loads</div>
+                    <div class="step-detail">GET /login returns 200 OK</div>
+                    <div class="evidence">GET https://energy-monitoring-web.vercel.app/login
+Response: 200 OK (login form rendered)</div>
+                </div>
+            </div>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">Unauthenticated API Rejection: /api/readings</div>
+                    <div class="step-detail">Returns 401 without session</div>
+                    <div class="evidence">GET https://energy-monitoring-web.vercel.app/api/readings?deviceId=test
+Response: 401 {"error":"Not authenticated"}</div>
+                </div>
+            </div>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">Unauthenticated API Rejection: /api/relay GET</div>
+                    <div class="step-detail">Returns 400 (missing deviceId) then 401 when deviceId provided</div>
+                    <div class="evidence">GET https://energy-monitoring-web.vercel.app/api/relay
+Response: 400 {"error":"Missing deviceId"}
+
+GET https://energy-monitoring-web.vercel.app/api/relay?deviceId=d566ef3b-...
+Response: 401 {"error":"Not authenticated"}</div>
+                </div>
+            </div>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">Unauthenticated API Rejection: /api/relay POST</div>
+                    <div class="step-detail">Returns 401 without session or secret</div>
+                    <div class="evidence">POST https://energy-monitoring-web.vercel.app/api/relay
+Body: {"action":"STATUS_CHECK","deviceId":"d566ef3b-..."}
+Response: 401 {"error":"Not authenticated"}</div>
+                </div>
+            </div>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">Wrong Secret Rejection: /api/relay POST</div>
+                    <div class="step-detail">Wrong X-Relay-Secret falls through to session auth, fails</div>
+                    <div class="evidence">POST https://energy-monitoring-web.vercel.app/api/relay
+Headers: X-Relay-Secret: wrong-secret
+Response: 401 {"error":"Not authenticated"}
+(logic: secret mismatch → falls through to session auth → no session → 401)</div>
+                </div>
+            </div>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">Device Ingest Auth: Token Required</div>
+                    <div class="step-detail">POST /api/ingest requires X-Device-Token</div>
+                    <div class="evidence">POST https://energy-monitoring-web.vercel.app/api/ingest (no token)
+Response: 401 {"error":"Missing X-Device-Token header"}
+
+POST https://energy-monitoring-web.vercel.app/api/ingest (wrong token)
+Response: 401 {"error":"Invalid or inactive device token"}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 4: Auth Flow Code Review -->
+        <div class="section">
+            <h2>4. Auth Flow Code Review</h2>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">Login Action: Standard Supabase Auth</div>
+                    <div class="step-detail">apps/web/src/app/login/actions.ts uses signInWithPassword</div>
+                    <div class="evidence">const { error } = await supabase.auth.signInWithPassword({ email, password });
+if (error) return { error: error.message };
+redirect("/dashboard");</div>
+                </div>
+            </div>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">Session Refresh: Middleware (admin app)</div>
+                    <div class="step-detail">apps/admin/src/proxy.ts calls updateSession from @energy/auth</div>
+                    <div class="evidence">export async function proxy(request: NextRequest) {
+  return await updateSession(request);
+}
+// updateSession creates Supabase client, calls getUser() to validate/refresh JWT</div>
+                </div>
+            </div>
+
+            <div class="step warn">
+                <span class="badge warn">WARN</span>
+                <div class="step-content">
+                    <div class="step-title">Web App: No Session Refresh Middleware</div>
+                    <div class="step-detail">apps/web has no middleware.ts — relies on per-route getUser() calls</div>
+                    <div class="evidence">Impact: Sessions may expire without automatic refresh in the web app.
+Each API route validates session via supabase.auth.getUser() but doesn't trigger token refresh.
+User may need to re-login when JWT expires (typically 1 hour).
+Not a security issue — auth is still enforced — but UX impact.</div>
+                </div>
+            </div>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">Relay Dual Auth: Correctly Implemented</div>
+                    <div class="step-detail">Path A (secret) and Path B (session) both enforced</div>
+                    <div class="evidence">Path A: X-Relay-Secret header matches RELAY_ADMIN_SECRET → bypass session
+Path B: Session + resolveAccess(user.id, "control_relay") → user-level auth
+Both paths validated: wrong secret falls through to session auth, no session = 401</div>
+                </div>
+            </div>
+
+            <div class="step pass">
+                <span class="badge pass">PASS</span>
+                <div class="step-content">
+                    <div class="step-title">Admin Proxy: Secret Attached Server-Side</div>
+                    <div class="step-detail">apps/admin/src/app/api/relay/route.ts attaches RELAY_ADMIN_SECRET</div>
+                    <div class="evidence">const secret = process.env.RELAY_ADMIN_SECRET;
+// Attached server-side, never reaches browser
+headers: { "X-Relay-Secret": secret }
+// Forwarded to web app's POST /api/relay</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 5: What Could NOT Be Verified -->
+        <div class="section">
+            <h2>5. What Could NOT Be Verified</h2>
+
+            <div class="step skip">
+                <span class="badge skip">SKIPPED</span>
+                <div class="step-content">
+                    <div class="step-title">Actual Browser Login</div>
+                    <div class="step-detail">Cannot perform browser-based login without the account password</div>
+                    <div class="evidence">Password for ronlexusplaton@gmail.com is not stored in codebase or env files.
+The onboarding script (scripts/onboard-wvsu-admin.ts) creates the user but password
+is generated and printed to stdout only — not persisted.</div>
+                </div>
+            </div>
+
+            <div class="step skip">
+                <span class="badge skip">SKIPPED</span>
+                <div class="step-content">
+                    <div class="step-title">End-to-End Session Test</div>
+                    <div class="step-detail">Cannot test session → resolveAccess → relay command without a valid session</div>
+                    <div class="evidence">Would require: login with password → get session cookie → POST /api/relay
+This is the definitive test that the full chain works.</div>
+                </div>
+            </div>
+
+            <div class="step skip">
+                <span class="badge skip">SKIPPED</span>
+                <div class="step-content">
+                    <div class="step-title">Shared Secret Verification</div>
+                    <div class="step-detail">RELAY_ADMIN_SECRET not available in local env (set in Vercel only)</div>
+                    <div class="evidence">Cannot test Path A (admin proxy) without the actual secret.
+Admin proxy route is correctly implemented in code.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 6: Summary -->
+        <div class="summary-box has-issues">
+            <div class="summary-title warn">VERIFIED WITH CAVEATS</div>
+            <div class="verdict">
+                <p><strong>Database state: CONFIRMED CORRECT</strong> — ronlexusplaton@gmail.com has OWNER membership at WVSU with all 9 permissions including control_relay.</p>
+                <p style="margin-top: 0.75rem;"><strong>Code paths: CONFIRMED CORRECT</strong> — resolveAccess() would correctly resolve this user to WVSU's customerId with full permissions.</p>
+                <p style="margin-top: 0.75rem;"><strong>API rejection: CONFIRMED WORKING</strong> — unauthenticated requests correctly rejected with 401.</p>
+                <p style="margin-top: 0.75rem;"><strong>Full end-to-end login → relay command: CANNOT VERIFY</strong> — requires the account password which is not available programmatically.</p>
+                <p style="margin-top: 1rem; color: var(--yellow);">⚠ Action required: Manual browser login test needed to confirm the complete chain.</p>
+            </div>
+        </div>
+
+        <!-- Recommended Manual Test -->
+        <div class="section" style="margin-top: 1.5rem;">
+            <h2>Recommended Manual Verification Steps</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Step</th>
+                        <th>URL / Action</th>
+                        <th>Expected Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>1. Login</td>
+                        <td class="mono">https://energy-monitoring-web.vercel.app/login</td>
+                        <td>Sign in with ronlexusplaton@gmail.com → redirect to /dashboard</td>
+                    </tr>
+                    <tr>
+                        <td>2. Dashboard</td>
+                        <td class="mono">/dashboard</td>
+                        <td>WVSU data visible (ESP32-CICT-001 readings)</td>
+                    </tr>
+                    <tr>
+                        <td>3. Relay Page</td>
+                        <td class="mono">/relay</td>
+                        <td>Relay state displayed for the device</td>
+                    </tr>
+                    <tr>
+                        <td>4. Relay Control</td>
+                        <td>Click TRIP or RESET on relay page</td>
+                        <td>Command succeeds, relay state updates</td>
+                    </tr>
+                    <tr>
+                        <td>5. Admin App Login</td>
+                        <td class="mono">https://energy-monitoring-admin.vercel.app/login</td>
+                        <td>Sign in with same credentials → admin dashboard loads</td>
+                    </tr>
+                    <tr>
+                        <td>6. Admin Relay</td>
+                        <td>Admin relay page → control relay</td>
+                        <td>Command succeeds via shared-secret proxy path</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
