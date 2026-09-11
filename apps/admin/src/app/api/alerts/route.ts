@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { getUnreadAlerts, markAlertRead } from "@energy/database";
+import { getSupabaseAdmin, getUnreadAlerts, markAlertRead } from "@energy/database";
 import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
 
 export async function GET() {
@@ -13,9 +13,11 @@ export async function GET() {
     }
 
     let customerId: string;
+    let isSuperAdmin: boolean;
     try {
       const access = await resolveAccess(user.id, "view_energy");
       customerId = access.customerId;
+      isSuperAdmin = access.isSuperAdmin;
     } catch (err) {
       if (err instanceof AccessDeniedError) {
         return NextResponse.json({ error: err.message }, { status: 403 });
@@ -23,7 +25,10 @@ export async function GET() {
       throw err;
     }
 
-    const alerts = await getUnreadAlerts(customerId);
+    // Super Admins see all unread alerts; normal users are scoped to their customer.
+    const alerts = isSuperAdmin
+      ? (await getSupabaseAdmin().from("alerts").select("*").eq("is_read", false).order("created_at", { ascending: false }).limit(50)).data
+      : await getUnreadAlerts(customerId);
     return NextResponse.json({ alerts });
   } catch (err) {
     return NextResponse.json(
