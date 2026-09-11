@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relay Auth Gate — Security Fix Report</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --code-bg: #0d1117;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 40px 20px;
+  }
+  .container { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 8px; }
+  h2 { font-size: 20px; margin-top: 32px; margin-bottom: 12px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 16px; margin-top: 20px; margin-bottom: 8px; }
+  .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 32px; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 8px;
+  }
+  .badge-security { background: rgba(248,81,73,0.15); color: var(--red); border: 1px solid rgba(248,81,73,0.3); }
+  .badge-branch { background: rgba(88,166,255,0.15); color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
+  .badge-date { background: rgba(139,148,158,0.15); color: var(--text-muted); border: 1px solid rgba(139,148,158,0.3); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+  }
+  th {
+    background: var(--surface);
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  td { background: var(--bg); }
+  code {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 13px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.5;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    margin: 12px 0;
+  }
+  pre code { background: none; border: none; padding: 0; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 16px 0;
+  }
+  .card-green { border-left: 3px solid var(--green); }
+  .card-yellow { border-left: 3px solid var(--yellow); }
+  .card-red { border-left: 3px solid var(--red); }
+  ul { margin: 8px 0 8px 24px; }
+  li { margin-bottom: 4px; font-size: 14px; }
+  .file-path { color: var(--accent); font-weight: 500; }
+  .diff-add { color: var(--green); }
+  .diff-del { color: var(--red); }
+  .diff-ctx { color: var(--text-muted); }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Relay Auth Gate — Security Fix Report</h1>
+<p class="subtitle">
+  <span class="badge badge-security">SECURITY</span>
+  <span class="badge badge-branch">fix/relay-auth-gate</span>
+  <span class="badge badge-date">2026-09-09</span>
+</p>
+
+<h2>1. Problem</h2>
+<div class="card card-red">
+  <p><strong>Severity: High — Unauthenticated remote relay actuation</strong></p>
+  <p style="margin-top: 8px;">
+    <code>POST /api/relay</code> on the web app had <strong>zero authentication</strong>. Anyone who
+    knows or guesses a <code>deviceId</code> UUID can remotely TRIP or RESET the physical relay
+    controlling mains AC power. CORS was wide open
+    (<code>Access-Control-Allow-Origin: *</code>), meaning the endpoint was callable from
+    any origin, including a malicious page visited by someone on the same network.
+  </p>
+  <p style="margin-top: 8px; color: var(--text-muted);">
+    This is a WVSU capstone project being delivered to an external client on Friday 2026-09-12.
+    If the app is hosted on any reachable domain, this is a real safety exposure — not theoretical.
+  </p>
+</div>
+
+<h2>2. Solution</h2>
+<div class="card card-green">
+  <p>A <strong>shared-secret gate</strong> scoped exclusively to the actuating POST handler.</p>
+  <ul style="margin-top: 8px;">
+    <li><code>POST /api/relay</code> now requires an <code>X-Relay-Secret</code> header matching
+        the <code>RELAY_ADMIN_SECRET</code> environment variable.</li>
+    <li>Requests missing or mismatching the header receive <code>401 Unauthorized</code> before any
+        relay state is read or changed.</li>
+    <li>CORS <code>Access-Control-Allow-Headers</code> narrowed to only <code>Content-Type</code>
+        and <code>X-Relay-Secret</code> (previously listed 9 unused headers).</li>
+    <li>Admin dashboard routes through a new thin same-origin proxy that attaches the secret
+        server-side, so it never reaches the browser.</li>
+    <li>Web app's own relay page fails gracefully — buttons are disabled with an inline
+        "Manual control temporarily unavailable" message.</li>
+  </ul>
+</div>
+
+<h2>3. Files Changed</h2>
+<table>
+  <thead>
+    <tr><th>File</th><th>Change</th><th>Lines</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="file-path">apps/web/src/app/api/relay/route.ts</td>
+      <td>POST: added shared-secret check. OPTIONS: narrowed CORS headers.</td>
+      <td>+21 / -2</td>
+    </tr>
+    <tr>
+      <td class="file-path">apps/admin/src/app/api/relay/route.ts</td>
+      <td><strong>New file.</strong> POST-only same-origin proxy forwarding to web with secret.</td>
+      <td>+43 (new)</td>
+    </tr>
+    <tr>
+      <td class="file-path">apps/admin/src/app/relay/page.tsx</td>
+      <td>Replaced hardcoded cross-origin POST fetch with same-origin <code>/api/relay</code>.</td>
+      <td>+1 / -1</td>
+    </tr>
+    <tr>
+      <td class="file-path">apps/web/src/app/relay/page.tsx</td>
+      <td>Added <code>controlUnavailable</code> state; 401 disables buttons + shows inline message.</td>
+      <td>+35 / -9</td>
+    </tr>
+    <tr>
+      <td class="file-path">apps/web/.env.example</td>
+      <td><strong>New file.</strong> Documents <code>RELAY_ADMIN_SECRET</code>.</td>
+      <td>+6 (new)</td>
+    </tr>
+    <tr>
+      <td class="file-path">apps/admin/.env.example</td>
+      <td><strong>New file.</strong> Documents <code>RELAY_ADMIN_SECRET</code> + <code>WEB_RELAY_URL</code>.</td>
+      <td>+9 (new)</td>
+    </tr>
+    <tr>
+      <td class="file-path">apps/web/.gitignore</td>
+      <td>Added <code>!.env.example</code> exception.</td>
+      <td>+1</td>
+    </tr>
+    <tr>
+      <td class="file-path">apps/admin/.gitignore</td>
+      <td>Added <code>!.env.example</code> exception.</td>
+      <td>+1</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>4. What Was NOT Changed (by design)</h2>
+<div class="card card-yellow">
+  <ul>
+    <li><code>GET /api/relay</code> — relay state stays publicly readable (decided with Jeff)</li>
+    <li><code>GET /api/relay/config</code> — relay config stays publicly readable</li>
+    <li><code>apps/web/src/app/api/relay/config/route.ts</code> — untouched</li>
+    <li><code>apps/admin/src/app/api/relay/config/route.ts</code> — untouched</li>
+    <li><code>apps/admin/src/app/api/relay/logs/route.ts</code> — untouched</li>
+    <li>Database schema, migrations, firmware — untouched</li>
+    <li>Device token hashing — separate, lower-urgency finding (out of scope)</li>
+  </ul>
+</div>
+
+<h2>5. Detailed Changes</h2>
+
+<h3>5.1. <span class="file-path">apps/web/src/app/api/relay/route.ts</span></h3>
+
+<h3>POST handler — secret gate</h3>
+<pre><code><span class="diff-add">+  const relaySecret = process.env.RELAY_ADMIN_SECRET;</span>
+<span class="diff-add">+  if (!relaySecret) {</span>
+<span class="diff-add">+    console.error("[/api/relay] POST: RELAY_ADMIN_SECRET env var is not set");</span>
+<span class="diff-add">+    return NextResponse.json(</span>
+<span class="diff-add">+      { error: "Server misconfigured" },</span>
+<span class="diff-add">+      { status: 500 }</span>
+<span class="diff-add">+    );</span>
+<span class="diff-add">+  }</span>
+<span class="diff-add">+</span>
+<span class="diff-add">+  const provided = req.headers.get("x-relay-secret");</span>
+<span class="diff-add">+  if (!provided || provided !== relaySecret) {</span>
+<span class="diff-add">+    return NextResponse.json(</span>
+<span class="diff-add">+      { error: "Unauthorized" },</span>
+<span class="diff-add">+      { status: 401 }</span>
+<span class="diff-add">+    );</span>
+<span class="diff-add">+  }</span>
+</code></pre>
+
+<h3>OPTIONS handler — narrowed CORS</h3>
+<pre><code><span class="diff-del">-  "Access-Control-Allow-Methods": "GET,OPTIONS,PATCH,DELETE,POST,PUT",</span>
+<span class="diff-add">+  "Access-Control-Allow-Methods": "POST,OPTIONS",</span>
+<span class="diff-del">-  "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-Device-Token, Authorization",</span>
+<span class="diff-add">+  "Access-Control-Allow-Headers": "Content-Type,X-Relay-Secret",</span>
+</code></pre>
+
+<h3>5.2. <span class="file-path">apps/admin/src/app/api/relay/route.ts</span> (new)</h3>
+<pre><code>import { NextRequest, NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+
+const WEB_RELAY_URL =
+  process.env.WEB_RELAY_URL ??
+  "https://energy-monitoring-web.vercel.app/api/relay";
+
+/**
+ * POST /api/relay
+ * Thin same-origin proxy: forwards relay commands to web's POST /api/relay,
+ * attaching the shared secret server-side so it never reaches the browser.
+ * Inherits Supabase session gating from proxy.ts's matcher automatically.
+ */
+export async function POST(req: NextRequest) {
+  const secret = process.env.RELAY_ADMIN_SECRET;
+  if (!secret) {
+    console.error("[admin /api/relay] RELAY_ADMIN_SECRET env var is not set");
+    return NextResponse.json(
+      { error: "Server misconfigured" },
+      { status: 500 }
+    );
+  }
+
+  try {
+    const body = await req.json();
+
+    const upstream = await fetch(WEB_RELAY_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Relay-Secret": secret,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await upstream.json();
+    return NextResponse.json(data, { status: upstream.status });
+  } catch (err) {
+    console.error("[admin /api/relay] Proxy error:", err);
+    return NextResponse.json(
+      { error: "Failed to reach relay service" },
+      { status: 502 }
+    );
+  }
+}
+</code></pre>
+
+<h3>5.3. <span class="file-path">apps/admin/src/app/relay/page.tsx</span></h3>
+<pre><code><span class="diff-del">-      const res = await fetch("https://energy-monitoring-web.vercel.app/api/relay", {</span>
+<span class="diff-add">+      const res = await fetch("/api/relay", {</span>
+</code></pre>
+
+<h3>5.4. <span class="file-path">apps/web/src/app/relay/page.tsx</span></h3>
+<pre><code><span class="diff-add">+  const [controlUnavailable, setControlUnavailable] = useState(false);</span>
+</code></pre>
+<pre><code><span class="diff-add">+      } else if (res.status === 401) {</span>
+<span class="diff-add">+        setControlUnavailable(true);</span>
+<span class="diff-add">+        setMessage("Manual control temporarily unavailable.");</span>
+</code></pre>
+<pre><code><span class="diff-del">-                disabled={actionInProgress || state?.isTripped}</span>
+<span class="diff-add">+                disabled={actionInProgress || state?.isTripped || controlUnavailable}</span>
+</code></pre>
+<pre><code><span class="diff-del">-                disabled={actionInProgress || !state?.isTripped}</span>
+<span class="diff-add">+                disabled={actionInProgress || !state?.isTripped || controlUnavailable}</span>
+</code></pre>
+<pre><code><span class="diff-add">+            {controlUnavailable &amp;&amp; (</span>
+<span class="diff-add">+              &lt;div style={{ ... color: "var(--color-error)" }}&gt;</span>
+<span class="diff-add">+                Manual control temporarily unavailable.</span>
+<span class="diff-add">+              &lt;/div&gt;</span>
+<span class="diff-add">+            )}</span>
+</code></pre>
+
+<h2>6. Environment Variables</h2>
+<div class="two-col">
+  <div class="card">
+    <h3 style="margin-top: 0;">apps/web</h3>
+    <table>
+      <tr><th>Variable</th><th>Required</th></tr>
+      <tr><td><code>RELAY_ADMIN_SECRET</code></td><td>Yes — gates POST /api/relay</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h3 style="margin-top: 0;">apps/admin</h3>
+    <table>
+      <tr><th>Variable</th><th>Required</th></tr>
+      <tr><td><code>RELAY_ADMIN_SECRET</code></td><td>Yes — must match web's value</td></tr>
+      <tr><td><code>WEB_RELAY_URL</code></td><td>No — defaults to web's Vercel URL</td></tr>
+    </table>
+  </div>
+</div>
+
+<h2>7. Request Flow (after fix)</h2>
+<pre><code>Browser (admin dashboard)
+  │
+  ├─ GET  /api/relay/config?deviceId=...  →  admin's own DB route (no change)
+  ├─ GET  /api/relay?deviceId=...         →  web's /api/relay GET cross-origin (no change)
+  └─ POST /api/relay                      →  admin's POST /api/relay proxy
+                                              │
+                                              ├─ Adds X-Relay-Secret header server-side
+                                              └─ Forwards to web's POST /api/relay
+                                                    │
+                                                    ├─ Validates X-Relay-Secret
+                                                    ├─ Rejects 401 if missing/wrong
+                                                    └─ Executes relay command if valid
+
+Browser (web consumer app)
+  │
+  ├─ GET  /api/relay?deviceId=...         →  web's /api/relay GET (no change, open)
+  └─ POST /api/relay                      →  web's POST /api/relay
+                                              │
+                                              ├─ Validates X-Relay-Secret
+                                              ├─ Rejects 401 (no secret from browser)
+                                              └─ Web page shows "Manual control temporarily unavailable"
+</code></pre>
+
+<h2>8. Deployment Checklist</h2>
+<div class="card">
+  <ol style="margin-left: 20px;">
+    <li>Generate a strong random secret (e.g. <code>openssl rand -hex 32</code>)</li>
+    <li>Set <code>RELAY_ADMIN_SECRET</code> in <strong>both</strong> Vercel projects (web + admin) with the same value</li>
+    <li>Optionally set <code>WEB_RELAY_URL</code> in admin if not deploying to the default Vercel URL</li>
+    <li>Redeploy both apps</li>
+    <li>Verify admin dashboard relay trip/reset still works against a real or mocked device</li>
+    <li>Verify web app relay page shows "Manual control temporarily unavailable" when in manual mode</li>
+  </ol>
+</div>
+
+<h2>9. Verification</h2>
+<table>
+  <thead>
+    <tr><th>Check</th><th>Result</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>tsc --noEmit</code> — apps/web</td><td style="color: var(--green);">Pass</td></tr>
+    <tr><td><code>tsc --noEmit</code> — apps/admin</td><td style="color: var(--green);">Pass</td></tr>
+    <tr><td><code>next build</code> — apps/web</td><td style="color: var(--green);">Pass</td></tr>
+    <tr><td><code>next build</code> — apps/admin</td><td style="color: var(--green);">Pass</td></tr>
+  </tbody>
+</table>
+
+<h2>10. Out of Scope (Future Work)</h2>
+<div class="card">
+  <ul>
+    <li><strong>Device token hashing</strong> — plaintext tokens in <code>devices.api_key_hash</code> need hashing with a DB migration. Separate PR, Jeff tests against real hardware after Friday.</li>
+    <li><strong>Full web-app auth</strong> — <code>apps/web</code> has no session layer; the graceful-failure UI is a stopgap. Full Supabase session auth for the consumer app is a future project.</li>
+    <li><strong>GET gating</strong> — intentionally left open by design decision with Jeff (relay state and config are publicly readable).</li>
+  </ul>
+</div>
+
+<hr style="margin-top: 40px; border-color: var(--border);">
+<p style="color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 16px;">
+  Generated 2026-09-09 · branch <code>fix/relay-auth-gate</code> off <code>main</code> · not merged
+</p>
+
+</div>
+</body>
+</html>

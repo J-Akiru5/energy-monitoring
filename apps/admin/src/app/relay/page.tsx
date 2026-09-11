@@ -153,7 +153,7 @@ export default function RelayPage() {
     setActionInProgress(true);
 
     try {
-      const res = await fetch("https://energy-monitoring-web.vercel.app/api/relay", {
+      const res = await fetch("/api/relay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
