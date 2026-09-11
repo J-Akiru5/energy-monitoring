@@ -12,7 +12,10 @@ constexpr uint8_t PZEM_A_TX = 17;
 constexpr uint8_t PZEM_B_RX = 5;
 constexpr uint8_t PZEM_B_TX = 4;
 
-// PZEM Phase C: Hardware Serial (reassigned — no debug after boot)
+// PZEM Phase C: dedicated software serial (GPIO18/19).
+// UART0 (GPIO1/3, 115200) is reserved for the debug console — PZEM-C must
+// NOT use Serial/UART0. ESP32 has only 3 hardware UARTs (UART0=debug,
+// UART1=PZEM-B, UART2=PZEM-A), so PZEM-C uses EspSoftwareSerial instead.
 constexpr uint8_t PZEM_C_RX = 18;
 constexpr uint8_t PZEM_C_TX = 19;
 

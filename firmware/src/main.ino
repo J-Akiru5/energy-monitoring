@@ -26,6 +26,7 @@
 #include <PZEM004Tv30.h>
 #include <RTClib.h>
 #include <WebSocketsClient.h>
+#include <SoftwareSerial.h>
 
 #include "config.h"
 #include "provisioning.h"
@@ -39,9 +40,25 @@
 // ════════════════════════════════════════════════════════════
 
 // ── PZEM Sensors (up to 3 phases) ──
-PZEM004Tv30 pzemA(Serial2, PZEM_A_RX, PZEM_A_TX);
-PZEM004Tv30 pzemB(Serial1, PZEM_B_RX, PZEM_B_TX);
-PZEM004Tv30 pzemC(Serial,  PZEM_C_RX, PZEM_C_TX);
+// Constructed in initPzemSensors() during setup() — NEVER during static
+// initialization. The PZEM constructors call port.begin() immediately, and
+// a global pzemC(Serial, 18, 19) used to hijack UART0 (the debug console)
+// before setup() ever ran.
+//   PZEM-A → UART2 (GPIO16/17)
+//   PZEM-B → UART1 (GPIO5/4)
+//   PZEM-C → dedicated software serial on GPIO18/19 (all 3 hardware UARTs
+//             are accounted for: UART0=debug, UART1=B, UART2=A)
+static SoftwareSerial* pzemCSerial = nullptr;
+PZEM004Tv30* pzemA = nullptr;
+PZEM004Tv30* pzemB = nullptr;
+PZEM004Tv30* pzemC = nullptr;
+
+static void initPzemSensors() {
+  pzemA = new PZEM004Tv30(Serial2, PZEM_A_RX, PZEM_A_TX);
+  pzemB = new PZEM004Tv30(Serial1, PZEM_B_RX, PZEM_B_TX);
+  pzemCSerial = new SoftwareSerial(PZEM_C_RX, PZEM_C_TX);
+  pzemC = new PZEM004Tv30(*pzemCSerial);
+}
 
 // ── RTC ──
 RTC_DS3231 rtc;
@@ -77,11 +94,20 @@ unsigned long wsDisconnectTime = 0;
 // ════════════════════════════════════════════════════════════
 
 void setup() {
-  Serial.begin(115200);
+  // UART0 debug console — pins stated explicitly so nothing can move it.
+  Serial.begin(115200, SERIAL_8N1, 3, 1);
   delay(100);
   Serial.println("\n=====================================");
   Serial.println(" EMU Firmware v4.0 — Production");
   Serial.println("=====================================\n");
+
+  // Initialize PZEM serial interfaces now that the debug console is up.
+  // (Never during static init — the PZEM constructors call begin() at once.)
+  Serial.println("[PZEM] Initializing serial interfaces...");
+  initPzemSensors();
+  Serial.println("[PZEM]   Phase A: UART2 (RX:16 TX:17)");
+  Serial.println("[PZEM]   Phase B: UART1 (RX:5  TX:4)");
+  Serial.println("[PZEM]   Phase C: SoftwareSerial (RX:18 TX:19)");
 
   // 0. Check for serial commands during first 2 seconds
   unsigned long startupWindow = millis();
