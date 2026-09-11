@@ -18,8 +18,12 @@ function getRelayConfigError() {
 }
 
 /**
- * GET /api/relay/logs?deviceId=<uuid>&limit=50
- * Returns relay action logs for a device
+ * GET /api/relay/logs?deviceId=<uuid>&customerId=<uuid>&limit=50
+ * Returns relay action logs for a device.
+ *
+ * For regular members, customerId is resolved from their membership.
+ * For super admins (undefined customerId), the customerId query param
+ * is required.
  */
 export async function GET(req: NextRequest) {
   const configError = getRelayConfigError();
@@ -33,6 +37,7 @@ export async function GET(req: NextRequest) {
   try {
     const deviceId = req.nextUrl.searchParams.get("deviceId");
     const limit = parseInt(req.nextUrl.searchParams.get("limit") || "50");
+    const customerIdParam = req.nextUrl.searchParams.get("customerId");
 
     if (!deviceId) {
       return NextResponse.json({ error: "Missing deviceId" }, { status: 400 });
@@ -48,7 +53,16 @@ export async function GET(req: NextRequest) {
     let customerId: string;
     try {
       const access = await resolveAccess(user.id, "view_energy");
-      customerId = access.customerId;
+      if (access.customerId) {
+        customerId = access.customerId;
+      } else if (customerIdParam) {
+        customerId = customerIdParam;
+      } else {
+        return NextResponse.json(
+          { error: "Super admin must provide customerId query param" },
+          { status: 400 }
+        );
+      }
     } catch (err) {
       if (err instanceof AccessDeniedError) {
         return NextResponse.json({ error: err.message }, { status: 403 });

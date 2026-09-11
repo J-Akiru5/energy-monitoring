@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from "@energy/database";
+import { getSupabaseAdmin, ALL_PERMISSIONS } from "@energy/database";
 import type { Permission } from "@energy/database";
 
 /**
@@ -16,9 +16,14 @@ export class AccessDeniedError extends Error {
 }
 
 export interface ResolvedAccess {
-  /** The customer whose data this user is authorized to act on. */
-  customerId: string;
-  /** All granted permissions on that membership. */
+  /**
+   * The customer whose data this user is authorized to act on.
+   * `undefined` for super admins — they have full access to all customers
+   * and no single customer ID applies. Callers that need a specific customer
+   * must handle this case explicitly (e.g. admin dashboard listing all customers).
+   */
+  customerId: string | undefined;
+  /** All granted permissions on that membership (ALL_PERMISSIONS for super admins). */
   permissions: Permission[];
 }
 
@@ -49,6 +54,23 @@ export async function resolveAccess(
   resourceId?: string
 ): Promise<ResolvedAccess> {
   const supabase = getSupabaseAdmin();
+
+  // ── Super Admin bypass ──────────────────────────────────────
+  // Super admins bypass the membership system entirely. They have
+  // ALL_PERMISSIONS across all customers and no single customerId.
+  const { data: superAdmin, error: saError } = await supabase
+    .from("super_admins")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (saError) {
+    throw new Error(`resolveAccess: super_admin lookup failed: ${saError.message}`);
+  }
+
+  if (superAdmin) {
+    return { customerId: undefined, permissions: ALL_PERMISSIONS };
+  }
 
   let query = supabase
     .from("memberships")
