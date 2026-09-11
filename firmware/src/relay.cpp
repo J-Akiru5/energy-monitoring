@@ -1,6 +1,6 @@
 #include "relay.h"
 #include "config.h"
-#include "secrets.h"
+#include "provisioning.h"
 #include <ArduinoJson.h>
 #include <WebSocketsClient.h>
 #include <WiFi.h>
@@ -12,27 +12,27 @@ extern unsigned long lastReconnectAttempt;
 extern unsigned long wsDisconnectTime;
 extern bool relayState;
 
-// ──── FORWARD DECLARATIONS ────────────────────────────────
 static void webSocketEvent(WStype_t type, uint8_t* payload, size_t length);
 static void subscribeToRelayState();
 static void handleRealtimeMessage(char* payload);
 
 // ──── WEBSOCKET INIT ──────────────────────────────────────
-// Establishes a secure WebSocket connection to Supabase
-// Realtime for listening to relay_state table changes.
 void initSupabaseRealtime() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[WS] WiFi not connected, skipping WebSocket init.");
     return;
   }
 
+  const String& supabaseHost = getConfigSupabaseHost();
+  const String& supabaseKey = getConfigSupabaseAnonKey();
+
   Serial.println("[WS] Connecting to Supabase Realtime...");
 
   String wsPath = "/realtime/v1/websocket?apikey=";
-  wsPath += SUPABASE_ANON_KEY;
+  wsPath += supabaseKey;
   wsPath += "&vsn=1.0.0";
 
-  webSocket.beginSSL(SUPABASE_HOST, 443, wsPath.c_str());
+  webSocket.beginSSL(supabaseHost.c_str(), 443, wsPath.c_str());
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(WS_RECONNECT_INTERVAL_MS);
   webSocket.enableHeartbeat(30000, 3000, 2);
@@ -73,16 +73,16 @@ static void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
 }
 
 // ──── RELAY STATE SUBSCRIPTION ────────────────────────────
-// Subscribes to PostgreSQL changes on the relay_state table
-// filtered to this device's ID.
 static void subscribeToRelayState() {
+  const String& deviceId = getConfigDeviceId();
+
   JsonDocument doc;
-  doc["topic"] = String("realtime:public:relay_state:device_id=eq.") + DEVICE_ID;
+  doc["topic"] = String("realtime:public:relay_state:device_id=eq.") + deviceId;
   doc["event"] = "phx_join";
   doc["payload"]["config"]["postgres_changes"][0]["event"] = "*";
   doc["payload"]["config"]["postgres_changes"][0]["schema"] = "public";
   doc["payload"]["config"]["postgres_changes"][0]["table"] = "relay_state";
-  doc["payload"]["config"]["postgres_changes"][0]["filter"] = String("device_id=eq.") + DEVICE_ID;
+  doc["payload"]["config"]["postgres_changes"][0]["filter"] = String("device_id=eq.") + deviceId;
   doc["ref"] = "1";
 
   String message;
@@ -90,14 +90,13 @@ static void subscribeToRelayState() {
 
   webSocket.sendTXT(message);
   Serial.println("[WS] Subscribed to relay_state changes for this device");
-  Serial.printf("[WS]   Device ID: %s\n", DEVICE_ID);
+  Serial.printf("[WS]   Device ID: %s\n", deviceId.c_str());
 }
 
 // ──── REALTIME MESSAGE HANDLER ────────────────────────────
-// Processes incoming Supabase Realtime events: heartbeat
-// acknowledgments, subscription confirmations, and
-// postgres_changes (relay state updates from admin dashboard).
 static void handleRealtimeMessage(char* payload) {
+  const String& deviceId = getConfigDeviceId();
+
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, payload);
 
@@ -145,7 +144,7 @@ static void handleRealtimeMessage(char* payload) {
 
     if (!record.isNull()) {
       const char* recordDeviceId = record["device_id"];
-      if (recordDeviceId && strcmp(recordDeviceId, DEVICE_ID) == 0) {
+      if (recordDeviceId && strcmp(recordDeviceId, deviceId.c_str()) == 0) {
         bool newTrippedState = record["is_tripped"] | false;
         const char* tripReason = record["trip_reason"] | "UNKNOWN";
 
@@ -204,10 +203,6 @@ bool isRelayTripped() {
 }
 
 // ──── NVS PERSISTENCE ─────────────────────────────────────
-// Relay state is persisted to NVS flash so that a protective
-// trip survives reboots (power blip, watchdog reset, WiFi
-// driver crash). The boot sequence reads this as a fallback
-// when the cloud is unreachable.
 
 static Preferences nvsPrefs;
 

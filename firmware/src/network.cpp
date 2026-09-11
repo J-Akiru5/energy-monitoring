@@ -1,6 +1,6 @@
 #include "network.h"
 #include "config.h"
-#include "secrets.h"
+#include "provisioning.h"
 #include "rtc.h"
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -16,15 +16,21 @@ extern int wifiRetryCount;
 extern float localOvervoltageThreshold;
 extern float localUndervoltageThreshold;
 extern bool localSafetyEnabled;
+extern bool backendReachable;
 
 // ──── WiFi CONNECTION ─────────────────────────────────────
-// Uses exponential backoff. On success resets retry counter.
-// On failure increments counter and delays before returning
-// (caller decides whether to retry).
 void connectWiFi() {
+  const String& ssid = getConfigSsid();
+  const String& password = getConfigPassword();
+
+  if (ssid.length() == 0) {
+    Serial.println("[WiFi] No SSID configured. Enter provisioning mode.");
+    return;
+  }
+
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.printf("[WiFi] Connecting to \"%s\"...\n", WIFI_SSID);
+  WiFi.begin(ssid.c_str(), password.c_str());
+  Serial.printf("[WiFi] Connecting to \"%s\"...\n", ssid.c_str());
 
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 40) {
@@ -44,7 +50,7 @@ void connectWiFi() {
     wifiRetryCount = 0;
   } else {
     Serial.println("[WiFi] FAILED to connect!");
-    Serial.printf("[WiFi]   SSID tried: \"%s\"\n", WIFI_SSID);
+    Serial.printf("[WiFi]   SSID tried: \"%s\"\n", ssid.c_str());
     Serial.println("[WiFi]   -> Double-check SSID and PASSWORD spelling (case-sensitive).");
     Serial.println("[WiFi]   -> Is the router 2.4GHz? ESP32 does not support 5GHz.");
     wifiRetryCount++;
@@ -55,7 +61,6 @@ void connectWiFi() {
 }
 
 // ──── NTP TIME SYNC ───────────────────────────────────────
-// Also calibrates the RTC clock from NTP time.
 void syncNTP() {
   configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER);
   Serial.print("[NTP] Syncing time");
@@ -73,7 +78,6 @@ void syncNTP() {
     strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &timeinfo);
     Serial.printf(" OK -> %s%s\n", buf, TZ_OFFSET_STR);
 
-    // Calibrate RTC from NTP if RTC is available
     if (rtcAvailable) {
       time_t localEpoch = mktime(&timeinfo);
       time_t utcEpoch   = localEpoch - GMT_OFFSET_SEC;
@@ -94,25 +98,25 @@ void syncNTP() {
 }
 
 // ──── HTTP POST WITH RETRIES ──────────────────────────────
-// Sends JSON payload to cloud API. Uses exponential backoff
-// between retries. Does not block the next sensor cycle if
-// all retries fail.
 void sendToCloud(const String& payload) {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[API] Skipping POST — WiFi not connected.");
     return;
   }
 
+  const String& apiEndpoint = getConfigApiEndpoint();
+  const String& deviceToken = getConfigDeviceToken();
+
   Serial.printf("[API] Sending payload: %s\n", payload.c_str());
 
   for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
     WiFiClientSecure client;
-    client.setInsecure(); // Skip TLS cert verification (acceptable for IoT)
+    client.setInsecure();
 
     HTTPClient http;
-    http.begin(client, API_ENDPOINT);
+    http.begin(client, apiEndpoint);
     http.addHeader("Content-Type", "application/json");
-    http.addHeader("X-Device-Token", DEVICE_TOKEN);
+    http.addHeader("X-Device-Token", deviceToken);
     http.setTimeout(HTTP_TIMEOUT_MS);
 
     int httpCode = http.POST(payload);
@@ -120,6 +124,7 @@ void sendToCloud(const String& payload) {
     if (httpCode == 200 || httpCode == 201) {
       Serial.printf("[API] Data sent (HTTP %d)\n\n", httpCode);
       http.end();
+      backendReachable = true;
       return;
     }
 
@@ -144,13 +149,11 @@ void sendToCloud(const String& payload) {
     }
   }
 
+  backendReachable = false;
   Serial.println("[API] All retries exhausted. Will try next cycle.\n");
 }
 
 // ──── FETCH SAFETY THRESHOLDS FROM CLOUD ──────────────────
-// Called once on boot. Provides the local hardware safety
-// override with cloud-configured thresholds so protection
-// works even if WiFi later disconnects.
 void fetchThresholdsFromCloud() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[THRESHOLDS] WiFi not connected, using defaults.");
@@ -159,15 +162,19 @@ void fetchThresholdsFromCloud() {
     return;
   }
 
+  const String& deviceId = getConfigDeviceId();
+  const String& deviceToken = getConfigDeviceToken();
+
   Serial.println("[THRESHOLDS] Fetching safety thresholds from cloud...");
 
   WiFiClientSecure client;
   client.setInsecure();
 
   HTTPClient http;
-  String thresholdsUrl = String("https://energy-monitoring-web.vercel.app/api/thresholds/esp32?deviceId=") + DEVICE_ID;
+  String thresholdsUrl = String("https://") + getConfigSupabaseHost()
+    + "/api/thresholds/esp32?deviceId=" + deviceId;
   http.begin(client, thresholdsUrl);
-  http.addHeader("X-Device-Token", DEVICE_TOKEN);
+  http.addHeader("X-Device-Token", deviceToken);
   http.setTimeout(HTTP_TIMEOUT_MS);
 
   int httpCode = http.GET();
@@ -186,6 +193,7 @@ void fetchThresholdsFromCloud() {
       Serial.printf("[THRESHOLDS]   Overvoltage:  %.1fV\n", localOvervoltageThreshold);
       Serial.printf("[THRESHOLDS]   Undervoltage: %.1fV\n", localUndervoltageThreshold);
       Serial.printf("[THRESHOLDS]   Local Safety: %s\n", localSafetyEnabled ? "ENABLED" : "DISABLED");
+      backendReachable = true;
     } else {
       Serial.printf("[THRESHOLDS] JSON parse error: %s\n", error.c_str());
       Serial.println("[THRESHOLDS]   Using default thresholds.");
@@ -194,41 +202,37 @@ void fetchThresholdsFromCloud() {
     Serial.printf("[THRESHOLDS] HTTP %d — using defaults.\n", httpCode);
     Serial.printf("[THRESHOLDS]   Overvoltage:  %.1fV\n", localOvervoltageThreshold);
     Serial.printf("[THRESHOLDS]   Undervoltage: %.1fV\n", localUndervoltageThreshold);
+    backendReachable = false;
   }
 
   http.end();
 }
 
 // ──── FETCH RELAY STATE FROM CLOUD (BOOT) ─────────────────
-// Called once on boot to reconcile relay state with the
-// cloud. The GET /api/relay endpoint is deliberately open
-// (no auth) so the ESP32 can always reach it. Uses a short
-// timeout (5s) to avoid blocking boot on slow networks.
-//
-// Returns: 1 = tripped, 0 = normal, -1 = failed/unreachable.
 int8_t fetchRelayStateFromCloud() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[RELAY-BOOT] WiFi not connected, cannot fetch cloud state.");
     return -1;
   }
 
+  const String& deviceId = getConfigDeviceId();
+  const String& apiEndpoint = getConfigApiEndpoint();
+
   Serial.println("[RELAY-BOOT] Fetching current relay state from cloud...");
 
-  // Derive relay endpoint from API_ENDPOINT
-  // API_ENDPOINT = "https://host/api/ingest" → strip "/api/ingest", append "/api/relay"
-  String baseUrl = String(API_ENDPOINT);
+  String baseUrl = apiEndpoint;
   int apiPathIdx = baseUrl.indexOf("/api/ingest");
   if (apiPathIdx > 0) {
     baseUrl = baseUrl.substring(0, apiPathIdx);
   }
-  String relayUrl = baseUrl + "/api/relay?deviceId=" + DEVICE_ID;
+  String relayUrl = baseUrl + "/api/relay?deviceId=" + deviceId;
 
   WiFiClientSecure client;
   client.setInsecure();
 
   HTTPClient http;
   http.begin(client, relayUrl);
-  http.setTimeout(5000); // 5s — don't block boot indefinitely
+  http.setTimeout(5000);
 
   int httpCode = http.GET();
 
@@ -241,6 +245,7 @@ int8_t fetchRelayStateFromCloud() {
       bool tripped = doc["state"]["isTripped"] | false;
       Serial.printf("[RELAY-BOOT] Cloud state: %s\n", tripped ? "TRIPPED" : "NORMAL");
       http.end();
+      backendReachable = true;
       return tripped ? 1 : 0;
     }
 
@@ -251,4 +256,22 @@ int8_t fetchRelayStateFromCloud() {
 
   http.end();
   return -1;
+}
+
+// ──── TEST BACKEND REACHABILITY ───────────────────────────
+bool testBackendReachable() {
+  if (WiFi.status() != WL_CONNECTED) return false;
+
+  const String& apiEndpoint = getConfigApiEndpoint();
+
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient http;
+  http.begin(client, apiEndpoint);
+  http.setTimeout(5000);
+  int httpCode = http.GET();
+  http.end();
+
+  return (httpCode > 0 && httpCode < 500);
 }

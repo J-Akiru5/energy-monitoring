@@ -1,21 +1,31 @@
 #ifndef SECRETS_H
 #define SECRETS_H
 
-// Wi-Fi Credentials
-inline const char* WIFI_SSID     = "your-wifi-ssid";
-inline const char* WIFI_PASSWORD = "your-wifi-password";
+// ════════════════════════════════════════════════════════════
+// SECRETS.H — Compile-time defaults for EMU firmware
+// ════════════════════════════════════════════════════════════
+//
+// These values are compile-time defaults. At runtime, NVS
+// values (set during provisioning) override them.
+//
+// For production deployment:
+//   1. Copy this file to secrets.h
+//   2. Fill in the values below for your environment
+//   3. The ESP32 provisioning flow will store real values in NVS
+//
+// DO NOT commit secrets.h with real credentials to Git.
+// ════════════════════════════════════════════════════════════
 
-// Cloud API Endpoint (Vercel deployment)
-inline const char* API_ENDPOINT  = "https://your-deployment.vercel.app/api/ingest";
+#ifndef API_ENDPOINT_DEFAULT
+#define API_ENDPOINT_DEFAULT "https://your-deployment.vercel.app/api/ingest"
+#endif
 
-// Device Authentication Token (matches DEVICE_API_KEY in .env / Admin dashboard)
-inline const char* DEVICE_TOKEN  = "your-device-secret-token";
+#ifndef SUPABASE_HOST_DEFAULT
+#define SUPABASE_HOST_DEFAULT "your-project.supabase.co"
+#endif
 
-// Device ID (UUID from Supabase devices table)
-inline const char* DEVICE_ID     = "your-device-uuid";
-
-// Supabase Realtime credentials
-inline const char* SUPABASE_HOST     = "your-project.supabase.co";
-inline const char* SUPABASE_ANON_KEY = "your-anon-key-here";
+#ifndef SUPABASE_KEY_DEFAULT
+#define SUPABASE_KEY_DEFAULT "your-anon-key-here"
+#endif
 
 #endif

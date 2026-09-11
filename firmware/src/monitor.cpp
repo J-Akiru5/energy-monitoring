@@ -1,6 +1,6 @@
 #include "monitor.h"
 #include "config.h"
-#include "secrets.h"
+#include "provisioning.h"
 #include "rtc.h"
 #include "network.h"
 #include "relay.h"
@@ -16,9 +16,6 @@ extern float localUndervoltageThreshold;
 extern bool localSafetyEnabled;
 
 // ──── READ PHASE ──────────────────────────────────────────
-// Centralized reading for any PZEM module. Reads all six
-// parameters, replaces NaN with 0 (safe default for offline
-// sensors), and returns a populated struct.
 PhaseReading readPhase(PZEM004Tv30& meter) {
     PhaseReading r;
     r.voltage     = meter.voltage();
@@ -28,13 +25,9 @@ PhaseReading readPhase(PZEM004Tv30& meter) {
     r.frequency   = meter.frequency();
     r.powerFactor = meter.pf();
 
-    // Detect offline: if all core telemetry fields are NaN,
-    // the PZEM module is not responding.
     r.offline = isnan(r.voltage) && isnan(r.current) &&
                 isnan(r.power)   && isnan(r.energy);
 
-    // Replace NaN with 0 — avoids corrupting the JSON payload
-    // and allows partial readings (e.g. 0V blackout) to pass through.
     if (isnan(r.voltage))     r.voltage     = 0;
     if (isnan(r.current))     r.current     = 0;
     if (isnan(r.power))       r.power       = 0;
@@ -63,28 +56,37 @@ static void addPhaseJson(JsonObject& parent, const char* key, const PhaseReading
     phase["powerFactor"] = roundTo(r.powerFactor, 3);
 }
 
-// ──── MAIN: READ 3-PHASE + SEND TO CLOUD ──────────────────
-// Reads all three PZEM modules, validates readings, checks
-// local safety thresholds, builds the JSON payload, and
-// uploads to the cloud. One failing phase does not block
-// the others.
-void readAndSend3Phase() {
-  // Read all three phases through the centralized reader
-  PhaseReading phaseA = readPhase(pzemA);
-  PhaseReading phaseB = readPhase(pzemB);
-  PhaseReading phaseC = readPhase(pzemC);
+// ──── MAIN: READ PHASES + SEND TO CLOUD ──────────────────
+void readAndUpload() {
+  int phaseMode = getConfigPhaseMode();
+  const String& deviceId = getConfigDeviceId();
 
-  // If ALL sensors are offline, the ESP32 is online but cannot
-  // communicate with any PZEM. Upload a minimal alert payload.
-  if (phaseA.offline && phaseB.offline && phaseC.offline) {
+  PhaseReading phaseA = {0,0,0,0,0,0,true};
+  PhaseReading phaseB = {0,0,0,0,0,0,true};
+  PhaseReading phaseC = {0,0,0,0,0,0,true};
+
+  if (phaseMode >= 1) phaseA = readPhase(pzemA);
+  if (phaseMode >= 2) phaseB = readPhase(pzemB);
+  if (phaseMode >= 3) phaseC = readPhase(pzemC);
+
+  // Count offline phases
+  int offlineCount = 0;
+  if (phaseA.offline) offlineCount++;
+  if (phaseB.offline) offlineCount++;
+  if (phaseC.offline) offlineCount++;
+
+  int activePhases = 3 - offlineCount;
+
+  // All sensors offline
+  if (activePhases == 0) {
     Serial.println("[PZEM] All sensors offline (NaN readings)!");
-    Serial.println("[PZEM]   -> Check wiring for all 3 phases");
-    Serial.println("[PZEM]   -> Sending sensorOffline notification to cloud...");
+    Serial.println("[PZEM]   -> Check wiring for all phases");
 
     JsonDocument doc;
-    doc["deviceId"] = DEVICE_ID;
+    doc["deviceId"] = deviceId;
     doc["timestamp"] = getTimestamp();
     doc["sensorOffline"] = true;
+    doc["phaseMode"] = phaseMode;
 
     String payload;
     serializeJson(doc, payload);
@@ -93,29 +95,36 @@ void readAndSend3Phase() {
   }
 
   // Log individual offline phases
-  if (phaseA.offline) Serial.println("[PZEM] Phase A offline — sensor comm failed");
-  if (phaseB.offline) Serial.println("[PZEM] Phase B offline — sensor comm failed");
-  if (phaseC.offline) Serial.println("[PZEM] Phase C offline — sensor comm failed");
+  if (phaseMode >= 1 && phaseA.offline) Serial.println("[PZEM] Phase A offline — sensor comm failed");
+  if (phaseMode >= 2 && phaseB.offline) Serial.println("[PZEM] Phase B offline — sensor comm failed");
+  if (phaseMode >= 3 && phaseC.offline) Serial.println("[PZEM] Phase C offline — sensor comm failed");
 
-  // Print to Serial Monitor
-  Serial.println("--- 3-PHASE PZEM Reading -------------------");
-  Serial.printf("  Phase A: %.1fV  %.3fA  %.1fW  %.4fkWh  PF:%.2f\n",
-                phaseA.voltage, phaseA.current, phaseA.power, phaseA.energy, phaseA.powerFactor);
-  Serial.printf("  Phase B: %.1fV  %.3fA  %.1fW  %.4fkWh  PF:%.2f\n",
-                phaseB.voltage, phaseB.current, phaseB.power, phaseB.energy, phaseB.powerFactor);
-  Serial.printf("  Phase C: %.1fV  %.3fA  %.1fW  %.4fkWh  PF:%.2f\n",
-                phaseC.voltage, phaseC.current, phaseC.power, phaseC.energy, phaseC.powerFactor);
+  // Print to Serial
+  Serial.printf("--- %d-PHASE PZEM Reading -------------------\n", phaseMode);
+  if (phaseMode >= 1)
+    Serial.printf("  Phase A: %.1fV  %.3fA  %.1fW  %.4fkWh  PF:%.2f  %s\n",
+                  phaseA.voltage, phaseA.current, phaseA.power, phaseA.energy, phaseA.powerFactor,
+                  phaseA.offline ? "[OFFLINE]" : "");
+  if (phaseMode >= 2)
+    Serial.printf("  Phase B: %.1fV  %.3fA  %.1fW  %.4fkWh  PF:%.2f  %s\n",
+                  phaseB.voltage, phaseB.current, phaseB.power, phaseB.energy, phaseB.powerFactor,
+                  phaseB.offline ? "[OFFLINE]" : "");
+  if (phaseMode >= 3)
+    Serial.printf("  Phase C: %.1fV  %.3fA  %.1fW  %.4fkWh  PF:%.2f  %s\n",
+                  phaseC.voltage, phaseC.current, phaseC.power, phaseC.energy, phaseC.powerFactor,
+                  phaseC.offline ? "[OFFLINE]" : "");
 
-  float totalPower = phaseA.power + phaseB.power + phaseC.power;
-  float totalEnergy = phaseA.energy + phaseB.energy + phaseC.energy;
-  Serial.printf("  TOTAL:   %.1fW  %.4fkWh\n", totalPower, totalEnergy);
+  float totalPower = 0;
+  float totalEnergy = 0;
+  if (phaseMode >= 1) { totalPower += phaseA.power; totalEnergy += phaseA.energy; }
+  if (phaseMode >= 2) { totalPower += phaseB.power; totalEnergy += phaseB.energy; }
+  if (phaseMode >= 3) { totalPower += phaseC.power; totalEnergy += phaseC.energy; }
+
+  Serial.printf("  TOTAL:   %.1fW  %.4fkWh  (active phases: %d)\n", totalPower, totalEnergy, activePhases);
   Serial.printf("  Timestamp: %s\n", getTimestamp().c_str());
   Serial.println("--------------------------------------------");
 
   // ── LOCAL HARDWARE SAFETY OVERRIDE ──
-  // Trip on overvoltage or undervoltage to protect connected
-  // equipment. The voltage > 0 guard on undervoltage prevents
-  // double-firing during a mains blackout (0V is not brownout).
   bool localTrip = false;
   const char* localTripReason = nullptr;
   float tripVoltage = 0;
@@ -162,12 +171,13 @@ void readAndSend3Phase() {
 
   // ── BUILD JSON PAYLOAD ──
   JsonDocument doc;
-  doc["deviceId"] = DEVICE_ID;
+  doc["deviceId"] = deviceId;
+  doc["phaseMode"] = phaseMode;
 
   JsonObject threePhase = doc["threePhase"].to<JsonObject>();
-  addPhaseJson(threePhase, "phase_a", phaseA);
-  addPhaseJson(threePhase, "phase_b", phaseB);
-  addPhaseJson(threePhase, "phase_c", phaseC);
+  if (phaseMode >= 1) addPhaseJson(threePhase, "phase_a", phaseA);
+  if (phaseMode >= 2) addPhaseJson(threePhase, "phase_b", phaseB);
+  if (phaseMode >= 3) addPhaseJson(threePhase, "phase_c", phaseC);
 
   doc["timestamp"] = getTimestamp();
 
@@ -176,10 +186,15 @@ void readAndSend3Phase() {
     doc["localTripReason"] = localTripReason;
   }
 
-  // All phases at 0V (but not NaN) means mains AC power is cut
-  if (phaseA.voltage == 0.0 && phaseB.voltage == 0.0 && phaseC.voltage == 0.0) {
+  // All phases at 0V means mains AC power is cut
+  bool allZero = true;
+  if (phaseMode >= 1 && phaseA.voltage != 0.0) allZero = false;
+  if (phaseMode >= 2 && phaseB.voltage != 0.0) allZero = false;
+  if (phaseMode >= 3 && phaseC.voltage != 0.0) allZero = false;
+
+  if (allZero && activePhases > 0) {
     doc["blackout"] = true;
-    Serial.println("[ALERT] Mains blackout detected (0V on all phases). Flagging payload.");
+    Serial.println("[ALERT] Mains blackout detected (0V on all active phases). Flagging payload.");
   }
 
   String payload;

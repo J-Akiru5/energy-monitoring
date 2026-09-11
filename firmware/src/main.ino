@@ -1,7 +1,7 @@
 /*
  * ═══════════════════════════════════════════════════════════════
  * SMART ENERGY MONITORING SYSTEM — ESP32 + PZEM-004T v3.0
- * 3-Phase Monitoring | Wi-Fi → Cloud API (Vercel)
+ * Production EMU Firmware
  * ═══════════════════════════════════════════════════════════════
  *
  * HIGH-VOLTAGE WARNING
@@ -9,22 +9,13 @@
  * All physical installation MUST be performed by a licensed
  * electrician. Never work on live wires.
  *
- * Required Libraries (install via Arduino IDE Library Manager):
- *   - PZEM004Tv30       by Jakub Mandula
- *   - ArduinoJson       by Benoit Blanchon
- *   - RTClib            by Adafruit
- *   - WebSocketsClient  by Links2004 (v2.4.0+)
- *   - EspSoftwareSerial by Dirk Kaar (for Software Serial on ESP32)
- *   - WiFi              (built-in ESP32)
- *   - HTTPClient        (built-in ESP32)
- *   - WiFiClientSecure  (built-in ESP32)
- *
- * Wiring (3-Phase Configuration):
- *   RTC DS3231    → SDA=GPIO21, SCL=GPIO22 (I2C default)
- *   PZEM Phase A  → Hardware Serial2: RX=GPIO16 (from PZEM TX), TX=GPIO17 (to PZEM RX)
- *   PZEM Phase B  → Hardware Serial1: RX=GPIO5,  TX=GPIO4
- *   PZEM Phase C  → Hardware Serial0: RX=GPIO18, TX=GPIO19
- *   RELAY         → GPIO25 (Normally Open: HIGH=Power ON, LOW=Power OFF)
+ * Boot States:
+ *   UNPROVISIONED       — No config in NVS, enter AP setup mode
+ *   CONFIGURED_OFFLINE  — Has config but WiFi not connected
+ *   CONFIGURED_ONLINE   — Connected to WiFi, checking backend
+ *   BACKEND_UNAVAILABLE — WiFi OK but backend unreachable
+ *   NORMAL_OPERATION    — All systems nominal
+ *   PROTECTIVE_TRIP     — Relay tripped for safety
  *
  * Board: ESP32 Dev Module (ESP32-WROOM-32U recommended)
  * ═══════════════════════════════════════════════════════════════
@@ -37,7 +28,7 @@
 #include <WebSocketsClient.h>
 
 #include "config.h"
-#include "secrets.h"
+#include "provisioning.h"
 #include "rtc.h"
 #include "network.h"
 #include "monitor.h"
@@ -47,7 +38,7 @@
 // GLOBAL STATE
 // ════════════════════════════════════════════════════════════
 
-// ── PZEM Sensors (one per phase) ──
+// ── PZEM Sensors (up to 3 phases) ──
 PZEM004Tv30 pzemA(Serial2, PZEM_A_RX, PZEM_A_TX);
 PZEM004Tv30 pzemB(Serial1, PZEM_B_RX, PZEM_B_TX);
 PZEM004Tv30 pzemC(Serial,  PZEM_C_RX, PZEM_C_TX);
@@ -72,6 +63,9 @@ float localOvervoltageThreshold  = DEFAULT_OVERVOLTAGE_THRESHOLD;
 float localUndervoltageThreshold = DEFAULT_UNDERVOLTAGE_THRESHOLD;
 bool localSafetyEnabled = true;
 
+// ── Backend reachability ──
+bool backendReachable = false;
+
 // ── WebSocket (Supabase Realtime) ──
 WebSocketsClient webSocket;
 bool wsConnected = false;
@@ -84,40 +78,72 @@ unsigned long wsDisconnectTime = 0;
 
 void setup() {
   Serial.begin(115200);
+  delay(100);
   Serial.println("\n=====================================");
-  Serial.println(" Energy Monitor v3.0 — 3-PHASE");
+  Serial.println(" EMU Firmware v4.0 — Production");
   Serial.println("=====================================\n");
 
-  // 1. Initialize RTC
+  // 0. Check for serial commands during first 2 seconds
+  unsigned long startupWindow = millis();
+  Serial.println("[BOOT] Type 'help' for serial commands (2s window)...");
+  while (millis() - startupWindow < 2000) {
+    handleSerialCommands();
+    delay(10);
+  }
+
+  // 1. Initialize provisioning (load config from NVS)
+  bool provisioned = provisioningInit();
+
+  if (!provisioned) {
+    setBootState(BOOT_UNPROVISIONED);
+    Serial.println("[BOOT] State: UNPROVISIONED");
+    Serial.println("[BOOT] No configuration found.");
+    enterProvisioningMode(); // blocks until config received, then reboots
+  }
+
+  Serial.printf("[BOOT] Device ID:   %s\n", getConfigDeviceId().c_str());
+  Serial.printf("[BOOT] Phase Mode:  %s\n", getConfigPhaseMode() == 3 ? "3-phase" : "1-phase");
+  Serial.printf("[BOOT] API:         %s\n", getConfigApiEndpoint().c_str());
+  Serial.printf("[BOOT] Supabase:    %s\n", getConfigSupabaseHost().c_str());
+
+  // 2. Initialize RTC
   setupRTC();
 
-  // 2. Connect to WiFi
+  // 3. Connect to WiFi
   connectWiFi();
 
-  // 3. Sync NTP — also writes to RTC if RTC lost power
-  syncNTP();
+  // 4. Determine online/offline state
+  if (WiFi.status() == WL_CONNECTED) {
+    setBootState(BOOT_CONFIGURED_ONLINE);
+    Serial.println("[BOOT] State: CONFIGURED_ONLINE");
 
-  // 4. Fetch safety thresholds from cloud for local hardware override
-  fetchThresholdsFromCloud();
+    // 5. Sync NTP
+    syncNTP();
 
-  // 5. Log PZEM sensor configuration
-  Serial.println("[PZEM] Initializing 3-Phase PZEM-004T sensors...");
-  Serial.println("[PZEM]   Phase A: Hardware Serial2 (GPIO16/17)");
-  Serial.println("[PZEM]   Phase B: Hardware Serial1 (GPIO5/4)");
-  Serial.println("[PZEM]   Phase C: Hardware Serial  (GPIO18/19)");
-  Serial.println("[PZEM] All 3 PZEM sensors initialized on hardware UARTs.");
-  Serial.println("[PZEM] NOTE: Serial debugging will stop after boot (reassigned to Phase C)");
-  delay(1000);
+    // 6. Fetch safety thresholds from cloud
+    fetchThresholdsFromCloud();
 
-  // 6. Initialize Relay with boot-state reconciliation
-  //    Instead of unconditionally powering on, reconcile with
-  //    the last-known state so protective trips survive reboots.
+    // 7. Test backend reachability
+    backendReachable = testBackendReachable();
+    if (backendReachable) {
+      Serial.println("[BOOT] Backend: REACHABLE");
+    } else {
+      Serial.println("[BOOT] Backend: UNREACHABLE");
+      setBootState(BOOT_BACKEND_UNAVAILABLE);
+    }
+  } else {
+    setBootState(BOOT_CONFIGURED_OFFLINE);
+    Serial.println("[BOOT] State: CONFIGURED_OFFLINE");
+    Serial.println("[BOOT] WiFi not connected. Will retry in loop.");
+  }
+
+  // 8. Initialize Relay with boot-state reconciliation
   pinMode(RELAY_PIN, OUTPUT);
 
   bool bootTripped = false;
   bool stateResolved = false;
 
-  // 6a. Try cloud first (most authoritative)
+  // 8a. Try cloud first (most authoritative)
   if (WiFi.status() == WL_CONNECTED) {
     int8_t cloudState = fetchRelayStateFromCloud();
     if (cloudState >= 0) {
@@ -127,7 +153,7 @@ void setup() {
     }
   }
 
-  // 6b. Fall back to NVS if cloud was unreachable
+  // 8b. Fall back to NVS if cloud was unreachable
   if (!stateResolved) {
     bool nvsTripped = false;
     if (loadRelayStateFromNVS(nvsTripped)) {
@@ -137,20 +163,28 @@ void setup() {
     }
   }
 
-  // 6c. First boot — no cloud record, no NVS record
+  // 8c. First boot — no cloud record, no NVS record
   if (!stateResolved) {
-    Serial.println("[RELAY-BOOT] No cloud or NVS state available (first boot?).");
-    Serial.println("[RELAY-BOOT] Defaulting to power-on. Set relay via admin dashboard to trip.");
+    Serial.println("[RELAY-BOOT] No cloud or NVS state (first boot). Defaulting to power-ON.");
   }
 
   relayState = bootTripped;
   digitalWrite(RELAY_PIN, bootTripped ? LOW : HIGH);
-  Serial.printf("[RELAY] Relay initialized: %s\n", relayState ? "TRIPPED (power OFF)" : "NORMAL (power ON)");
+  if (bootTripped) setBootState(BOOT_PROTECTIVE_TRIP);
+  Serial.printf("[RELAY] Relay: %s\n", relayState ? "TRIPPED (power OFF)" : "NORMAL (power ON)");
 
-  // 7. Initialize Supabase Realtime WebSocket for relay control
+  // 9. Initialize Supabase Realtime WebSocket for relay control
   initSupabaseRealtime();
 
-  Serial.println("[BOOT] System ready. Starting 3-phase measurement loop.\n");
+  // 10. Final state
+  if (!relayState && getBootState() != BOOT_PROTECTIVE_TRIP) {
+    if (WiFi.status() == WL_CONNECTED && backendReachable) {
+      setBootState(BOOT_NORMAL_OPERATION);
+    }
+  }
+
+  Serial.printf("\n[BOOT] ====== FINAL STATE: %s ======\n", getBootStateName(getBootState()));
+  Serial.println("[BOOT] System ready. Starting measurement loop.\n");
 }
 
 // ════════════════════════════════════════════════════════════
@@ -159,6 +193,9 @@ void setup() {
 
 void loop() {
   unsigned long now = millis();
+
+  // Handle serial commands
+  handleSerialCommands();
 
   // Maintain WebSocket connection
   webSocket.loop();
@@ -186,8 +223,16 @@ void loop() {
 
   // Reconnect WiFi if lost
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[WiFi] Connection lost. Reconnecting...");
-    connectWiFi();
+    if (getBootState() != BOOT_UNPROVISIONED) {
+      Serial.println("[WiFi] Connection lost. Reconnecting...");
+      connectWiFi();
+
+      if (WiFi.status() == WL_CONNECTED) {
+        setBootState(BOOT_CONFIGURED_ONLINE);
+      } else {
+        setBootState(BOOT_CONFIGURED_OFFLINE);
+      }
+    }
   }
 
   // Sync NTP: on startup (if RTC lost power) OR periodically
@@ -199,6 +244,6 @@ void loop() {
   // Read sensors and upload at the configured interval
   if (now - lastReadTime >= SENSOR_INTERVAL_MS) {
     lastReadTime = now;
-    readAndSend3Phase();
+    readAndUpload();
   }
 }
