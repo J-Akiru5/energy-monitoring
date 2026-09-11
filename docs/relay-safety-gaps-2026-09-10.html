@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relay Safety Gaps — Firmware Fix Report</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --orange: #db6d28;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 40px 20px;
+  }
+  .container { max-width: 920px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 8px; }
+  h2 { font-size: 20px; margin-top: 32px; margin-bottom: 12px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 16px; margin-top: 20px; margin-bottom: 8px; }
+  .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 32px; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 8px;
+  }
+  .badge-safety { background: rgba(248,81,73,0.15); color: var(--red); border: 1px solid rgba(248,81,73,0.3); }
+  .badge-firmware { background: rgba(219,109,40,0.15); color: var(--orange); border: 1px solid rgba(219,109,40,0.3); }
+  .badge-branch { background: rgba(88,166,255,0.15); color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
+  .badge-date { background: rgba(139,148,158,0.15); color: var(--text-muted); border: 1px solid rgba(139,148,158,0.3); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+  }
+  th {
+    background: var(--surface);
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 13px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.5;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    margin: 12px 0;
+  }
+  pre code { background: none; border: none; padding: 0; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 16px 0;
+  }
+  .card-green { border-left: 3px solid var(--green); }
+  .card-yellow { border-left: 3px solid var(--yellow); }
+  .card-red { border-left: 3px solid var(--red); }
+  .card-orange { border-left: 3px solid var(--orange); }
+  ul, ol { margin: 8px 0 8px 24px; }
+  li { margin-bottom: 4px; font-size: 14px; }
+  .file-path { color: var(--accent); font-weight: 500; }
+  .diff-add { color: var(--green); }
+  .diff-del { color: var(--red); }
+  .diff-ctx { color: var(--text-muted); }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+  .flow-diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px;
+    margin: 16px 0;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    white-space: pre;
+    overflow-x: auto;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Relay Safety Gaps — Firmware Fix Report</h1>
+<p class="subtitle">
+  <span class="badge badge-safety">SAFETY</span>
+  <span class="badge badge-firmware">FIRMWARE</span>
+  <span class="badge badge-branch">fix/relay-safety-gaps</span>
+  <span class="badge badge-date">2026-09-10</span>
+</p>
+
+<h2>1. Problem</h2>
+
+<div class="card card-red">
+  <p><strong>Gap 1 — Undervoltage protection wired but disabled</strong></p>
+  <p style="margin-top: 8px;">
+    <code>localUndervoltageThreshold</code> is defined (200V default), fetched from the cloud on
+    boot alongside the overvoltage threshold, and the variable exists — but the trip logic in
+    <code>readAndSend3Phase()</code> only checks overvoltage. The comment directly above reads:
+    <em>"Undervoltage/brownout detection disabled to allow single-phase testing."</em> This was
+    left in place through the 3-phase refactor. A brownout condition that sags below 200V on any
+    phase goes undetected by local hardware safety.
+  </p>
+</div>
+
+<div class="card card-red">
+  <p><strong>Gap 2 — Relay does not reconcile state on boot</strong></p>
+  <p style="margin-top: 8px;">
+    <code>main.ino</code>'s <code>setup()</code> unconditionally does
+    <code>digitalWrite(RELAY_PIN, HIGH)</code> — power on — on every restart. The WebSocket
+    subscription in <code>relay.cpp</code> only listens to <em>future</em> Postgres changes;
+    it never fetches the current row. A protective trip does not survive a reboot (power blip,
+    watchdog reset, WiFi driver crash) — the opposite of what a safety cutoff is for.
+  </p>
+</div>
+
+<h2>2. Solution</h2>
+
+<div class="card card-green">
+  <p><strong>Fix 1 — Undervoltage trip branch</strong></p>
+  <p style="margin-top: 8px;">
+    Added three undervoltage branches in <code>monitor.cpp</code> mirroring the existing
+    overvoltage structure: <code>phaseX.voltage &lt; localUndervoltageThreshold &amp;&amp;
+    phaseX.voltage &gt; 0</code>. The <code>&gt; 0</code> guard prevents double-firing during
+    a mains blackout (0V is not brownout — it's a separate condition already flagged as
+    <code>blackout: true</code>). Uses the same <code>localTrip</code> / <code>localTripReason</code>
+    / <code>tripVoltage</code> mechanism.
+  </p>
+</div>
+
+<div class="card card-green">
+  <p><strong>Fix 2 — Boot-state reconciliation</strong></p>
+  <p style="margin-top: 8px;">
+    On boot, after WiFi connects: (a) fetch current relay state from cloud via
+    <code>GET /api/relay?deviceId=...</code> with 5s timeout; (b) fall back to NVS flash
+    if cloud is unreachable; (c) default to power-on only on genuine first boot (no cloud
+    record AND no NVS record). Relay state is persisted to NVS on every trip/reset —
+    including the local hardware trip in <code>monitor.cpp</code>.
+  </p>
+</div>
+
+<h2>3. Files Changed</h2>
+<table>
+  <thead>
+    <tr><th>File</th><th>Change</th><th>Lines</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="file-path">firmware/src/monitor.cpp</td>
+      <td>Added 3 undervoltage trip branches + NVS save on local trip + updated comment</td>
+      <td>+20 / -3</td>
+    </tr>
+    <tr>
+      <td class="file-path">firmware/src/main.ino</td>
+      <td>Replaced unconditional <code>digitalWrite(HIGH)</code> with cloud→NVS→first-boot reconciliation</td>
+      <td>+39 / -3</td>
+    </tr>
+    <tr>
+      <td class="file-path">firmware/src/relay.cpp</td>
+      <td>Added NVS persistence functions + <code>saveRelayStateToNVS()</code> at all 4 state-change sites</td>
+      <td>+35 / -0</td>
+    </tr>
+    <tr>
+      <td class="file-path">firmware/src/relay.h</td>
+      <td>Declared <code>saveRelayStateToNVS()</code> and <code>loadRelayStateFromNVS()</code></td>
+      <td>+9 / -0</td>
+    </tr>
+    <tr>
+      <td class="file-path">firmware/src/network.cpp</td>
+      <td>Added <code>fetchRelayStateFromCloud()</code> — GET with 5s timeout, derives URL from API_ENDPOINT</td>
+      <td>+54 / -0</td>
+    </tr>
+    <tr>
+      <td class="file-path">firmware/src/network.h</td>
+      <td>Declared <code>fetchRelayStateFromCloud()</code></td>
+      <td>+6 / -0</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>4. What Was NOT Changed</h2>
+<div class="card card-yellow">
+  <ul>
+    <li><code>subscribeToRelayState()</code> — unchanged, continues handling all post-boot state changes via WebSocket</li>
+    <li><code>initSupabaseRealtime()</code> — unchanged</li>
+    <li>Database schema, Next.js API routes, provisioning work — untouched</li>
+    <li><code>fix/relay-auth-gate</code> changes — not touched</li>
+    <li>Any other API route or firmware module — untouched</li>
+  </ul>
+</div>
+
+<h2>5. Detailed Changes</h2>
+
+<h3>5.1. <span class="file-path">firmware/src/monitor.cpp</span> — Undervoltage Trip</h3>
+
+<p>Added after the existing overvoltage checks (line 135), same <code>else if</code> chain:</p>
+<pre><code><span class="diff-add">+    } else if (!phaseA.offline && phaseA.voltage < localUndervoltageThreshold && phaseA.voltage > 0) {</span>
+<span class="diff-add">+      localTrip = true;</span>
+<span class="diff-add">+      localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_A";</span>
+<span class="diff-add">+      tripVoltage = phaseA.voltage;</span>
+<span class="diff-add">+    } else if (!phaseB.offline && phaseB.voltage < localUndervoltageThreshold && phaseB.voltage > 0) {</span>
+<span class="diff-add">+      localTrip = true;</span>
+<span class="diff-add">+      localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_B";</span>
+<span class="diff-add">+      tripVoltage = phaseB.voltage;</span>
+<span class="diff-add">+    } else if (!phaseC.offline && phaseC.voltage < localUndervoltageThreshold && phaseC.voltage > 0) {</span>
+<span class="diff-add">+      localTrip = true;</span>
+<span class="diff-add">+      localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_C";</span>
+<span class="diff-add">+      tripVoltage = phaseC.voltage;</span>
+</code></pre>
+
+<p>NVS save added after <code>digitalWrite(RELAY_PIN, LOW)</code> in the local trip block:</p>
+<pre><code><span class="diff-add">+      saveRelayStateToNVS(true);</span>
+</code></pre>
+
+<h3>5.2. <span class="file-path">firmware/src/relay.cpp</span> — NVS Persistence</h3>
+
+<p>Four save call sites (every place <code>relayState</code> changes):</p>
+<pre><code><span class="diff-ctx">  // WebSocket handler (line 152):</span>
+<span class="diff-add">+          saveRelayStateToNVS(relayState);</span>
+
+<span class="diff-ctx">  // tripRelay():</span>
+<span class="diff-add">+    saveRelayStateToNVS(true);</span>
+
+<span class="diff-ctx">  // resetRelay():</span>
+<span class="diff-add">+    saveRelayStateToNVS(false);</span>
+
+<span class="diff-ctx">  // monitor.cpp local trip:</span>
+<span class="diff-add">+      saveRelayStateToNVS(true);</span>
+</code></pre>
+
+<p>NVS implementation using ESP32 Preferences library:</p>
+<pre><code>static Preferences nvsPrefs;
+
+void saveRelayStateToNVS(bool tripped) {
+  nvsPrefs.begin("relay", false);
+  nvsPrefs.putBool("tripped", tripped);
+  nvsPrefs.end();
+}
+
+bool loadRelayStateFromNVS(bool& tripped) {
+  nvsPrefs.begin("relay", true);
+  bool hasKey = nvsPrefs.isKey("tripped");
+  if (hasKey) {
+    tripped = nvsPrefs.getBool("tripped", false);
+  }
+  nvsPrefs.end();
+  return hasKey;
+}
+</code></pre>
+
+<h3>5.3. <span class="file-path">firmware/src/network.cpp</span> — Cloud Fetch</h3>
+
+<pre><code>int8_t fetchRelayStateFromCloud() {
+  // Derives URL from API_ENDPOINT: strips "/api/ingest", appends "/api/relay?deviceId=..."
+  // 5s timeout — doesn't block boot indefinitely
+  // Returns: 1 = tripped, 0 = normal, -1 = failed/unreachable
+}
+</code></pre>
+
+<h3>5.4. <span class="file-path">firmware/src/main.ino</span> — Boot Reconciliation</h3>
+
+<pre><code><span class="diff-del">-  digitalWrite(RELAY_PIN, HIGH);  // HIGH = Power ON</span>
+<span class="diff-del">-  Serial.println("[RELAY] Relay initialized (normal state - power flowing).");</span>
+<span class="diff-add">+  // 6a. Try cloud first (most authoritative)</span>
+<span class="diff-add">+  if (WiFi.status() == WL_CONNECTED) {</span>
+<span class="diff-add">+    int8_t cloudState = fetchRelayStateFromCloud();</span>
+<span class="diff-add">+    if (cloudState >= 0) { ... }</span>
+<span class="diff-add">+  }</span>
+<span class="diff-add">+  // 6b. Fall back to NVS if cloud was unreachable</span>
+<span class="diff-add">+  if (!stateResolved) {</span>
+<span class="diff-add">+    bool nvsTripped = false;</span>
+<span class="diff-add">+    if (loadRelayStateFromNVS(nvsTripped)) { ... }</span>
+<span class="diff-add">+  }</span>
+<span class="diff-add">+  // 6c. First boot — no cloud record, no NVS record</span>
+<span class="diff-add">+  if (!stateResolved) {</span>
+<span class="diff-add">+    Serial.println("[RELAY-BOOT] Defaulting to power-on...");</span>
+<span class="diff-add">+  }</span>
+<span class="diff-add">+  relayState = bootTripped;</span>
+<span class="diff-add">+  digitalWrite(RELAY_PIN, bootTripped ? LOW : HIGH);</span>
+</code></pre>
+
+<h2>6. State Reconciliation Flow</h2>
+
+<div class="flow-diagram">Boot
+  │
+  ├─ WiFi connected?
+  │   ├─ YES → fetchRelayStateFromCloud()
+  │   │         ├─ HTTP 200, parsed OK → use cloud state
+  │   │         └─ Failed/timeout → fall through to NVS
+  │   └─ NO  → fall through to NVS
+  │
+  ├─ loadRelayStateFromNVS()
+  │   ├─ Key exists → use NVS state
+  │   └─ No key → fall through to default
+  │
+  └─ Default (first boot)
+      └─ Power ON — no prior state to restore
+
+State is persisted to NVS on EVERY change:
+  ├─ Local trip (monitor.cpp — overvoltage/undervoltage)
+  ├─ Manual trip (relay.cpp — tripRelay)
+  ├─ Manual reset (relay.cpp — resetRelay)
+  └─ WebSocket update (relay.cpp — admin dashboard)</div>
+
+<h2>7. Boot Scenarios</h2>
+<table>
+  <thead>
+    <tr><th>Scenario</th><th>Cloud</th><th>NVS</th><th>Result</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Normal reboot, relay was tripped</td>
+      <td style="color: var(--green);">Reachable</td>
+      <td style="color: var(--green);">Has record</td>
+      <td>Cloud state used → relay stays tripped</td>
+    </tr>
+    <tr>
+      <td>Reboot after local trip, WiFi down</td>
+      <td style="color: var(--red);">Unreachable</td>
+      <td style="color: var(--green);">Has record</td>
+      <td>NVS state used → relay stays tripped</td>
+    </tr>
+    <tr>
+      <td>Reboot, cloud down, WiFi up</td>
+      <td style="color: var(--red);">HTTP error</td>
+      <td style="color: var(--green);">Has record</td>
+      <td>NVS state used → relay stays tripped</td>
+    </tr>
+    <tr>
+      <td>First boot (new device)</td>
+      <td style="color: var(--red);">N/A</td>
+      <td style="color: var(--red);">No record</td>
+      <td>Default: power ON</td>
+    </tr>
+    <tr>
+      <td>Reboot after reset, both available</td>
+      <td style="color: var(--green);">Reachable</td>
+      <td style="color: var(--green);">Has record</td>
+      <td>Cloud says NORMAL → relay powers on</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>8. Undervoltage Trip Logic</h2>
+<table>
+  <thead>
+    <tr><th>Condition</th><th>Trips?</th><th>Why</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Phase A at 190V (below 200V threshold)</td><td style="color: var(--red);">Yes</td><td>Undervoltage detected</td></tr>
+    <tr><td>Phase A at 0V (blackout)</td><td style="color: var(--green);">No</td><td><code>voltage > 0</code> guard prevents double-fire with blackout flag</td></tr>
+    <tr><td>Phase A at NaN (sensor offline)</td><td style="color: var(--green);">No</td><td><code>!phaseA.offline</code> guard prevents trip on missing sensor</td></tr>
+    <tr><td>Phase A at 190V, relay already tripped</td><td style="color: var(--green);">No</td><td><code>!relayState</code> guard prevents re-trip</td></tr>
+    <tr><td>Phase A at 260V</td><td style="color: var(--red);">Yes</td><td>Overvoltage (checked first in chain)</td></tr>
+  </tbody>
+</table>
+
+<h2>9. NVS Save Call Sites (all 4)</h2>
+<table>
+  <thead>
+    <tr><th>Call Site</th><th>File:Line</th><th>Value Saved</th><th>When</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Local trip (overvoltage/undervoltage)</td>
+      <td><code>monitor.cpp</code></td>
+      <td><code>true</code></td>
+      <td>Hardware safety override — may be offline</td>
+    </tr>
+    <tr>
+      <td>Manual trip</td>
+      <td><code>relay.cpp:tripRelay()</code></td>
+      <td><code>true</code></td>
+      <td>Admin dashboard command via WebSocket</td>
+    </tr>
+    <tr>
+      <td>Manual reset</td>
+      <td><code>relay.cpp:resetRelay()</code></td>
+      <td><code>false</code></td>
+      <td>Admin dashboard command via WebSocket</td>
+    </tr>
+    <tr>
+      <td>WebSocket state change</td>
+      <td><code>relay.cpp:handleRealtimeMessage()</code></td>
+      <td><code>relayState</code></td>
+      <td>Any Postgres change pushed via Supabase Realtime</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>10. What Was NOT Changed</h2>
+<div class="card card-yellow">
+  <ul>
+    <li><code>subscribeToRelayState()</code> — subscription setup and join message unchanged</li>
+    <li><code>handleRealtimeMessage()</code> — message parsing and relay update logic unchanged (only added NVS save)</li>
+    <li><code>initSupabaseRealtime()</code> — WebSocket connection setup unchanged</li>
+    <li><code>fetchThresholdsFromCloud()</code> — threshold fetch unchanged</li>
+    <li>Database schema, Next.js API routes — untouched</li>
+    <li><code>fix/relay-auth-gate</code> changes — not touched</li>
+  </ul>
+</div>
+
+<h2>11. Deployment Notes</h2>
+<div class="card">
+  <ul>
+    <li>No new environment variables — uses existing <code>API_ENDPOINT</code>, <code>DEVICE_ID</code></li>
+    <li>No new libraries — <code>Preferences</code> is built into ESP32 Arduino core</li>
+    <li>NVS namespace: <code>"relay"</code>, key: <code>"tripped"</code> (bool)</li>
+    <li>NVS writes are wear-leveled by ESP32 hardware — safe for 5-second write cycles</li>
+    <li>First boot after flashing: defaults to power-on (no prior NVS record)</li>
+    <li>Existing WebSocket subscription continues handling all post-boot changes</li>
+  </ul>
+</div>
+
+<h2>12. Out of Scope</h2>
+<div class="card">
+  <ul>
+    <li><strong>Device token hashing</strong> — DB migration, separate PR</li>
+    <li><strong>WiFi provisioning / WiFiManager</strong> — separate phase</li>
+    <li><strong>Full web-app auth</strong> — consumer app session layer, future project</li>
+    <li><strong>Relay auth gate (POST)</strong> — already on <code>fix/relay-auth-gate</code></li>
+  </ul>
+</div>
+
+<hr style="margin-top: 40px; border-color: var(--border);">
+<p style="color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 16px;">
+  Generated 2026-09-10 · branch <code>fix/relay-safety-gaps</code> off <code>develop</code> (reset to main) · not merged
+</p>
+
+</div>
+</body>
+</html>

@@ -3,6 +3,7 @@
 #include "secrets.h"
 #include "rtc.h"
 #include "network.h"
+#include "relay.h"
 #include <PZEM004Tv30.h>
 #include <ArduinoJson.h>
 
@@ -112,9 +113,9 @@ void readAndSend3Phase() {
   Serial.println("--------------------------------------------");
 
   // ── LOCAL HARDWARE SAFETY OVERRIDE ──
-  // Trip on overvoltage to protect connected equipment.
-  // Undervoltage/brownout detection disabled to allow
-  // single-phase testing.
+  // Trip on overvoltage or undervoltage to protect connected
+  // equipment. The voltage > 0 guard on undervoltage prevents
+  // double-firing during a mains blackout (0V is not brownout).
   bool localTrip = false;
   const char* localTripReason = nullptr;
   float tripVoltage = 0;
@@ -132,6 +133,18 @@ void readAndSend3Phase() {
       localTrip = true;
       localTripReason = "LOCAL_OVERVOLTAGE_PHASE_C";
       tripVoltage = phaseC.voltage;
+    } else if (!phaseA.offline && phaseA.voltage < localUndervoltageThreshold && phaseA.voltage > 0) {
+      localTrip = true;
+      localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_A";
+      tripVoltage = phaseA.voltage;
+    } else if (!phaseB.offline && phaseB.voltage < localUndervoltageThreshold && phaseB.voltage > 0) {
+      localTrip = true;
+      localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_B";
+      tripVoltage = phaseB.voltage;
+    } else if (!phaseC.offline && phaseC.voltage < localUndervoltageThreshold && phaseC.voltage > 0) {
+      localTrip = true;
+      localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_C";
+      tripVoltage = phaseC.voltage;
     }
 
     if (localTrip) {
@@ -142,6 +155,7 @@ void readAndSend3Phase() {
 
       relayState = true;
       digitalWrite(RELAY_PIN, LOW);
+      saveRelayStateToNVS(true);
       Serial.println("[RELAY] LOCAL TRIP EXECUTED — Power disconnected.");
     }
   }

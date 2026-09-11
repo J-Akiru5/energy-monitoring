@@ -109,10 +109,43 @@ void setup() {
   Serial.println("[PZEM] NOTE: Serial debugging will stop after boot (reassigned to Phase C)");
   delay(1000);
 
-  // 6. Initialize Relay (default: normal operation, power flowing)
+  // 6. Initialize Relay with boot-state reconciliation
+  //    Instead of unconditionally powering on, reconcile with
+  //    the last-known state so protective trips survive reboots.
   pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, HIGH);  // HIGH = Power ON
-  Serial.println("[RELAY] Relay initialized (normal state - power flowing).");
+
+  bool bootTripped = false;
+  bool stateResolved = false;
+
+  // 6a. Try cloud first (most authoritative)
+  if (WiFi.status() == WL_CONNECTED) {
+    int8_t cloudState = fetchRelayStateFromCloud();
+    if (cloudState >= 0) {
+      bootTripped = (cloudState == 1);
+      stateResolved = true;
+      Serial.printf("[RELAY-BOOT] Using cloud state: %s\n", bootTripped ? "TRIPPED" : "NORMAL");
+    }
+  }
+
+  // 6b. Fall back to NVS if cloud was unreachable
+  if (!stateResolved) {
+    bool nvsTripped = false;
+    if (loadRelayStateFromNVS(nvsTripped)) {
+      bootTripped = nvsTripped;
+      stateResolved = true;
+      Serial.printf("[RELAY-BOOT] Using NVS state: %s\n", bootTripped ? "TRIPPED" : "NORMAL");
+    }
+  }
+
+  // 6c. First boot — no cloud record, no NVS record
+  if (!stateResolved) {
+    Serial.println("[RELAY-BOOT] No cloud or NVS state available (first boot?).");
+    Serial.println("[RELAY-BOOT] Defaulting to power-on. Set relay via admin dashboard to trip.");
+  }
+
+  relayState = bootTripped;
+  digitalWrite(RELAY_PIN, bootTripped ? LOW : HIGH);
+  Serial.printf("[RELAY] Relay initialized: %s\n", relayState ? "TRIPPED (power OFF)" : "NORMAL (power ON)");
 
   // 7. Initialize Supabase Realtime WebSocket for relay control
   initSupabaseRealtime();

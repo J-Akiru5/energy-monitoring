@@ -1,6 +1,8 @@
 #ifndef RTC_H
 #define RTC_H
 
+#include <Arduino.h>
+
 // Initialize the DS3231 RTC.
 // Sets rtcAvailable and rtcNeedSync globals.
 void setupRTC();
