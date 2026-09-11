@@ -3,6 +3,18 @@
 
 export { getSupabaseAdmin, getSupabaseBrowser } from "./client";
 
+// Auth helpers (one-off account creation scripts)
+export {
+  generatePassword,
+  createAuthUser,
+  deleteAuthUser,
+} from "./auth";
+export type { CreateAuthUserResult } from "./auth";
+
+// Role defaults (OWNER/ADMIN/OPERATOR/VIEWER → permissions)
+export { ROLE_DEFAULTS, ALL_PERMISSIONS } from "./roles";
+export type { Permission, Role } from "./roles";
+
 // Reading queries
 export {
   insertReading,

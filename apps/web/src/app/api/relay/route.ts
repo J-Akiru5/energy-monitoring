@@ -1,13 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import {
   getRelayState,
   updateRelayState,
   getRelayConfig,
   logRelayAction,
 } from "@energy/database";
+import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
 import { RelayCommandSchema } from "@energy/types";
 
 export const dynamic = "force-dynamic";
+
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+};
+
+function noStoreJson(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: NO_STORE_HEADERS });
+}
 
 function getRelayConfigError() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -34,28 +46,55 @@ export async function OPTIONS() {
 
 /**
  * GET /api/relay?deviceId=<uuid>
- * Returns current relay state
+ * Returns current relay state.
+ *
+ * Auth: requires a logged-in session with "view_energy" on some customer.
+ * resolveAccess() validates the caller is authorized for the device's customer.
+ * relay_config and relay_state have no customer_id column (1:1 with devices),
+ * so scoping is enforced at the auth layer (device must belong to caller's customer),
+ * not at the query layer.
  */
 export async function GET(req: NextRequest) {
   const configError = getRelayConfigError();
   if (configError) {
-    return NextResponse.json(
+    return noStoreJson(
       { error: `Relay backend not configured: ${configError}` },
-      { status: 503 }
+      503
     );
   }
 
   try {
     const deviceId = req.nextUrl.searchParams.get("deviceId");
     if (!deviceId) {
-      return NextResponse.json({ error: "Missing deviceId" }, { status: 400 });
+      return noStoreJson({ error: "Missing deviceId" }, 400);
+    }
+
+    // ── Authenticate the caller ───────────────────────────────
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return noStoreJson({ error: "Not authenticated" }, 401);
+    }
+
+    // ── Resolve which customer this caller is authorized for ──
+    try {
+      await resolveAccess(user.id, "view_energy");
+    } catch (err) {
+      if (err instanceof AccessDeniedError) {
+        return noStoreJson({ error: err.message }, 403);
+      }
+      throw err;
     }
 
     const state = await getRelayState(deviceId);
-    return NextResponse.json({ state });
+    return noStoreJson({ state });
   } catch (err) {
     console.error("[/api/relay] GET Error:", err);
-    return NextResponse.json({ error: "Failed to get relay state" }, { status: 500 });
+    return noStoreJson({ error: "Failed to get relay state" }, 500);
   }
 }
 
@@ -64,45 +103,87 @@ export async function GET(req: NextRequest) {
  * Body: RelayCommand
  * Controls relay (manual trip/reset or system-initiated)
  *
- * This endpoint can be called by:
- * 1. Admin dashboard (manual control)
- * 2. Internal system (automatic trip on alerts)
- * 3. ESP32 (status updates - via WebSocket subscriptions)
+ * DUAL AUTH — accepts EITHER:
+ *   Path A: Valid X-Relay-Secret header (machine-to-machine, e.g. admin proxy)
+ *   Path B: Valid session with "control_relay" granted (user-initiated)
+ *
+ * Path A is the legacy mechanism from fix/relay-auth-gate: the admin app's
+ * same-origin proxy attaches RELAY_ADMIN_SECRET server-side so it never
+ * reaches the browser. The ESP32 can also use this path for status checks.
+ *
+ * Path B is the permission-based mechanism from feature/phase3b3-rls-slice-one:
+ * resolveAccess() checks that the user has a membership with control_relay
+ * granted, and resolves which customer the device belongs to.
+ *
+ * The two paths are deliberately not merged into a single check — they
+ * serve different callers with different trust models. Path A trusts the
+ * secret (infrastructure-level auth). Path B trusts the session
+ * (user-level auth).
  */
 export async function POST(req: NextRequest) {
-  const relaySecret = process.env.RELAY_ADMIN_SECRET;
-  if (!relaySecret) {
-    console.error("[/api/relay] POST: RELAY_ADMIN_SECRET env var is not set");
-    return NextResponse.json(
-      { error: "Server misconfigured" },
-      { status: 500 }
-    );
-  }
-
-  const provided = req.headers.get("x-relay-secret");
-  if (!provided || provided !== relaySecret) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 }
-    );
-  }
-
   const configError = getRelayConfigError();
   if (configError) {
-    return NextResponse.json(
+    return noStoreJson(
       { error: `Relay backend not configured: ${configError}` },
-      { status: 503 }
+      503
     );
   }
 
+  // ── Path A: X-Relay-Secret (machine-to-machine) ─────────────
+  const relaySecret = process.env.RELAY_ADMIN_SECRET;
+  const providedSecret = req.headers.get("x-relay-secret");
+
+  if (relaySecret && providedSecret && providedSecret === relaySecret) {
+    // Secret matches — bypass session auth entirely.
+    // This is the admin proxy path (apps/admin/src/app/api/relay/route.ts).
+    return handleRelayCommand(req);
+  }
+
+  // ── Path B: Session + resolveAccess (user-initiated) ────────
+  try {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return noStoreJson({ error: "Not authenticated" }, 401);
+    }
+
+    // ── Resolve which customer this caller is authorized for ──
+    try {
+      await resolveAccess(user.id, "control_relay");
+    } catch (err) {
+      if (err instanceof AccessDeniedError) {
+        return noStoreJson({ error: err.message }, 403);
+      }
+      throw err;
+    }
+
+    return handleRelayCommand(req);
+  } catch (err) {
+    console.error("[/api/relay] POST Error:", err);
+    return noStoreJson({ error: "Internal server error" }, 500);
+  }
+}
+
+/**
+ * Shared relay command handler — called after authentication succeeds
+ * via either Path A (secret) or Path B (session).
+ *
+ * Separated into its own function so the dual-auth gateway above
+ * stays clean and readable.
+ */
+async function handleRelayCommand(req: NextRequest) {
   try {
     const body = await req.json();
     const parsed = RelayCommandSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(
+      return noStoreJson(
         { error: "Invalid command", details: parsed.error.flatten() },
-        { status: 422 }
+        422
       );
     }
 
@@ -111,9 +192,9 @@ export async function POST(req: NextRequest) {
     // Check relay config
     const config = await getRelayConfig(command.deviceId);
     if (!config || !config.relayEnabled) {
-      return NextResponse.json(
+      return noStoreJson(
         { error: "Relay not enabled for this device" },
-        { status: 403 }
+        403
       );
     }
 
@@ -157,21 +238,21 @@ export async function POST(req: NextRequest) {
 
       case "STATUS_CHECK":
         const state = await getRelayState(command.deviceId);
-        return NextResponse.json({ state });
+        return noStoreJson({ state });
 
       default:
-        return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+        return noStoreJson({ error: "Unknown action" }, 400);
     }
 
     if (!success) {
-      return NextResponse.json({ error: "Failed to execute command" }, { status: 500 });
+      return noStoreJson({ error: "Failed to execute command" }, 500);
     }
 
     // Get updated state
     const newState = await getRelayState(command.deviceId);
-    return NextResponse.json({ status: "ok", state: newState });
+    return noStoreJson({ status: "ok", state: newState });
   } catch (err) {
-    console.error("[/api/relay] POST Error:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("[/api/relay] handleRelayCommand Error:", err);
+    return noStoreJson({ error: "Internal server error" }, 500);
   }
 }
