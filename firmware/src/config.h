@@ -56,4 +56,31 @@ const char* const TZ_OFFSET_STR = "+08:00";
 constexpr float DEFAULT_OVERVOLTAGE_THRESHOLD = 250.0;
 constexpr float DEFAULT_UNDERVOLTAGE_THRESHOLD = 200.0;
 
+// ──── NVS CONFIGURATION KEYS ─────────────────────────────
+namespace EmuCfg {
+  constexpr const char* NVS_NAMESPACE   = "emu_config";
+  constexpr const char* KEY_PROVISIONED = "prov";
+  constexpr const char* KEY_WIFI_SSID   = "wifi_ssid";
+  constexpr const char* KEY_WIFI_PASS   = "wifi_pass";
+  constexpr const char* KEY_DEVICE_ID   = "dev_id";
+  constexpr const char* KEY_DEVICE_TOKEN= "dev_tok";
+  constexpr const char* KEY_API_ENDPOINT= "api_ep";
+  constexpr const char* KEY_SUPABASE_HOST="sb_host";
+  constexpr const char* KEY_SUPABASE_KEY= "sb_key";
+  constexpr const char* KEY_PHASE_MODE  = "phase";
+}
+
+// ──── BACKEND DEFAULTS (compile-time — NVS overrides at runtime) ──
+#ifndef API_ENDPOINT_DEFAULT
+#define API_ENDPOINT_DEFAULT "https://your-deployment.vercel.app/api/ingest"
+#endif
+
+#ifndef SUPABASE_HOST_DEFAULT
+#define SUPABASE_HOST_DEFAULT "your-project.supabase.co"
+#endif
+
+#ifndef SUPABASE_KEY_DEFAULT
+#define SUPABASE_KEY_DEFAULT "your-anon-key-here"
+#endif
+
 #endif
