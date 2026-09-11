@@ -3,6 +3,12 @@
 
 #include <cstdint>
 
+// Backend defaults (API endpoint / Supabase host / anon key) come from the
+// gitignored secrets.h — copy secrets.example.h to secrets.h and fill it in.
+// Included here so every translation unit sees the real values instead of
+// the fallback placeholders at the bottom of this file.
+#include "secrets.h"
+
 // ──── PIN DEFINITIONS ─────────────────────────────────────
 // PZEM Phase A: Hardware Serial2
 constexpr uint8_t PZEM_A_RX = 16;
