@@ -72,7 +72,7 @@ export default function RelayPage() {
     try {
       const [configRes, stateRes, logsRes] = await Promise.all([
         fetch(`/api/relay/config?deviceId=${selectedDevice}`),
-        fetch(`https://energy-monitoring-web.vercel.app/api/relay?deviceId=${selectedDevice}`),
+        fetch(`/api/relay?deviceId=${selectedDevice}`),
         fetch(`/api/relay/logs?deviceId=${selectedDevice}`),
       ]);
 

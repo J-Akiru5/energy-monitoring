@@ -92,17 +92,72 @@ importers:
         specifier: ^5.8.2
         version: 5.9.3
 
-  apps/web:
+  apps/super-admin:
     dependencies:
-      '@ducanh2912/next-pwa':
-        specifier: ^10.2.9
-        version: 10.2.9(next@16.1.6(@babel/core@7.29.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(webpack@5.105.4)
+      '@energy/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@energy/database':
         specifier: workspace:*
         version: link:../../packages/database
       '@energy/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@energy/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      next:
+        specifier: 16.1.6
+        version: 16.1.6(@babel/core@7.29.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+    devDependencies:
+      '@tailwindcss/postcss':
+        specifier: ^4
+        version: 4.2.0
+      '@types/node':
+        specifier: ^20
+        version: 20.19.33
+      '@types/react':
+        specifier: ^19
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.14)
+      eslint:
+        specifier: ^9
+        version: 9.39.2(jiti@2.6.1)
+      eslint-config-next:
+        specifier: 16.1.6
+        version: 16.1.6(@typescript-eslint/parser@8.56.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+      tailwindcss:
+        specifier: ^4
+        version: 4.2.0
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  apps/web:
+    dependencies:
+      '@ducanh2912/next-pwa':
+        specifier: ^10.2.9
+        version: 10.2.9(next@16.1.6(@babel/core@7.29.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(webpack@5.105.4)
+      '@energy/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@energy/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@energy/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@energy/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       next:
         specifier: 16.1.6
         version: 16.1.6(@babel/core@7.29.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -152,6 +207,9 @@ importers:
 
   packages/auth:
     dependencies:
+      '@energy/database':
+        specifier: workspace:*
+        version: link:../database
       '@supabase/ssr':
         specifier: ^0.5.2
         version: 0.5.2(@supabase/supabase-js@2.97.0)
@@ -187,6 +245,28 @@ importers:
     devDependencies:
       typescript:
         specifier: ^5.8.2
+        version: 5.9.3
+
+  packages/ui:
+    dependencies:
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.33
+      '@types/react':
+        specifier: ^19
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.14)
+      typescript:
+        specifier: ^5
         version: 5.9.3
 
 packages:
@@ -1974,10 +2054,6 @@ packages:
   emoji-regex@9.2.2:
     resolution: {integrity: sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg==}
 
-  enhanced-resolve@5.19.0:
-    resolution: {integrity: sha512-phv3E1Xl4tQOShqSte26C7Fl84EwUdZsyOuSSk9qtAGyyQs2s3jJzComh+Abf4g187lUUAvH+H26omrqia2aGg==}
-    engines: {node: '>=10.13.0'}
-
   enhanced-resolve@5.20.0:
     resolution: {integrity: sha512-/ce7+jQ1PQ6rVXwe+jKEg5hW5ciicHwIQUagZkp6IufBoY3YDgdTTY1azVs0qoRgVmvsNB+rbjLJxDAeHHtwsQ==}
     engines: {node: '>=10.13.0'}
@@ -2127,6 +2203,7 @@ packages:
   eslint@9.39.2:
     resolution: {integrity: sha512-LEyamqS7W5HB3ujJyvi0HQK/dtVINZvd5mAAp9eT5S/ujByGjiZLCzPcHVzuXbpJDJF/cxwHlfceVUDZ2lnSTw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -4698,7 +4775,7 @@ snapshots:
   '@tailwindcss/node@4.2.0':
     dependencies:
       '@jridgewell/remapping': 2.3.5
-      enhanced-resolve: 5.19.0
+      enhanced-resolve: 5.20.0
       jiti: 2.6.1
       lightningcss: 1.31.1
       magic-string: 0.30.21
@@ -5443,11 +5520,6 @@ snapshots:
   electron-to-chromium@1.5.286: {}
 
   emoji-regex@9.2.2: {}
-
-  enhanced-resolve@5.19.0:
-    dependencies:
-      graceful-fs: 4.2.11
-      tapable: 2.3.0
 
   enhanced-resolve@5.20.0:
     dependencies:

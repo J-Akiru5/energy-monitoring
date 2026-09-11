@@ -1,5 +1,6 @@
-import { getSupabaseAdmin, ALL_PERMISSIONS } from "@energy/database";
+import { getSupabaseAdmin } from "@energy/database";
 import type { Permission } from "@energy/database";
+import { ALL_PERMISSIONS } from "@energy/database";
 
 /**
  * Thrown by resolveAccess() when a user has no membership granting the
@@ -16,16 +17,16 @@ export class AccessDeniedError extends Error {
 }
 
 export interface ResolvedAccess {
-  /**
-   * The customer whose data this user is authorized to act on.
-   * `undefined` for super admins — they have full access to all customers
-   * and no single customer ID applies. Callers that need a specific customer
-   * must handle this case explicitly (e.g. admin dashboard listing all customers).
-   */
-  customerId: string | undefined;
-  /** All granted permissions on that membership (ALL_PERMISSIONS for super admins). */
+  /** The customer whose data this user is authorized to act on. */
+  customerId: string;
+  /** All granted permissions on that membership. */
   permissions: Permission[];
+  /** True when access was granted via the super_admins bypass. */
+  isSuperAdmin: boolean;
 }
+
+/** Sentinel customerId returned for Super Admins when no resourceId is specified. */
+export const SUPER_ADMIN_CUSTOMER_ID = "*" as const;
 
 /**
  * Resolve what a user is allowed to do, and for which customer.
@@ -55,23 +56,31 @@ export async function resolveAccess(
 ): Promise<ResolvedAccess> {
   const supabase = getSupabaseAdmin();
 
-  // ── Super Admin bypass ──────────────────────────────────────
-  // Super admins bypass the membership system entirely. They have
-  // ALL_PERMISSIONS across all customers and no single customerId.
+  // ── Super Admin bypass ──
+  // Check super_admins first; if the user is an active (non-revoked) Super
+  // Admin, grant access immediately — no membership required.  The sentinel
+  // customerId ("*") signals to callers that this is cross-customer access;
+  // callers that need customer-scoped data should branch on isSuperAdmin.
   const { data: superAdmin, error: saError } = await supabase
     .from("super_admins")
     .select("user_id")
     .eq("user_id", userId)
+    .is("revoked_at", null)
     .maybeSingle();
 
   if (saError) {
-    throw new Error(`resolveAccess: super_admin lookup failed: ${saError.message}`);
+    throw new Error(`resolveAccess: super_admins lookup failed: ${saError.message}`);
   }
 
   if (superAdmin) {
-    return { customerId: undefined, permissions: ALL_PERMISSIONS };
+    return {
+      customerId: resourceId ?? SUPER_ADMIN_CUSTOMER_ID,
+      permissions: ALL_PERMISSIONS,
+      isSuperAdmin: true,
+    };
   }
 
+  // ── Standard membership check ──
   let query = supabase
     .from("memberships")
     .select(
@@ -109,7 +118,7 @@ export async function resolveAccess(
     const granted = grants.filter((g) => g.granted).map((g) => g.permission);
 
     if (granted.includes(requiredPermission)) {
-      return { customerId: membership.customer_id as string, permissions: granted };
+      return { customerId: membership.customer_id as string, permissions: granted, isSuperAdmin: false };
     }
   }
 

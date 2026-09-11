@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task 3b.1 — AuthSplitLayout, Super Admin Shell, Schema & Bootstrap</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem;
+      color: #1a1a1a;
+      background: #f8fafc;
+    }
+    h1 {
+      color: #0f172a;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 0.5rem;
+    }
+    h2 {
+      color: #334155;
+      margin-top: 2rem;
+    }
+    h3 {
+      color: #475569;
+    }
+    code {
+      background: #f1f5f9;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.875rem;
+    }
+    pre {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 1rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.875rem;
+    }
+    .success {
+      background: #dcfce7;
+      border: 1px solid #bbf7d0;
+      color: #166534;
+      padding: 1rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+    }
+    .info {
+      background: #dbeafe;
+      border: 1px solid #bfdbfe;
+      color: #1e40af;
+      padding: 1rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+    }
+    .warning {
+      background: #fef3c7;
+      border: 1px solid #fde68a;
+      color: #92400e;
+      padding: 1rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+    th, td {
+      border: 1px solid #e2e8f0;
+      padding: 0.75rem;
+      text-align: left;
+    }
+    th {
+      background: #f1f5f9;
+      font-weight: 600;
+    }
+    .file-tree {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 1rem;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 0.875rem;
+    }
+    .login-preview {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 1rem 0;
+    }
+    .login-preview-header {
+      background: #f1f5f9;
+      padding: 0.5rem 1rem;
+      border-bottom: 1px solid #e2e8f0;
+      font-weight: 600;
+      font-size: 0.875rem;
+    }
+    .login-preview-body {
+      padding: 2rem;
+      background: #eef2f6;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 300px;
+    }
+    .login-preview-brand {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 2rem;
+      position: relative;
+    }
+    .login-preview-brand::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle, #0f172a 1px, transparent 1px);
+      background-size: 24px 24px;
+      opacity: 0.05;
+    }
+    .login-preview-brand h1 {
+      font-size: 1.5rem;
+      margin: 0;
+      color: #09090b;
+    }
+    .login-preview-brand p {
+      color: #52525b;
+      margin: 0;
+    }
+    .login-preview-form {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-preview-card {
+      background: rgba(238, 242, 246, 0.75);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      border-radius: 1rem;
+      padding: 2rem;
+      width: 100%;
+      max-width: 20rem;
+      box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.04);
+    }
+    .login-preview-field {
+      margin-bottom: 1.5rem;
+    }
+    .login-preview-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #3f3f46;
+      margin-bottom: 0.5rem;
+    }
+    .login-preview-input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: 0.5rem;
+      padding: 0.625rem 0.75rem;
+      font-size: 0.875rem;
+      color: #09090b;
+    }
+    .login-preview-button {
+      width: 100%;
+      background: #09090b;
+      color: white;
+      border: none;
+      border-radius: 0.5rem;
+      padding: 0.75rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+    }
+    .login-preview-footer {
+      text-align: center;
+      font-size: 0.75rem;
+      color: #71717a;
+      margin-top: 1.5rem;
+    }
+    @media (max-width: 768px) {
+      .login-preview-body {
+        grid-template-columns: 1fr;
+      }
+      .login-preview-brand {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Task 3b.1 — AuthSplitLayout, Super Admin Shell & Schema</h1>
+  
+  <div class="success">
+    <strong>✓ Pushed and verified</strong><br>
+    Branch: <code>feature/phase3b-auth-shell</code><br>
+    Commit: <code>050c7d0</code> — confirmed on origin via <code>git ls-remote</code>
+  </div>
+
+  <h2>Summary</h2>
+  <p>
+    This task accomplished four related objectives:
+  </p>
+  <ol>
+    <li><strong>Created a shared, on-brand split-view auth layout</strong> (<code>packages/ui/src/AuthSplitLayout.tsx</code>) that both <code>apps/web</code> and <code>apps/super-admin</code> now use for their login pages.</li>
+    <li><strong>Scaffolded the <code>apps/super-admin</code> app shell</strong> — a new Next.js app mirroring the existing admin structure, with a login page using the shared layout. Feature work is deferred to 3b.5+.</li>
+    <li><strong>Created the <code>super_admins</code> table</strong> for platform-level admin roles, plus a dry-run seed script for the first bootstrap admin.</li>
+    <li><strong>Bootstrapped the first Super Admin account</strong> — auth user created via Admin API, <code>super_admins</code> row seeded, credentials shared with Jeff out of band.</li>
+  </ol>
+
+  <h2>Git Verification</h2>
+  <div class="info">
+    <strong>Branch:</strong> <code>feature/phase3b-auth-shell</code><br>
+    <strong>Commit:</strong> <code>050c7d0e918b5df56c1093a3c3cf907d3126dcf9</code><br>
+    <strong>git ls-remote output:</strong>
+  </div>
+  <pre>050c7d0e918b5df56c1093a3c3cf907d3126dcf9	refs/heads/feature/phase3b-auth-shell</pre>
+
+  <h2>Brand Alignment</h2>
+  <div class="info">
+    <strong>Light-themed, glassmorphism design</strong> — verified against live syntaxure.dev CSS custom properties.
+    <ul style="margin: 0.5rem 0 0;">
+      <li>Background: <code>#eef2f6</code> (light, not dark void)</li>
+      <li>Form panel: glassmorphism with <code>backdrop-blur-xl</code> + translucent bg</li>
+      <li>Typography: Inter for body, JetBrains Mono for button/label type treatment</li>
+      <li>Copy: Professional, plain language — "Sign in" not "Initiate Uplink"</li>
+    </ul>
+  </div>
+
+  <h2>Login Page Previews</h2>
+  
+  <div class="login-preview">
+    <div class="login-preview-header">apps/web — Energy Monitoring Login</div>
+    <div class="login-preview-body">
+      <div class="login-preview-brand">
+        <div>
+          <strong>Syntaxure Labs</strong>
+        </div>
+        <div>
+          <h1>Energy Monitoring</h1>
+          <p>Real-time energy monitoring for your building.</p>
+        </div>
+      </div>
+      <div class="login-preview-form">
+        <div class="login-preview-card">
+          <div class="login-preview-field">
+            <label class="login-preview-label">Email</label>
+            <div class="login-preview-input">user@example.com</div>
+          </div>
+          <div class="login-preview-field">
+            <label class="login-preview-label">Password</label>
+            <div class="login-preview-input">••••••••</div>
+          </div>
+          <button class="login-preview-button">Sign in</button>
+          <div class="login-preview-footer">Access is limited to authorized accounts.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="login-preview">
+    <div class="login-preview-header">apps/super-admin — Super Admin Login</div>
+    <div class="login-preview-body">
+      <div class="login-preview-brand">
+        <div>
+          <strong>Syntaxure Labs</strong>
+        </div>
+        <div>
+          <h1>Super Admin</h1>
+          <p>Manage tenants, users, and system settings for Syntaxure Labs.</p>
+        </div>
+      </div>
+      <div class="login-preview-form">
+        <div class="login-preview-card">
+          <div class="login-preview-field">
+            <label class="login-preview-label">Email</label>
+            <div class="login-preview-input">admin@syntaxure.dev</div>
+          </div>
+          <div class="login-preview-field">
+            <label class="login-preview-label">Password</label>
+            <div class="login-preview-input">••••••••</div>
+          </div>
+          <button class="login-preview-button">Sign in</button>
+          <div class="login-preview-footer">Access is limited to authorized accounts.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Files Created/Modified</h2>
+  
+  <h3>New Files</h3>
+  <table>
+    <tr>
+      <th>Path</th>
+      <th>Description</th>
+    </tr>
+    <tr>
+      <td><code>packages/ui/package.json</code></td>
+      <td>UI component library package definition</td>
+    </tr>
+    <tr>
+      <td><code>packages/ui/tsconfig.json</code></td>
+      <td>TypeScript configuration</td>
+    </tr>
+    <tr>
+      <td><code>packages/ui/src/index.ts</code></td>
+      <td>Package entry point exporting AuthSplitLayout</td>
+    </tr>
+    <tr>
+      <td><code>packages/ui/src/AuthSplitLayout.tsx</code></td>
+      <td>Shared split-view auth layout component</td>
+    </tr>
+    <tr>
+      <td><code>apps/super-admin/package.json</code></td>
+      <td>Super Admin app package definition</td>
+    </tr>
+    <tr>
+      <td><code>apps/super-admin/next.config.ts</code></td>
+      <td>Next.js configuration</td>
+    </tr>
+    <tr>
+      <td><code>apps/super-admin/vercel.json</code></td>
+      <td>Vercel deployment config with turbo-ignore</td>
+    </tr>
+    <tr>
+      <td><code>apps/super-admin/tsconfig.json</code></td>
+      <td>TypeScript configuration</td>
+    </tr>
+    <tr>
+      <td><code>apps/super-admin/postcss.config.mjs</code></td>
+      <td>PostCSS configuration for Tailwind</td>
+    </tr>
+    <tr>
+      <td><code>apps/super-admin/eslint.config.mjs</code></td>
+      <td>ESLint configuration</td>
+    </tr>
+    <tr>
+      <td><code>apps/super-admin/src/app/layout.tsx</code></td>
+      <td>Root layout</td>
+    </tr>
+    <tr>
+      <td><code>apps/super-admin/src/app/globals.css</code></td>
+      <td>Global styles</td>
+    </tr>
+    <tr>
+      <td><code>apps/super-admin/src/app/page.tsx</code></td>
+      <td>Root page (redirects to /login)</td>
+    </tr>
+    <tr>
+      <td><code>apps/super-admin/src/app/login/page.tsx</code></td>
+      <td>Login page using AuthSplitLayout</td>
+    </tr>
+    <tr>
+      <td><code>apps/super-admin/src/app/login/actions.ts</code></td>
+      <td>Server action for login</td>
+    </tr>
+    <tr>
+      <td><code>apps/web/src/app/login/page.tsx</code></td>
+      <td>Login page using AuthSplitLayout</td>
+    </tr>
+    <tr>
+      <td><code>apps/web/src/app/login/actions.ts</code></td>
+      <td>Server action for login</td>
+    </tr>
+    <tr>
+      <td><code>supabase/migrations/20260910210000_phase3b_super_admins.sql</code></td>
+      <td>super_admins table — platform-level admin roles (audit trail, decision #24)</td>
+    </tr>
+    <tr>
+      <td><code>supabase/migrations/DRY_RUN_seed_super_admin.sql</code></td>
+      <td>Dry-run seed script for first bootstrap Super Admin (not run — Jeff confirms email first)</td>
+    </tr>
+    <tr>
+      <td><code>scripts/bootstrap-super-admin.ts</code></td>
+      <td>One-off bootstrap script: creates auth user + seeds super_admins. Run once via <code>npx tsx scripts/bootstrap-super-admin.ts</code></td>
+    </tr>
+  </table>
+
+  <h3>Modified Files</h3>
+  <table>
+    <tr>
+      <th>Path</th>
+      <th>Change</th>
+    </tr>
+    <tr>
+      <td><code>apps/web/package.json</code></td>
+      <td>Added <code>@energy/auth</code> and <code>@energy/ui</code> dependencies</td>
+    </tr>
+    <tr>
+      <td><code>apps/web/tsconfig.json</code></td>
+      <td>Added path aliases for workspace packages</td>
+    </tr>
+    <tr>
+      <td><code>apps/web/next.config.ts</code></td>
+      <td>Added <code>@energy/auth</code> and <code>@energy/ui</code> to transpilePackages</td>
+    </tr>
+    <tr>
+      <td><code>apps/web/src/components/AppShell.tsx</code></td>
+      <td>Hide app shell on /login route</td>
+    </tr>
+    <tr>
+      <td><code>AGENTS.md</code></td>
+      <td>Added rule: push + <code>git ls-remote</code> verification required before reporting task complete</td>
+    </tr>
+    <tr>
+      <td><code>.gitignore</code></td>
+      <td>Added <code>supabase/.temp/</code> and PlatformIO entries</td>
+    </tr>
+  </table>
+
+  <h2>Super Admin Schema</h2>
+  <div class="info">
+    <strong><code>super_admins</code> table</strong> — platform-level, outside the tenancy model.
+    <ul style="margin: 0.5rem 0 0;">
+      <li><code>user_id</code> — UUID PK, references <code>auth.users(id)</code></li>
+      <li><code>granted_by</code> — UUID FK to <code>auth.users(id)</code> (self-granted for bootstrap)</li>
+      <li><code>granted_at</code> — TIMESTAMPTZ, defaults to NOW()</li>
+      <li><code>revoked_at</code> — nullable TIMESTAMPTZ; NULL = active, non-NULL = revoked</li>
+      <li>Rows are <strong>never deleted</strong> — revocation sets <code>revoked_at</code>, preserving the audit trail (decision #24)</li>
+      <li>Partial index on active admins: <code>WHERE revoked_at IS NULL</code></li>
+    </ul>
+  </div>
+
+  <div class="warning">
+    <strong>Seed script requires Jeff's confirmation</strong><br>
+    <code>DRY_RUN_seed_super_admin.sql</code> targets <code>jeff@syntaxure.dev</code> as the first bootstrap admin. Confirm or edit the email before running. The account must exist in <code>auth.users</code> first — the script does not create auth accounts.
+  </div>
+
+  <h2>Bootstrap Execution</h2>
+  <div class="success">
+    <strong>✓ First Super Admin account created</strong><br>
+    Email: <code>admin@gmail.com</code><br>
+    Auth user created via <code>supabase.auth.admin.createUser</code> with <code>email_confirm: true</code>.<br>
+    <code>super_admins</code> row seeded (self-granted bootstrap pattern).<br>
+    <strong>Credentials shared with Jeff in session output only — never written to any file.</strong>
+  </div>
+  <p>
+    The bootstrap script (<code>scripts/bootstrap-super-admin.ts</code>) is a one-time tool, not a reusable admin-creation feature. It:
+  </p>
+  <ul>
+    <li>Generates a 20-character random password server-side (mixed case, digits, symbols)</li>
+    <li>Creates the auth user with <code>email_confirm: true</code> (no email verification flow exists yet)</li>
+    <li>Inserts into <code>super_admins</code> with <code>granted_by = user_id</code> (self-granted bootstrap)</li>
+    <li>Rolls back the auth user if the <code>super_admins</code> insert fails</li>
+    <li>Prints credentials to stdout only — never to files, logs, or docs reports</li>
+  </ul>
+
+  <h2>AGENTS.md Update</h2>
+  <p>New rule added under "Deployments & Git Hygiene":</p>
+  <blockquote style="border-left: 3px solid #e2e8f0; padding-left: 1rem; color: #475569;">
+    Before reporting any task complete, push the branch and verify with <code>git ls-remote</code> that the commit actually exists on origin. A task is not complete if its work only exists locally — "done" means "pushed and verifiable," not "written."
+  </blockquote>
+
+  <h2>AuthSplitLayout Component</h2>
+  <p>The shared component matches the light/glass specification:</p>
+  <ul>
+    <li><strong>Left panel (brand):</strong> Hidden on mobile, shows Syntaxure Labs branding with subtle dot grid pattern and cyan gradient</li>
+    <li><strong>Right panel (form):</strong> Always visible, glassmorphism card with backdrop-blur</li>
+    <li><strong>Props:</strong> <code>productName</code>, <code>tagline</code>, <code>children</code> (the form)</li>
+  </ul>
+
+  <h2>Build Verification</h2>
+  <table>
+    <tr>
+      <th>App</th>
+      <th>Type-check</th>
+      <th>Build</th>
+    </tr>
+    <tr>
+      <td>@energy/ui</td>
+      <td>✓</td>
+      <td>✓</td>
+    </tr>
+    <tr>
+      <td>web</td>
+      <td>✓</td>
+      <td>✓</td>
+    </tr>
+    <tr>
+      <td>@energy/super-admin</td>
+      <td>✓</td>
+      <td>✓</td>
+    </tr>
+    <tr>
+      <td>@energy/admin (unchanged)</td>
+      <td>✓</td>
+      <td>✓</td>
+    </tr>
+  </table>
+
+  <h2>Permission Set Correction</h2>
+  <div class="info">
+    <strong>9 permissions total</strong> — <code>manage_users</code> added alongside <code>manage_billing</code> per Jeff's confirmation.
+  </div>
+
+  <h3>WVSU OWNER Membership — Before/After</h3>
+  <table>
+    <tr>
+      <th>Permission</th>
+      <th>Before (8 rows)</th>
+      <th>After (9 rows)</th>
+    </tr>
+    <tr><td>view_energy</td><td>✓</td><td>✓</td></tr>
+    <tr><td>control_relay</td><td>✓</td><td>✓</td></tr>
+    <tr><td>manage_devices</td><td>✓</td><td>✓</td></tr>
+    <tr><td>provision_device</td><td>✓</td><td>✓</td></tr>
+    <tr><td>replace_device</td><td>✓</td><td>✓</td></tr>
+    <tr><td>reassign_emu</td><td>✓</td><td>✓</td></tr>
+    <tr><td>manage_billing</td><td>✓</td><td>✓</td></tr>
+    <tr><td>manage_users</td><td style="color:#dc2626">✗ missing</td><td style="color:#16a34a">✓ added</td></tr>
+    <tr><td>view_reports</td><td>✓</td><td>✓</td></tr>
+  </table>
+
+  <h3>Role Defaults (corrected)</h3>
+  <table>
+    <tr>
+      <th>Role</th>
+      <th>Permissions</th>
+      <th>Count</th>
+    </tr>
+    <tr>
+      <td>OWNER</td>
+      <td>all 9</td>
+      <td>9</td>
+    </tr>
+    <tr>
+      <td>ADMIN</td>
+      <td>all except <code>reassign_emu</code></td>
+      <td>8</td>
+    </tr>
+    <tr>
+      <td>OPERATOR</td>
+      <td>view_energy, control_relay, manage_devices, provision_device, replace_device</td>
+      <td>5</td>
+    </tr>
+    <tr>
+      <td>VIEWER</td>
+      <td>view_energy</td>
+      <td>1</td>
+    </tr>
+  </table>
+
+  <h2>Next Steps</h2>
+  <ul>
+    <li><strong>3b.5:</strong> Migrate <code>apps/admin</code> login to use AuthSplitLayout</li>
+    <li><strong>3b.5:</strong> Add super-admin feature logic (customer provisioning, audit log, etc.)</li>
+    <li><strong>Future:</strong> Add Syntaxure logo mark to AuthSplitLayout brand panel</li>
+  </ul>
+
+  <footer style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 0.875rem;">
+    Updated on September 10, 2026 — merged to develop, permission set corrected (9 permissions)
+  </footer>
+</body>
+</html>

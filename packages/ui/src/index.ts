@@ -1,0 +1,1 @@
+export { AuthSplitLayout } from "./AuthSplitLayout";

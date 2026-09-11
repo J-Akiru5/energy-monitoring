@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getBillingRate, getSupabaseAdmin } from "@energy/database";
+import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
 
 export const dynamic = "force-dynamic";
+
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+};
+
+function noStoreJson(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: NO_STORE_HEADERS });
+}
 
 const PH_OFFSET_MS = 8 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -187,6 +199,17 @@ function buildBucketedChart(readings: ReadingRow[], metric: HistoryMetric) {
   }));
 }
 
+/**
+ * GET /api/history?deviceId=<id>&period=day&date=2026-09-10&metric=energy_kwh
+ * Returns chart data + summary for the history view.
+ *
+ * Auth: requires a logged-in session with "view_energy" on some customer.
+ * resolveAccess() resolves which customer the caller is authorized for —
+ * that customerId is then passed down into the query functions, which
+ * explicitly filter power_readings and alerts by it. This is the actual
+ * isolation boundary: the queries use the service-role client (bypasses
+ * RLS), so scoping happens here, not at the database layer.
+ */
 export async function GET(req: NextRequest) {
   try {
     const deviceId = req.nextUrl.searchParams.get("deviceId");
@@ -195,35 +218,60 @@ export async function GET(req: NextRequest) {
     const metricParam = req.nextUrl.searchParams.get("metric") ?? "energy_kwh";
 
     if (!deviceId) {
-      return NextResponse.json({ error: "Missing deviceId" }, { status: 400 });
+      return noStoreJson({ error: "Missing deviceId" }, 400);
     }
 
     if (!["day", "week", "month"].includes(periodParam)) {
-      return NextResponse.json({ error: "Invalid period" }, { status: 400 });
+      return noStoreJson({ error: "Invalid period" }, 400);
     }
 
     if (!["energy_kwh", "power_w", "current_amp", "voltage"].includes(metricParam)) {
-      return NextResponse.json({ error: "Invalid metric" }, { status: 400 });
+      return noStoreJson({ error: "Invalid metric" }, 400);
+    }
+
+    // ── Authenticate the caller ───────────────────────────────
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return noStoreJson({ error: "Not authenticated" }, 401);
+    }
+
+    // ── Resolve which customer this caller is authorized for ──
+    let customerId: string;
+    try {
+      const access = await resolveAccess(user.id, "view_energy");
+      customerId = access.customerId;
+    } catch (err) {
+      if (err instanceof AccessDeniedError) {
+        return noStoreJson({ error: err.message }, 403);
+      }
+      throw err;
     }
 
     const period = periodParam as HistoryPeriod;
     const metric = metricParam as HistoryMetric;
     const { start, end } = getRangeBounds(period, dateParam);
-    const supabase = getSupabaseAdmin();
+    const serviceSupabase = getSupabaseAdmin();
 
     const [readingsResult, alertsResult, billingRate] = await Promise.all([
-      supabase
+      serviceSupabase
         .from("power_readings")
         .select("id, voltage, current_amp, power_w, energy_kwh, recorded_at")
         .eq("device_id", deviceId)
+        .eq("customer_id", customerId)
         .gte("recorded_at", start.toISOString())
         .lt("recorded_at", end.toISOString())
         .order("recorded_at", { ascending: true })
         .order("id", { ascending: true }),
-      supabase
+      serviceSupabase
         .from("alerts")
         .select("id, type, message, value, threshold, created_at, is_read")
         .eq("device_id", deviceId)
+        .eq("customer_id", customerId)
         .gte("created_at", start.toISOString())
         .lt("created_at", end.toISOString())
         .order("created_at", { ascending: false })
@@ -247,7 +295,7 @@ export async function GET(req: NextRequest) {
       ? buildDayChart(readings, metric)
       : buildBucketedChart(readings, metric);
 
-    return NextResponse.json({
+    return noStoreJson({
       period,
       date: dateParam,
       rangeStart: start.toISOString(),
@@ -258,13 +306,9 @@ export async function GET(req: NextRequest) {
       summary,
       alerts,
       sampleCount: readings.length,
-    }, {
-      headers: {
-        "Cache-Control": "no-store",
-      },
     });
   } catch (err) {
     console.error("[/api/history] Error:", err);
-    return NextResponse.json({ error: "Failed to fetch history" }, { status: 500 });
+    return noStoreJson({ error: "Failed to fetch history" }, 500);
   }
 }

@@ -14,6 +14,11 @@ function isActivePath(pathname: string, href: string) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { deviceId } = usePrimaryDevice();
+
+  // Hide the app shell entirely on the login screen
+  if (pathname === "/login") {
+    return <>{children}</>;
+  }
   const { latestReading, isConnected } = usePolling(deviceId);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [alertsCount, setAlertsCount] = useState(0);

@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
  *   Path A: Valid X-Relay-Secret header (machine-to-machine, e.g. admin proxy)
  *   Path B: Valid session with "control_relay" granted (user-initiated)
  *
- * Path A is the legacy mechanism from fix/relay-auth-gate: the admin app's
+ * Path A is the mechanism from fix/relay-auth-gate: the admin app's
  * same-origin proxy attaches RELAY_ADMIN_SECRET server-side so it never
  * reaches the browser. The ESP32 can also use this path for status checks.
  *
@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
  * via either Path A (secret) or Path B (session).
  *
  * Separated into its own function so the dual-auth gateway above
- * stays clean and readable.
+ * stays clean and readable.  Does NOT perform any auth checks itself.
  */
 async function handleRelayCommand(req: NextRequest) {
   try {

@@ -19,7 +19,15 @@ export interface DeviceBlackoutState {
 }
 
 /**
- * Get current blackout state for a device
+ * Get current blackout state for a device.
+ *
+ * device_blackout_state has no customer_id column (1:1 with devices).
+ * Scoping is enforced at the RLS layer via the controllers bridge path:
+ *   devices ← controllers.legacy_device_id → controllers.emu_id →
+ *   emus.owner_customer_id → memberships.customer_id.
+ * At the application layer, this function trusts that the caller
+ * already validated device ownership via resolveAccess() before
+ * calling — the deviceId came from a customer-scoped source.
  */
 export async function getDeviceBlackoutState(
   deviceId: string
@@ -146,10 +154,18 @@ export async function endBlackoutEvent(deviceId: string): Promise<boolean> {
 }
 
 /**
- * Get blackout events for a device within a time range
+ * Get blackout events for a device within a time range.
+ *
+ * @param customerId  The caller's authorized customer, resolved via
+ *                     resolveAccess() at the API-route layer and passed in —
+ *                     never re-resolved here. getSupabaseAdmin() is a
+ *                     service-role client and bypasses RLS entirely, so this
+ *                     explicit filter is the actual isolation boundary for
+ *                     this query, not just defense in depth.
  */
 export async function getBlackoutEvents(
   deviceId: string,
+  customerId: string,
   startDate: string,
   endDate: string
 ): Promise<BlackoutEvent[]> {
@@ -159,6 +175,7 @@ export async function getBlackoutEvents(
     .from("blackout_events")
     .select("*")
     .eq("device_id", deviceId)
+    .eq("customer_id", customerId)
     .gte("started_at", startDate)
     .lt("started_at", endDate)
     .order("started_at", { ascending: false });
@@ -180,10 +197,13 @@ export async function getBlackoutEvents(
 }
 
 /**
- * Get blackout statistics for a time period
+ * Get blackout statistics for a time period.
+ *
+ * @param customerId  See getBlackoutEvents — resolved upstream, not here.
  */
 export async function getBlackoutStats(
   deviceId: string,
+  customerId: string,
   startDate: string,
   endDate: string
 ): Promise<{
@@ -194,7 +214,7 @@ export async function getBlackoutStats(
   longestDurationSeconds: number;
   shortestDurationSeconds: number;
 }> {
-  const events = await getBlackoutEvents(deviceId, startDate, endDate);
+  const events = await getBlackoutEvents(deviceId, customerId, startDate, endDate);
 
   const completedEvents = events.filter((e) => e.endedAt !== null);
   const durations = completedEvents

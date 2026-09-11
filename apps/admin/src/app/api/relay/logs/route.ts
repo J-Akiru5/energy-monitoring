@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { getRelayLogs } from "@energy/database";
+import { getSupabaseAdmin, getRelayLogs } from "@energy/database";
 import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
 
 export const dynamic = "force-dynamic";
@@ -18,12 +18,8 @@ function getRelayConfigError() {
 }
 
 /**
- * GET /api/relay/logs?deviceId=<uuid>&customerId=<uuid>&limit=50
- * Returns relay action logs for a device.
- *
- * For regular members, customerId is resolved from their membership.
- * For super admins (undefined customerId), the customerId query param
- * is required.
+ * GET /api/relay/logs?deviceId=<uuid>&limit=50
+ * Returns relay action logs for a device
  */
 export async function GET(req: NextRequest) {
   const configError = getRelayConfigError();
@@ -37,7 +33,6 @@ export async function GET(req: NextRequest) {
   try {
     const deviceId = req.nextUrl.searchParams.get("deviceId");
     const limit = parseInt(req.nextUrl.searchParams.get("limit") || "50");
-    const customerIdParam = req.nextUrl.searchParams.get("customerId");
 
     if (!deviceId) {
       return NextResponse.json({ error: "Missing deviceId" }, { status: 400 });
@@ -51,18 +46,11 @@ export async function GET(req: NextRequest) {
     }
 
     let customerId: string;
+    let isSuperAdmin: boolean;
     try {
       const access = await resolveAccess(user.id, "view_energy");
-      if (access.customerId) {
-        customerId = access.customerId;
-      } else if (customerIdParam) {
-        customerId = customerIdParam;
-      } else {
-        return NextResponse.json(
-          { error: "Super admin must provide customerId query param" },
-          { status: 400 }
-        );
-      }
+      customerId = access.customerId;
+      isSuperAdmin = access.isSuperAdmin;
     } catch (err) {
       if (err instanceof AccessDeniedError) {
         return NextResponse.json({ error: err.message }, { status: 403 });
@@ -70,7 +58,10 @@ export async function GET(req: NextRequest) {
       throw err;
     }
 
-    const logs = await getRelayLogs(deviceId, customerId, limit);
+    // Super Admins see all relay logs for the device; normal users are scoped to their customer.
+    const logs = isSuperAdmin
+      ? (await getSupabaseAdmin().from("relay_logs").select("*").eq("device_id", deviceId).order("created_at", { ascending: false }).limit(limit)).data
+      : await getRelayLogs(deviceId, customerId, limit);
     return NextResponse.json({ logs });
   } catch (err) {
     console.error("[/api/relay/logs] GET Error:", err);

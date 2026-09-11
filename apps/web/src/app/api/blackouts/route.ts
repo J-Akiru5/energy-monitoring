@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getBlackoutEvents, getBlackoutStats } from "@energy/database";
+import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
 
 export const dynamic = "force-dynamic";
+
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+};
+
+function noStoreJson(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: NO_STORE_HEADERS });
+}
 
 const PH_OFFSET_MS = 8 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -65,6 +77,11 @@ function getPhTodayKey() {
  *
  * Returns blackout events and statistics for the specified device and time period.
  * Used by the History page's Blackout Monitoring section.
+ *
+ * Auth: requires a logged-in session with "view_energy" on some customer.
+ * resolveAccess() resolves which customer the caller is authorized for —
+ * that customerId is then passed down into the query functions, which
+ * explicitly filter blackout_events by it.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -73,19 +90,42 @@ export async function GET(req: NextRequest) {
     const dateParam = req.nextUrl.searchParams.get("date") ?? getPhTodayKey();
 
     if (!deviceId) {
-      return NextResponse.json({ error: "Missing deviceId" }, { status: 400 });
+      return noStoreJson({ error: "Missing deviceId" }, 400);
     }
 
     if (!["day", "week", "month"].includes(periodParam)) {
-      return NextResponse.json({ error: "Invalid period" }, { status: 400 });
+      return noStoreJson({ error: "Invalid period" }, 400);
+    }
+
+    // ── Authenticate the caller ───────────────────────────────
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return noStoreJson({ error: "Not authenticated" }, 401);
+    }
+
+    // ── Resolve which customer this caller is authorized for ──
+    let customerId: string;
+    try {
+      const access = await resolveAccess(user.id, "view_energy");
+      customerId = access.customerId;
+    } catch (err) {
+      if (err instanceof AccessDeniedError) {
+        return noStoreJson({ error: err.message }, 403);
+      }
+      throw err;
     }
 
     const period = periodParam as Period;
     const { start, end } = getRangeBounds(period, dateParam);
 
     const [events, stats] = await Promise.all([
-      getBlackoutEvents(deviceId, start.toISOString(), end.toISOString()),
-      getBlackoutStats(deviceId, start.toISOString(), end.toISOString()),
+      getBlackoutEvents(deviceId, customerId, start.toISOString(), end.toISOString()),
+      getBlackoutStats(deviceId, customerId, start.toISOString(), end.toISOString()),
     ]);
 
     // Format events for UI
@@ -108,7 +148,7 @@ export async function GET(req: NextRequest) {
       isOngoing: event.endedAt === null,
     }));
 
-    return NextResponse.json({
+    return noStoreJson({
       period,
       date: dateParam,
       rangeStart: start.toISOString(),
@@ -124,6 +164,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error("[/api/blackouts] Error:", err);
-    return NextResponse.json({ error: "Failed to fetch blackout data" }, { status: 500 });
+    return noStoreJson({ error: "Failed to fetch blackout data" }, 500);
   }
 }

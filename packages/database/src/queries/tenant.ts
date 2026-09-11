@@ -26,18 +26,27 @@ export async function lookupControllerByDevice(
 ): Promise<TenantStamp | null> {
   const supabase = getSupabaseAdmin();
 
+  // NOTE: emu_installations is embedded under `emus`, not directly under
+  // `controllers` — there's no FK from controllers to emu_installations
+  // (only controllers -> emus -> emu_installations, both via emu_id).
+  // Embedding it directly under controllers fails with PGRST200 ("no
+  // relationship found") and, because that error is swallowed below for
+  // graceful degradation, silently produced an all-NULL tenant stamp on
+  // every ingest — this bug predates this fix and was found while
+  // generating Phase 3b.3 test data.
   const { data, error } = await supabase
     .from("controllers")
     .select(`
       id,
       emu_id,
-      emu_installations (
-        id
-      ),
       emus (
         owner_customer_id,
         emu_configurations (
           phase_mode,
+          ended_at
+        ),
+        emu_installations (
+          id,
           ended_at
         )
       )
@@ -48,15 +57,15 @@ export async function lookupControllerByDevice(
 
   if (error || !data) return null;
 
-  // Extract the current installation (ended_at IS NULL)
-  const installations = data.emu_installations as unknown as Array<{ id: string }> | null;
-  const currentInstallation = installations?.find(() => true) ?? null;
-
-  // Extract the current configuration (ended_at IS NULL)
   const emus = data.emus as unknown as {
     owner_customer_id: string;
     emu_configurations: Array<{ phase_mode: string; ended_at: string | null }> | null;
+    emu_installations: Array<{ id: string; ended_at: string | null }> | null;
   } | null;
+
+  // Extract the current installation (ended_at IS NULL)
+  const currentInstallation =
+    emus?.emu_installations?.find((i) => i.ended_at === null) ?? null;
 
   const currentConfig = emus?.emu_configurations?.find(
     (c) => c.ended_at === null
