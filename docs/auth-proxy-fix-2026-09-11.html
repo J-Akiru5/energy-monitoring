@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auth Proxy Fix — 2026-09-11</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; line-height: 1.6; }
+    h1 { font-size: 1.5rem; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.5rem; }
+    h2 { font-size: 1.2rem; color: #374151; margin-top: 1.5rem; }
+    .meta { color: #6b7280; font-size: 0.9rem; margin-bottom: 2rem; }
+    .verdict { padding: 1rem; border-radius: 8px; margin: 1rem 0; font-weight: 600; }
+    .verdict.broken { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+    .verdict.fixed { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #e5e7eb; }
+    th { font-weight: 600; color: #374151; }
+    code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+    pre { background: #f3f4f6; padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.85rem; }
+    .file { color: #2563eb; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Auth Proxy Fix — Session Middleware Missing in Web App</h1>
+  <div class="meta">Date: 2026-09-11 | Branch: main | Commit: e336e0c</div>
+
+  <div class="verdict broken">
+    FINDING: apps/web had no proxy.ts — session refresh and unauthenticated route protection were completely non-functional.
+  </div>
+
+  <div class="verdict fixed">
+    FIX APPLIED: Created apps/web/src/proxy.ts, updated updateSession to exclude /api/thresholds/esp32 (device token auth).
+  </div>
+
+  <h2>Root Cause</h2>
+  <p>The <code>updateSession</code> function in <code>packages/auth/src/middleware.ts</code> was exported but never invoked. The web app had no <code>proxy.ts</code> file (Next.js 16's session middleware entry point), so the function was dead code.</p>
+
+  <h2>Impact (pre-fix)</h2>
+  <table>
+    <tr><th>Check</th><th>Result</th></tr>
+    <tr><td>Session refresh on page load</td><td>Never happened — cookies expired silently</td></tr>
+    <tr><td>Unauthenticated access to /dashboard</td><td>Page served (no redirect to /login)</td></tr>
+    <tr><td>Unauthenticated access to /relay, /alerts, etc.</td><td>Page served (broken API calls)</td></tr>
+    <tr><td>Login action (signInWithPassword)</td><td>Worked — created session cookies</td></tr>
+    <tr><td>setAll cookie error handling</td><td>Swallowed silently (server.ts:17 assumes middleware exists)</td></tr>
+  </table>
+
+  <h2>Fix Details</h2>
+  <table>
+    <tr><th>File</th><th>Change</th></tr>
+    <tr>
+      <td class="file">apps/web/src/proxy.ts</td>
+      <td>Created — imports and calls <code>updateSession</code> from <code>@energy/auth</code>. Matcher excludes static files only.</td>
+    </tr>
+    <tr>
+      <td class="file">packages/auth/src/middleware.ts</td>
+      <td>Added <code>/api/thresholds/esp32</code> to exclusion list (device token auth, no session).</td>
+    </tr>
+  </table>
+
+  <h2>Admin Verification</h2>
+  <p><code>apps/admin/src/proxy.ts</code> exists and compiles clean. Same pattern as web. No changes needed.</p>
+
+  <h2>Deployment</h2>
+  <table>
+    <tr><th>App</th><th>Commit</th><th>Status</th></tr>
+    <tr><td>energy-monitoring-web</td><td>e336e0c</td><td>Production — deployed</td></tr>
+    <tr><td>energy-monitoring-admin</td><td>e336e0c</td><td>Production — deployed</td></tr>
+  </table>
+
+  <h2>What This Enables</h2>
+  <ul>
+    <li>Supabase auth sessions now refresh on every page load (via middleware)</li>
+    <li>Unauthenticated users are redirected to /login at the edge (not after page load)</li>
+    <li>Logged-in users hitting /login are redirected to / (not shown login form)</li>
+    <li>ESP32 device token routes (/api/thresholds/esp32) continue to work without session</li>
+  </ul>
+
+  <h2>Still Requires Manual Browser Testing</h2>
+  <p>This fix enables the middleware, but the actual login flow, session persistence, and logout behavior should be verified in a real browser against the production URL. The code is correct; the runtime behavior needs human confirmation.</p>
+</body>
+</html>
