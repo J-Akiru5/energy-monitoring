@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vercel Branch Gating — CI/CD Policy Change Report</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --purple: #bc8cff;
+    --orange: #e3b341;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 40px 20px;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 26px; margin-bottom: 6px; }
+  h2 { font-size: 20px; margin-top: 36px; margin-bottom: 12px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 15px; margin-top: 20px; margin-bottom: 8px; color: var(--text); }
+  .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 36px; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 6px;
+  }
+  .badge.green { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.4); }
+  .badge.blue  { background: rgba(88,166,255,0.12); color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
+  .badge.yellow{ background: rgba(210,153,34,0.15); color: var(--yellow); border: 1px solid rgba(210,153,34,0.4); }
+  .badge.red   { background: rgba(248,81,73,0.15); color: var(--red); border: 1px solid rgba(248,81,73,0.4); }
+  .badge.purple{ background: rgba(188,140,255,0.15); color: var(--purple); border: 1px solid rgba(188,140,255,0.3); }
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .callout.warning { border-left-color: var(--yellow); }
+  .callout.success { border-left-color: var(--green); }
+  .callout.danger  { border-left-color: var(--red); }
+  .callout-title { font-weight: 600; margin-bottom: 6px; }
+  code {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 12.5px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    font-size: 12.5px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    line-height: 1.6;
+    margin: 12px 0;
+  }
+  pre .comment { color: var(--text-muted); }
+  pre .keyword { color: var(--purple); }
+  pre .string  { color: var(--green); }
+  pre .var     { color: var(--accent); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin: 16px 0;
+  }
+  th {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  td {
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  .files-changed {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin: 16px 0;
+  }
+  .file-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+  }
+  .file-card .file-path {
+    font-family: monospace;
+    font-size: 13px;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .file-card .file-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .flow-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .flow-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 16px;
+  }
+  .flow-card h4 { font-size: 13px; margin-bottom: 8px; }
+  .flow-card.before h4 { color: var(--red); }
+  .flow-card.after h4  { color: var(--green); }
+  .flow-card ul { padding-left: 18px; font-size: 13px; color: var(--text-muted); }
+  .flow-card li { margin: 4px 0; }
+  .meta { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 28px; }
+  .meta-item { font-size: 13px; color: var(--text-muted); }
+  .meta-item strong { color: var(--text); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 36px 0; }
+  .commit-hash {
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--purple);
+    background: rgba(188,140,255,0.1);
+    border: 1px solid rgba(188,140,255,0.2);
+    border-radius: 4px;
+    padding: 1px 6px;
+  }
+  @media (max-width: 640px) {
+    .flow-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Vercel Branch Gating — CI/CD Policy Change</h1>
+  <p class="subtitle">Permanent deployment allowlist enforcement for the Energy Monitoring monorepo</p>
+
+  <div class="meta">
+    <div class="meta-item"><strong>Date:</strong> 2026-09-11</div>
+    <div class="meta-item"><strong>Branch:</strong> <code>chore/vercel-branch-gating</code></div>
+    <div class="meta-item"><strong>Commit:</strong> <span class="commit-hash">a0436340</span></div>
+    <div class="meta-item"><strong>Author:</strong> Antigravity Lead Architect</div>
+    <div class="meta-item"><strong>Scope:</strong> CI/CD — All 3 Vercel apps</div>
+  </div>
+
+  <div style="margin-bottom: 24px;">
+    <span class="badge green">✓ Pushed & Verified</span>
+    <span class="badge blue">CI/CD Policy</span>
+    <span class="badge yellow">Permanent Change</span>
+  </div>
+
+  <h2>1. Problem Statement</h2>
+
+  <p style="font-size:14px; color: var(--text-muted); margin-bottom: 12px;">
+    Every branch pushed to origin triggered a full Vercel preview deployment for all three apps
+    (<code>web</code>, <code>admin</code>, <code>super-admin</code>). The existing <code>turbo-ignore</code>
+    setup correctly gates builds per-app based on <em>which files changed</em>, but has no concept
+    of <em>which branch</em> it is on. A feature branch that touches shared packages would still
+    deploy all three apps.
+  </p>
+
+  <div class="callout danger">
+    <div class="callout-title">⚠ Confirmed Cost Driver</div>
+    During the multi-agent Phase 3b.3 session (2026-09-11), the following throwaway branches
+    each triggered their own full preview deployment cycle:
+    <ul style="padding-left:18px; margin-top:8px; font-size:13px;">
+      <li><code>fix/relay-critical-merge</code></li>
+      <li><code>chore/vercel-supabase-diag</code></li>
+      <li><code>fix/superadmin-access-bypass</code></li>
+      <li><code>fix/role-permissions-manage-users</code></li>
+      <li><code>feature/phase3b3-rls-slice-one</code></li>
+    </ul>
+  </div>
+
+  <div class="flow-grid">
+    <div class="flow-card before">
+      <h4>⚠ BEFORE — Uncontrolled</h4>
+      <ul>
+        <li>Any branch push → preview build</li>
+        <li>Every agent worktree branch billed</li>
+        <li>turbo-ignore only checks file changes</li>
+        <li>~15+ builds per multi-agent session</li>
+        <li>Vercel dashboard cluttered with noise</li>
+      </ul>
+    </div>
+    <div class="flow-card after">
+      <h4>✓ AFTER — Pipeline-Gated</h4>
+      <ul>
+        <li>Only <code>main</code>, <code>staging</code>, <code>develop</code> build</li>
+        <li>Feature/fix/chore branches → silent skip</li>
+        <li>Allowlist check runs before turbo-ignore</li>
+        <li>~3 builds per full session max</li>
+        <li>Dashboard shows only meaningful deploys</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>2. Pipeline Branch Policy</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Branch</th>
+        <th>Role</th>
+        <th>Vercel Behaviour</th>
+        <th>Turbo-Ignore Applied?</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>main</code></td>
+        <td>Production</td>
+        <td>Production deployment triggered</td>
+        <td>Yes — still skips if app unchanged</td>
+      </tr>
+      <tr>
+        <td><code>staging</code></td>
+        <td>Pre-production / persistent preview</td>
+        <td>Dedicated staging preview URL</td>
+        <td>Yes — still skips if app unchanged</td>
+      </tr>
+      <tr>
+        <td><code>develop</code></td>
+        <td>Shared integration branch</td>
+        <td>Preview deployment triggered</td>
+        <td>Yes — still skips if app unchanged</td>
+      </tr>
+      <tr>
+        <td><code>feature/*</code>, <code>fix/*</code>, <code>chore/*</code>, <code>claude/*</code>, <code>copilot/*</code>, etc.</td>
+        <td>Work-in-progress</td>
+        <td><strong>Unconditionally skipped — exit 0</strong></td>
+        <td>No — never reached</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>3. Implementation</h2>
+
+  <h3>New File — <code>scripts/vercel-ignore.sh</code> (mode 755)</h3>
+  <p style="font-size:13px; color: var(--text-muted); margin-bottom: 10px;">
+    A single POSIX shell script at the monorepo root, called by each app's <code>ignoreCommand</code>.
+    Accepts the turbo-ignore filter as <code>$1</code>.
+  </p>
+
+  <pre><span class="comment">#!/bin/sh
+# Vercel Ignored Build Step — energy-monitoring monorepo
+# Exit codes: 0 = skip build, non-zero = proceed with build</span>
+
+<span class="var">ALLOWED_BRANCHES</span>=<span class="string">"main staging develop"</span>
+<span class="var">BRANCH</span>=<span class="string">"$VERCEL_GIT_COMMIT_REF"</span>
+
+<span class="keyword">case</span> <span class="string">" $ALLOWED_BRANCHES "</span> <span class="keyword">in</span>
+  *<span class="string">" $BRANCH "</span>*)
+    <span class="comment"># Allowlisted branch — delegate to turbo-ignore for per-app change detection</span>
+    echo <span class="string">"Branch '$BRANCH' is in the deploy allowlist — running turbo-ignore for $1"</span>
+    npx turbo-ignore <span class="string">"$1"</span>
+    ;;
+  *)
+    <span class="comment"># Non-allowlisted branch — skip unconditionally</span>
+    echo <span class="string">"Skipping build: branch '$BRANCH' is not in the deploy allowlist ($ALLOWED_BRANCHES)"</span>
+    exit 0
+    ;;
+<span class="keyword">esac</span></pre>
+
+  <h3>Modified Files — <code>vercel.json</code> in each app</h3>
+  <div class="files-changed">
+    <div class="file-card">
+      <div class="file-path">apps/web/vercel.json</div>
+      <div class="file-desc">
+        <code>"ignoreCommand"</code>: <code>"npx turbo-ignore web"</code>
+        → <code>"sh ../../scripts/vercel-ignore.sh web"</code>
+      </div>
+    </div>
+    <div class="file-card">
+      <div class="file-path">apps/admin/vercel.json</div>
+      <div class="file-desc">
+        <code>"ignoreCommand"</code>: <code>"npx turbo-ignore @energy/admin"</code>
+        → <code>"sh ../../scripts/vercel-ignore.sh @energy/admin"</code>
+      </div>
+    </div>
+    <div class="file-card">
+      <div class="file-path">apps/super-admin/vercel.json</div>
+      <div class="file-desc">
+        <code>"ignoreCommand"</code>: <code>"npx turbo-ignore @energy/super-admin"</code>
+        → <code>"sh ../../scripts/vercel-ignore.sh @energy/super-admin"</code>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">Path Convention</div>
+    The <code>../../</code> prefix matches the pattern already established by <code>installCommand</code>
+    and <code>buildCommand</code> in <code>apps/admin/vercel.json</code> — each app's Vercel Root Directory
+    is <code>apps/&lt;name&gt;</code>, making <code>../../scripts/</code> the correct relative path back
+    to the monorepo root.
+  </div>
+
+  <h2>4. Exit Code Contract</h2>
+
+  <table>
+    <thead>
+      <tr><th>Exit Code</th><th>Vercel Interpretation</th><th>When Returned</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>0</code></td>
+        <td>Skip this build — no deployment</td>
+        <td>Branch not in allowlist, OR turbo-ignore says no app-relevant changes</td>
+      </tr>
+      <tr>
+        <td><code>1</code> (non-zero)</td>
+        <td>Proceed with build and deployment</td>
+        <td>Branch in allowlist AND turbo-ignore detects app-relevant changes</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>5. Environment Variable Confirmation</h2>
+
+  <div class="callout success">
+    <div class="callout-title">✓ VERCEL_GIT_COMMIT_REF — Confirmed Available at Ignored Build Step</div>
+    <p style="font-size:13px; margin-top:6px;">
+      <code>VERCEL_GIT_COMMIT_REF</code> is a documented Vercel system environment variable set to the
+      branch name at Ignored Build Step evaluation time. It is available before the build starts,
+      making it the correct variable to use for branch-level gating in <code>ignoreCommand</code> scripts.
+      Reference: <a href="https://vercel.com/docs/projects/environment-variables/system-environment-variables"
+      style="color:var(--accent)">Vercel System Environment Variables</a>.
+    </p>
+  </div>
+
+  <h2>6. Logic Verification — Manual Test Matrix</h2>
+  <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">
+    The script's <code>case</code> pattern matching was tested against representative branch names from
+    this repository before pushing.
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>Branch Name</th><th>In Allowlist?</th><th>Script Outcome</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>main</code></td>
+        <td><span class="badge green">Yes</span></td>
+        <td>Delegates to turbo-ignore</td>
+        <td><span class="badge green">✓ CORRECT</span></td>
+      </tr>
+      <tr>
+        <td><code>staging</code></td>
+        <td><span class="badge green">Yes</span></td>
+        <td>Delegates to turbo-ignore</td>
+        <td><span class="badge green">✓ CORRECT</span></td>
+      </tr>
+      <tr>
+        <td><code>develop</code></td>
+        <td><span class="badge green">Yes</span></td>
+        <td>Delegates to turbo-ignore</td>
+        <td><span class="badge green">✓ CORRECT</span></td>
+      </tr>
+      <tr>
+        <td><code>feature/phase3b3-rls-slice-one</code></td>
+        <td><span class="badge red">No</span></td>
+        <td>exit 0 — unconditional skip</td>
+        <td><span class="badge green">✓ CORRECT</span></td>
+      </tr>
+      <tr>
+        <td><code>fix/relay-critical-merge</code></td>
+        <td><span class="badge red">No</span></td>
+        <td>exit 0 — unconditional skip</td>
+        <td><span class="badge green">✓ CORRECT</span></td>
+      </tr>
+      <tr>
+        <td><code>chore/vercel-supabase-diag</code></td>
+        <td><span class="badge red">No</span></td>
+        <td>exit 0 — unconditional skip</td>
+        <td><span class="badge green">✓ CORRECT</span></td>
+      </tr>
+      <tr>
+        <td><code>claude/repo-audit-weak-points-9a3407</code></td>
+        <td><span class="badge red">No</span></td>
+        <td>exit 0 — unconditional skip</td>
+        <td><span class="badge green">✓ CORRECT</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout warning">
+    <div class="callout-title">⚠ Edge Case — "mainline" or "staging-hotfix" prefix</div>
+    The case pattern uses space-delimited matching (<code>" $BRANCH "</code>) to prevent
+    partial matches. A branch named <code>mainline</code> or <code>staging-old</code> does <strong>not</strong>
+    match and will be correctly skipped. Only exact matches of <code>main</code>, <code>staging</code>,
+    and <code>develop</code> are allowed through.
+  </div>
+
+  <h2>7. How to Add a New Pipeline Branch</h2>
+  <p style="font-size:13px; color:var(--text-muted); margin-bottom:10px;">
+    If a new long-lived branch needs Vercel deployments (e.g., a <code>release/v2</code> branch),
+    update the single <code>ALLOWED_BRANCHES</code> variable in <code>scripts/vercel-ignore.sh</code>:
+  </p>
+  <pre><span class="comment"># Before</span>
+<span class="var">ALLOWED_BRANCHES</span>=<span class="string">"main staging develop"</span>
+
+<span class="comment"># After</span>
+<span class="var">ALLOWED_BRANCHES</span>=<span class="string">"main staging develop release/v2"</span></pre>
+  <p style="font-size:13px; color:var(--text-muted);">
+    No changes to any <code>vercel.json</code> file are needed — it's a single-point-of-truth config.
+  </p>
+
+  <hr>
+
+  <h2>8. Git Hygiene</h2>
+  <table>
+    <thead>
+      <tr><th>Item</th><th>Value</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Branch</td><td><code>chore/vercel-branch-gating</code></td></tr>
+      <tr><td>Commit SHA</td><td><span class="commit-hash">a0436340ec1984fa219438a048a2c3101467a416</span></td></tr>
+      <tr><td>Files changed</td><td>4 (1 created, 3 modified)</td></tr>
+      <tr><td>Insertions</td><td>+50 lines</td></tr>
+      <tr><td>Deletions</td><td>−3 lines</td></tr>
+      <tr><td>Remote verified</td><td>✓ via <code>git ls-remote --heads origin chore/vercel-branch-gating</code></td></tr>
+      <tr><td>Next step</td><td>Open PR: <code>chore/vercel-branch-gating</code> → <code>develop</code></td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout success">
+    <div class="callout-title">✓ Task Complete</div>
+    The branch gating policy is active on the pushed branch. Once this PR is merged into
+    <code>develop</code> and subsequently into <code>staging</code> and <code>main</code>,
+    all three Vercel projects will only build on pipeline branch pushes.
+  </div>
+
+  <p style="font-size:12px; color: var(--text-muted); margin-top: 40px; border-top: 1px solid var(--border); padding-top: 16px;">
+    Generated by Antigravity Lead Architect · Energy Monitoring Monorepo · 2026-09-11
+  </p>
+
+</div>
+</body>
+</html>
