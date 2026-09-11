@@ -39,7 +39,8 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith("/login") &&
     // Optional: allow API routes to manage their own auth (e.g., ingest endpoints)
     !request.nextUrl.pathname.startsWith("/api/ingest") &&
-    !request.nextUrl.pathname.startsWith("/api/heartbeat") 
+    !request.nextUrl.pathname.startsWith("/api/heartbeat") &&
+    !request.nextUrl.pathname.startsWith("/api/thresholds/esp32")
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
