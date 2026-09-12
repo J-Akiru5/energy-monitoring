@@ -218,6 +218,7 @@ int8_t fetchRelayStateFromCloud() {
   }
 
   const String& deviceId = getConfigDeviceId();
+  const String& deviceToken = getConfigDeviceToken();
   const String& apiEndpoint = getConfigApiEndpoint();
 
   Serial.println("[RELAY-BOOT] Fetching current relay state from cloud...");
@@ -236,6 +237,7 @@ int8_t fetchRelayStateFromCloud() {
   http.begin(client, relayUrl);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.setTimeout(5000);
+  http.addHeader("X-Device-Token", deviceToken);
 
   int httpCode = http.GET();
 

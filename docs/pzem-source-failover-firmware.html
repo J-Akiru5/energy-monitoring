@@ -256,8 +256,8 @@ localTripReason = localTripReasonBuf;</pre>
       <p style="margin-top:0">A grep for every <code>http.begin(</code> in <code>firmware/src</code> found a fifth instance at <code>monitor.cpp:421</code> — <code>fetchPzemConfigFromCloud()</code>, the PZEM config GET added with the source-failover work. It has the same redirect exposure but is outside the permitted file scope for this task (<code>network.cpp</code> only) and is left as a flagged follow-up.</p>
     </div>
     <div class="callout warning">
-      <div class="callout-title">Not in scope: relay-fetch auth (Part B)</div>
-      <p style="margin-top:0">The relay-state fetch received redirect-following only. Its authentication change (<code>X-Relay-Secret</code> vs <code>X-Device-Token</code>) is Part B, blocked pending a decision — no default was chosen or applied.</p>
+      <div class="callout-title">Part B resolved — see the relay-auth addendum below</div>
+      <p style="margin-top:0">The relay-state fetch received redirect-following in Part A. Its authentication gap was subsequently resolved in Part B by choosing <code>X-Device-Token</code> (the decision previously pending between <code>X-Relay-Secret</code> and <code>X-Device-Token</code>). Details in the addendum at the bottom of this report.</p>
     </div>
     <div class="callout warning">
       <div class="callout-title">DEPLOYMENT-VERIFIED &ne; PHYSICALLY-VERIFIED</div>
@@ -278,6 +278,57 @@ localTripReason = localTripReasonBuf;</pre>
       <tr><td>Firmware size</td><td>1,058,432 bytes</td></tr>
       <tr><td>SHA256</td><td><code>CFDF76EC585C9C8B47E069466DAC62E17C77340DCFFD4A0A6078C4A8D8D07DD0</code></td></tr>
       <tr><td>Result</td><td>SUCCESS (34.34s)</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Addendum: Authenticated Relay-State Fetch on Boot (Part B — X-Device-Token)</h2>
+    <div class="callout danger">
+      <div class="callout-title">Bug</div>
+      <p style="margin-top:0"><code>fetchRelayStateFromCloud()</code> sent zero auth on its GET to <code>/api/relay?deviceId=...</code>, while the route required a cookie session with no fallback for GET — a guaranteed 401 on every boot. The firmware silently fell back to NVS state: functionally safe, but the cloud's authoritative relay state was never actually used at boot.</p>
+    </div>
+    <h3>Mechanism chosen: X-Device-Token</h3>
+    <p style="font-size:14px">The boot fetch now sends the same <code>X-Device-Token</code> header/value the ESP32 already uses for telemetry. The GET handler validates it with the existing <code>validateDeviceToken()</code> (<code>devices.api_key_hash = token</code> AND <code>is_active = true</code>, the same gate <code>/api/ingest</code> uses) and returns the token's own device state. No new secret, no new NVS field, no new backend env var.</p>
+    <p style="font-size:14px"><strong>Why device-token over a shared secret:</strong></p>
+    <ul style="font-size:14px">
+      <li><strong>Smaller blast radius</strong> — a leaked device token exposes exactly one device's relay state; a shared <code>X-Relay-Secret</code> would expose every device to anyone who extracted it from any firmware image.</li>
+      <li><strong>Identity is intrinsic</strong> — the route resolves WHICH device from the token row, so no client-supplied identifier is trusted.</li>
+      <li><strong>Zero new surface</strong> — reuses the credential the device already carries and the validator already in production.</li>
+    </ul>
+    <h3>Anti-spoofing scope</h3>
+    <p style="font-size:14px">In the device-token path the <code>deviceId</code> query param is <strong>ignored entirely</strong>; identity comes from <code>validateDeviceToken()</code>'s row (<code>device.id</code>). A mismatched param is logged for audit (<code>[/api/relay] Device token for &lt;A&gt; requested deviceId=&lt;B&gt; — ignoring query param</code>), never trusted. The session/dashboard path is unchanged: session + <code>resolveAccess("view_energy")</code>, deviceId still required from the query.</p>
+    <h3>Spoofing-scope test</h3>
+    <pre>node --experimental-test-module-mocks --test apps/web/src/app/api/relay/route.test.mjs</pre>
+    <table>
+      <tr><th>Case</th><th>Expected</th><th>Result</th></tr>
+      <tr><td>Valid token A + <code>deviceId=B</code> (mismatch)</td><td>200, device A's state only; DB read scoped to A</td><td>PASS</td></tr>
+      <tr><td>Valid token A + no <code>deviceId</code></td><td>200, device A's state</td><td>PASS</td></tr>
+      <tr><td>Valid token A + <code>deviceId=A</code> (match)</td><td>200, device A's state</td><td>PASS</td></tr>
+      <tr><td>Bogus/inactive token</td><td>401, no state read</td><td>PASS</td></tr>
+      <tr><td>No token (session path)</td><td>401 unauthenticated, no state read</td><td>PASS</td></tr>
+    </table>
+    <p style="font-size:14px">5/5 pass. The mismatch case asserts the only DB read is <code>getRelayState("device-a")</code> — device B's state is never fetched.</p>
+    <h3>NVS fallback: unchanged</h3>
+    <p style="font-size:14px"><code>fetchRelayStateFromCloud()</code> still returns <code>-1</code> on any failure (network, 401, malformed JSON). <code>main.ino</code> uses cloud state only when <code>&gt;= 0</code>, else <code>loadRelayStateFromNVS()</code>, else defaults to power-ON — verified unchanged at <code>main.ino:184-205</code>.</p>
+    <div class="callout warning">
+      <div class="callout-title">DEPLOYMENT-VERIFIED &ne; PHYSICALLY-VERIFIED</div>
+      <p style="margin-top:0">Code-level tests and the build are clean, but the on-device boot fetch against the live endpoint has <strong>not</strong> been exercised (no flash). Confirmation requires a flash + a serial log showing <code>[RELAY-BOOT] Using cloud state</code> on a device with a valid token.</p>
+    </div>
+    <p style="font-size:14px"><strong>Files changed:</strong> <code>apps/web/src/app/api/relay/route.ts</code> (device-token GET path), <code>firmware/src/network.cpp</code> (2 lines), plus <code>apps/web/src/app/api/relay/route.test.mjs</code> (new).</p>
+  </div>
+
+  <div class="section">
+    <h2>Build Metadata (Relay-Auth Build)</h2>
+    <table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>Branch</td><td><code>feature/pzem-source-failover</code> @ <code>3521c18</code> + relay-auth fix</td></tr>
+      <tr><td>Build target</td><td><code>pio run</code> (fresh compile + link, 2026-09-12 23:05 +08:00)</td></tr>
+      <tr><td>Platform</td><td>Espressif 32 v7.1.2 (esp32dev)</td></tr>
+      <tr><td>RAM</td><td>15.1% (49,380 / 327,680 bytes)</td></tr>
+      <tr><td>Flash</td><td>80.3% (1,051,945 / 1,310,720 bytes)</td></tr>
+      <tr><td>Firmware size</td><td>1,058,528 bytes</td></tr>
+      <tr><td>SHA256</td><td><code>60B991DF2356163EA8283E5D79B63B86ECF7DFE937B556776A6DF586EDE5EDE0</code></td></tr>
+      <tr><td>Result</td><td>SUCCESS (10.66s)</td></tr>
     </table>
   </div>
 </div>

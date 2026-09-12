@@ -5,6 +5,7 @@ import {
   updateRelayState,
   getRelayConfig,
   logRelayAction,
+  validateDeviceToken,
 } from "@energy/database";
 import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
 import { RelayCommandSchema } from "@energy/types";
@@ -48,11 +49,16 @@ export async function OPTIONS() {
  * GET /api/relay?deviceId=<uuid>
  * Returns current relay state.
  *
- * Auth: requires a logged-in session with "view_energy" on some customer.
- * resolveAccess() validates the caller is authorized for the device's customer.
+ * DUAL AUTH — accepts EITHER:
+ *   Path A: Valid X-Device-Token header (device boot / firmware).
+ *           The device identity is resolved FROM THE TOKEN via
+ *           validateDeviceToken() — the deviceId query param is ignored
+ *           on this path so a token for device A can never read device B.
+ *   Path B: Logged-in session with "view_energy" on the device's customer.
+ *           resolveAccess() validates the caller is authorized.
+ *
  * relay_config and relay_state have no customer_id column (1:1 with devices),
- * so scoping is enforced at the auth layer (device must belong to caller's customer),
- * not at the query layer.
+ * so scoping is enforced at the auth layer, not at the query layer.
  */
 export async function GET(req: NextRequest) {
   const configError = getRelayConfigError();
@@ -64,6 +70,29 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // ── Path A: X-Device-Token (device boot / firmware) ────────
+    const deviceToken = req.headers.get("x-device-token");
+    if (deviceToken) {
+      const device = await validateDeviceToken(deviceToken);
+      if (!device) {
+        return noStoreJson({ error: "Invalid or inactive device token" }, 401);
+      }
+
+      // SECURITY: identity comes from the token row, never the query string.
+      // A mismatched param is ignored (logged for audit), not trusted — a
+      // valid token for device A must never read device B's relay state.
+      const queriedDeviceId = req.nextUrl.searchParams.get("deviceId");
+      if (queriedDeviceId && queriedDeviceId !== device.id) {
+        console.warn(
+          `[/api/relay] Device token for ${device.id} requested deviceId=${queriedDeviceId} — ignoring query param.`
+        );
+      }
+
+      const state = await getRelayState(device.id);
+      return noStoreJson({ state });
+    }
+
+    // ── Path B: Session (dashboard/user) — unchanged ────────────
     const deviceId = req.nextUrl.searchParams.get("deviceId");
     if (!deviceId) {
       return noStoreJson({ error: "Missing deviceId" }, 400);
