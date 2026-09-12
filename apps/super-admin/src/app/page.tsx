@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@energy/auth";
-import { isSuperAdmin } from "@/lib/super-admin";
+import { isSuperAdmin, getSuperAdminGrant } from "@/lib/super-admin";
 import { logout } from "./actions";
 
 export default async function Home() {
@@ -18,6 +18,7 @@ export default async function Home() {
   }
 
   const allowed = await isSuperAdmin(user.id);
+  const grant = allowed ? await getSuperAdminGrant(user.id) : null;
 
   return (
     <main className="min-h-screen bg-[#0F172A] text-[#F8FAFC] antialiased">
@@ -77,6 +78,18 @@ export default async function Home() {
               super administrators have a real destination instead of a
               redirect loop.
             </p>
+
+            {grant?.isTemporary && grant.expiresAt ? (
+              <p className="mt-6 inline-flex items-center rounded-full border border-[#F59E0B]/40 bg-[#F59E0B]/10 px-3.5 py-1.5 text-xs font-medium text-[#FCD34D]">
+                Temporary demo access — expires{" "}
+                {new Date(grant.expiresAt).toLocaleString("en-PH", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                  timeZone: "Asia/Manila",
+                })}{" "}
+                PHT
+              </p>
+            ) : null}
           </>
         ) : (
           <>
