@@ -1,7 +1,9 @@
 #include "provisioning.h"
 #include "config.h"
+#include "reset_actions.h"
 #include <Preferences.h>
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <WebServer.h>
 
 using namespace EmuCfg;
@@ -46,21 +48,23 @@ button:hover{background:#16213e}
 <form id="f" action="/configure" method="POST" onsubmit="return validate()">
 <div class="f"><label>WiFi Network Name (SSID)</label><input type="text" name="ssid" id="ssid" required placeholder="e.g. WVSU-Office"></div>
 <div class="f"><label>WiFi Password</label><input type="password" name="password" id="password" required></div>
-<div class="f"><label>Device ID (UUID from Admin Dashboard)</label><input type="text" name="device_id" id="device_id" required placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"><div class="err" id="eid">Enter a valid UUID</div></div>
-<div class="f"><label>Device Token (from Admin Dashboard)</label><input type="text" name="device_token" id="device_token" required placeholder="em_xxxxxxxxxxxxxxxx"><div class="err" id="etok">Must start with em_</div></div>
+<div class="f"><label>Device ID (UUID from Admin Dashboard)</label><input type="text" name="device_id" id="device_id" placeholder="leave blank to keep existing identity"><div class="err" id="eid">Enter a valid UUID</div></div>
+<div class="f"><label>Device Token (from Admin Dashboard)</label><input type="text" name="device_token" id="device_token" placeholder="leave blank to keep existing token"><div class="err" id="etok">Must start with em_</div></div>
 <button type="submit">Configure &amp; Reboot</button>
 </form>
-<div class="note">After configuration the EMU will reboot automatically and begin normal operation.<br><br><b>Phase Mode:</b> 3-phase (default). Change via serial command after boot if needed.</div>
+<div class="note">After configuration the EMU will reboot automatically and begin normal operation.<br><br><b>Wi-Fi password changed?</b> Leave Device ID / Token blank to keep the existing EMU identity (used after a WiFi reset).<br><br><b>Phase Mode:</b> 3-phase (default). Change via serial command after boot if needed.</div>
 <script>
 function validate(){
 var ok=true;
 var did=document.getElementById('device_id').value.trim();
 var dtok=document.getElementById('device_token').value.trim();
 var re=/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-document.getElementById('eid').style.display=(re.test(did)?'none':'block');
-if(!re.test(did))ok=false;
-document.getElementById('etok').style.display=(dtok.startsWith('em_')?'none':'block');
-if(!dtok.startsWith('em_'))ok=false;
+var idOk=(did===''||re.test(did));
+document.getElementById('eid').style.display=(idOk?'none':'block');
+if(!idOk)ok=false;
+var tokOk=(dtok===''||dtok.startsWith('em_'));
+document.getElementById('etok').style.display=(tokOk?'none':'block');
+if(!tokOk)ok=false;
 return ok;}
 </script>
 </body>
@@ -92,6 +96,16 @@ static void handleProvConfigure() {
   deviceId.trim();
   deviceToken.trim();
 
+  // Blank identity fields keep whatever is already stored — used by the
+  // WiFi-only reset flow so the same backend identity is retained without
+  // ever displaying the stored token.
+  if (deviceId.length() == 0 || deviceToken.length() == 0) {
+    nvs.begin(EmuCfg::NVS_NAMESPACE, true);
+    if (deviceId.length() == 0)    deviceId    = nvs.getString(EmuCfg::KEY_DEVICE_ID, "");
+    if (deviceToken.length() == 0) deviceToken = nvs.getString(EmuCfg::KEY_DEVICE_TOKEN, "");
+    nvs.end();
+  }
+
   if (ssid.length() == 0 || deviceId.length() == 0 || deviceToken.length() == 0) {
     provServer.send(400, "text/html", "Missing required fields");
     return;
@@ -104,7 +118,11 @@ static void handleProvConfigure() {
   nvs.putString(EmuCfg::KEY_WIFI_PASS, password);
   nvs.putString(EmuCfg::KEY_DEVICE_ID, deviceId);
   nvs.putString(EmuCfg::KEY_DEVICE_TOKEN, deviceToken);
-  nvs.putInt(EmuCfg::KEY_PHASE_MODE, 3);
+  // Default to 3-phase only on first configuration — do not clobber an
+  // existing 1-phase setting during a WiFi-only re-provision.
+  if (!nvs.isKey(EmuCfg::KEY_PHASE_MODE)) {
+    nvs.putInt(EmuCfg::KEY_PHASE_MODE, 3);
+  }
   nvs.end();
 
   Serial.printf("[PROV] SSID:     %s\n", ssid.c_str());
@@ -254,12 +272,22 @@ bool savePhaseMode(int mode) {
   return true;
 }
 
+void clearWifiStackCredentials() {
+  // WiFi.begin() persists the STA credentials in the WiFi stack's own NVS
+  // namespace (nvs.net80211), separate from emu_config. esp_wifi_restore()
+  // returns the WiFi stack to defaults and erases those stored settings.
+  // Safe no-op when WiFi has not been initialized yet (returns not-init).
+  if (WiFi.getMode() != WIFI_MODE_NULL) {
+    esp_wifi_restore();
+  }
+}
+
 void factoryReset() {
-  Serial.println("[PROV] FACTORY RESET - clearing all configuration...");
-  nvs.begin(EmuCfg::NVS_NAMESPACE, false);
-  nvs.clear();
-  nvs.end();
-  Serial.println("[PROV] Configuration cleared. Rebooting...");
+  Serial.println("[RESET] Clearing WiFi credentials...");
+  Serial.println("[RESET] Clearing EMU identity...");
+  clearWifiStackCredentials();
+  clearAllEmuConfig();
+  Serial.println("[RESET] Restarting...");
   delay(500);
   ESP.restart();
 }

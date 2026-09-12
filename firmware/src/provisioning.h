@@ -32,6 +32,7 @@ int getConfigPhaseMode();
 bool saveWifiConfig(const char* ssid, const char* password);
 bool saveDeviceConfig(const char* deviceId, const char* deviceToken);
 bool savePhaseMode(int mode);
+void clearWifiStackCredentials();
 void factoryReset();
 
 void handleSerialCommands();
