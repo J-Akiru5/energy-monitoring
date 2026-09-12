@@ -7,9 +7,9 @@
 #include <PZEM004Tv30.h>
 #include <ArduinoJson.h>
 
-extern PZEM004Tv30 pzemA;
-extern PZEM004Tv30 pzemB;
-extern PZEM004Tv30 pzemC;
+extern PZEM004Tv30* pzemA;
+extern PZEM004Tv30* pzemB;
+extern PZEM004Tv30* pzemC;
 extern bool relayState;
 extern float localOvervoltageThreshold;
 extern float localUndervoltageThreshold;
@@ -65,9 +65,9 @@ void readAndUpload() {
   PhaseReading phaseB = {0,0,0,0,0,0,true};
   PhaseReading phaseC = {0,0,0,0,0,0,true};
 
-  if (phaseMode >= 1) phaseA = readPhase(pzemA);
-  if (phaseMode >= 2) phaseB = readPhase(pzemB);
-  if (phaseMode >= 3) phaseC = readPhase(pzemC);
+  if (phaseMode >= 1 && pzemA) phaseA = readPhase(*pzemA);
+  if (phaseMode >= 2 && pzemB) phaseB = readPhase(*pzemB);
+  if (phaseMode >= 3 && pzemC) phaseC = readPhase(*pzemC);
 
   // Count offline phases
   int offlineCount = 0;

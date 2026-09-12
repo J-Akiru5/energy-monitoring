@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PZEM Full-Power Retest &amp; Crash-Loop Root Cause - 2026-09-12</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --purple: #bc8cff;
+    --orange: #e3b341;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 40px 20px;
+  }
+  .container { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 26px; margin-bottom: 6px; }
+  h2 { font-size: 20px; margin-top: 36px; margin-bottom: 12px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 15px; margin-top: 20px; margin-bottom: 8px; color: var(--text); }
+  .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 36px; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 6px;
+  }
+  .badge.green  { background: rgba(63,185,80,0.15);  color: var(--green);  border: 1px solid rgba(63,185,80,0.4); }
+  .badge.blue   { background: rgba(88,166,255,0.12);  color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
+  .badge.yellow { background: rgba(210,153,34,0.15);  color: var(--yellow); border: 1px solid rgba(210,153,34,0.4); }
+  .badge.red    { background: rgba(248,81,73,0.15);   color: var(--red);    border: 1px solid rgba(248,81,73,0.4); }
+  .badge.purple { background: rgba(188,140,255,0.15); color: var(--purple); border: 1px solid rgba(188,140,255,0.3); }
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .callout.warning { border-left-color: var(--yellow); }
+  .callout.success { border-left-color: var(--green); }
+  .callout.danger  { border-left-color: var(--red); }
+  .callout-title { font-weight: 600; margin-bottom: 6px; }
+  code {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 12.5px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    font-size: 12.5px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    line-height: 1.6;
+    margin: 12px 0;
+  }
+  pre.capture { white-space: pre-wrap; word-break: break-all; max-height: 480px; overflow-y: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin: 16px 0;
+  }
+  th {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  td {
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  .meta { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 28px; }
+  .meta-item { font-size: 13px; color: var(--text-muted); }
+  .meta-item strong { color: var(--text); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 36px 0; }
+  .commit-hash {
+    font-family: monospace;
+    font-size: 12.5px;
+    color: var(--accent);
+  }
+  details { margin: 12px 0; }
+  summary { cursor: pointer; font-size: 13px; color: var(--accent); margin-bottom: 8px; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 5px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1>PZEM Full-Power Retest &amp; Crash-Loop Root Cause</h1>
+  <div class="subtitle">ESP32-CICT-001 (EMU-001) &middot; 2026-09-12 &middot; Continuation of earlier diagnostic session</div>
+
+  <div class="meta">
+    <div class="meta-item"><strong>Base branch:</strong> <code>fix/firmware-secrets-include</code> @ <span class="commit-hash">20a7b34</span></div>
+    <div class="meta-item"><strong>Device:</strong> <code>d566ef3b-3e6e-4ed2-acb7-9de59aaf4d6b</code></div>
+    <div class="meta-item"><strong>Port:</strong> COM4 (CP210x @ 115200)</div>
+    <div class="meta-item"><strong>Outcome:</strong> <span class="badge red">CRASH-LOOP ROOT-CAUSED</span> <span class="badge green">PZEM-C HYPOTHESIS CONFIRMED</span></div>
+  </div>
+
+  <hr>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 1: EXECUTIVE SUMMARY                                   -->
+  <!-- ============================================================ -->
+  <h2>1. Executive Summary</h2>
+
+  <div class="callout danger">
+    <div class="callout-title">Crash-Loop Root Cause (CRITICAL)</div>
+    ESP32-CICT-001 reboots every 40-70 s due to heap exhaustion caused by our <code>loop()</code>
+    re-calling <code>initSupabaseRealtime()</code> every 5 s. Each call invokes
+    <code>WebSocketsClient::beginSSL()</code> &rarr; <code>begin()</code>, which nulls
+    <code>_client.tcp</code>/<code>_client.ssl</code> <strong>without deleting</strong> the live
+    <code>WiFiClientSecure</code> (SSL context + open TCP socket) that the library's own retry
+    had just allocated. This orphaned object leaks ~10-15 KB per cycle. After ~12 cycles the heap
+    is exhausted; <code>operator new</code> inside the <code>WiFiClientSecure</code> constructor
+    throws <code>std::bad_alloc</code> &rarr; <code>std::terminate()</code> &rarr; <code>abort()</code>
+    &rarr; reboot. The reboot clears the leaked memory, and the cycle repeats indefinitely.
+  </div>
+
+  <div class="callout success">
+    <div class="callout-title">PZEM-C Hypothesis (CONFIRMED LIVE)</div>
+    17 consecutive read cycles across 2 boots + 1 control capture: PZEM-A and PZEM-B report real
+    voltage/current/frequency; PZEM-C is <strong>uniquely and consistently offline</strong>
+    (0.0 V, 0.0 Hz, sensorOffline). Supabase cross-check confirms the same pattern.
+    A diagnostic pin-swap has been prepared on a separate branch for testing.
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 2: PER-CYCLE DATA                                     -->
+  <!-- ============================================================ -->
+  <hr>
+  <h2>2. Per-Cycle Readings (180 s multi-reboot capture)</h2>
+
+  <p style="font-size:14px; color:var(--text-muted); margin-bottom:16px;">
+    Capture file: <code>fullpower_capture.txt</code> (97 KB, 180 s window).
+    Three distinct boot phases observed. Only Boot 2 (17 cycles) produced a stable read window.
+  </p>
+
+  <h3>Boot 1 (initial boot, ~0-22 s)</h3>
+  <table>
+    <tr>
+      <th>Phase</th><th>Voltage</th><th>Current</th><th>Power</th><th>Frequency</th>
+    </tr>
+    <tr><td>A</td><td>221.3 V</td><td>0.02 A</td><td>4.4 W</td><td>60.1 Hz</td></tr>
+    <tr><td>B</td><td>222.2 V</td><td>0.01 A</td><td>2.2 W</td><td>60.1 Hz</td></tr>
+    <tr>
+      <td>C</td>
+      <td style="color:var(--red);">0.0 V</td>
+      <td>0.00 A</td>
+      <td>0.0 W</td>
+      <td style="color:var(--red);">0.0 Hz</td>
+    </tr>
+  </table>
+  <p style="font-size:13px; color:var(--text-muted);">Boot terminated by abort() at ~22 s uptime (heap exhaustion).</p>
+
+  <h3>Boot 2 (reboot, ~22-120 s) &mdash; 17 stable cycles</h3>
+  <table>
+    <tr>
+      <th>Cycle</th><th>Uptime (ms)</th><th>A (V)</th><th>B (V)</th><th>C (V)</th>
+      <th>A (Hz)</th><th>B (Hz)</th><th>C (Hz)</th>
+    </tr>
+    <tr><td>1</td><td>23,358</td><td>221.3</td><td>222.2</td><td style="color:var(--red);">0.0</td>
+      <td>60.1</td><td>60.1</td><td style="color:var(--red);">0.0</td></tr>
+    <tr><td>2</td><td>28,424</td><td>221.3</td><td>222.2</td><td style="color:var(--red);">0.0</td>
+      <td>60.1</td><td>60.1</td><td style="color:var(--red);">0.0</td></tr>
+    <tr><td>3</td><td>33,490</td><td>221.3</td><td>222.2</td><td style="color:var(--red);">0.0</td>
+      <td>60.1</td><td>60.1</td><td style="color:var(--red);">0.0</td></tr>
+    <tr><td>4</td><td>38,556</td><td>221.3</td><td>222.2</td><td style="color:var(--red);">0.0</td>
+      <td>60.1</td><td>60.1</td><td style="color:var(--red);">0.0</td></tr>
+    <tr><td>5</td><td>43,622</td><td>221.3</td><td>222.2</td><td style="color:var(--red);">0.0</td>
+      <td>60.1</td><td>60.1</td><td style="color:var(--red);">0.0</td></tr>
+    <tr><td>6</td><td>48,688</td><td>221.3</td><td>222.2</td><td style="color:var(--red);">0.0</td>
+      <td>60.1</td><td>60.1</td><td style="color:var(--red);">0.0</td></tr>
+    <tr><td>7</td><td>53,754</td><td>221.3</td><td>222.2</td><td style="color:var(--red);">0.0</td>
+      <td>60.1</td><td>60.1</td><td style="color:var(--red);">0.0</td></tr>
+    <tr><td>8</td><td>58,820</td><td>221.3</td><td>222.2</td><td style="color:var(--red);">0.0</td>
+      <td>60.1</td><td>60.1</td><td style="color:var(--red);">0.0</td></tr>
+    <tr><td>9</td><td>63,886</td><td>221.3</td><td>222.2</td><td style="color:var(--red);">0.0</td>
+      <td>60.1</td><td>60.1</td><td style="color:var(--red);">0.0</td></tr>
+    <tr><td>10</td><td>68,952</td><td>221.3</td><td>222.2</td><td style="color:var(--red);">0.0</td>
+      <td>60.1</td><td>60.1</td><td style="color:var(--red);">0.0</td></tr>
+    <tr><td>11</td><td>74,018</td><td>221.3</td><td>222.2</td><td style="color:var(--red);">0.0</td>
+      <td>60.1</td><td>60.1</td><td style="color:var(--red);">0.0</td></tr>
+    <tr><td>12</td><td>79,084</td><td>221.3</td><td>222.2</td><td style="color:var(--red);">0.0</td>
+      <td>60.1</td><td>60.1</td><td style="color:var(--red);">0.0</td></tr>
+    <tr><td>13</td><td>84,150</td><td>221.3</td><td>222.2</td><td style="color:var(--red);">0.0</td>
+      <td>60.1</td><td>60.1</td><td style="color:var(--red);">0.0</td></tr>
+    <tr><td>14</td><td>89,216</td><td>221.3</td><td>222.2</td><td style="color:var(--red);">0.0</td>
+      <td>60.1</td><td>60.1</td><td style="color:var(--red);">0.0</td></tr>
+    <tr><td>15</td><td>94,282</td><td>221.3</td><td>222.2</td><td style="color:var(--red);">0.0</td>
+      <td>60.1</td><td>60.1</td><td style="color:var(--red);">0.0</td></tr>
+    <tr><td>16</td><td>99,348</td><td>221.3</td><td>222.2</td><td style="color:var(--red);">0.0</td>
+      <td>60.1</td><td>60.1</td><td style="color:var(--red);">0.0</td></tr>
+    <tr><td>17</td><td>104,414</td><td>221.3</td><td>222.2</td><td style="color:var(--red);">0.0</td>
+      <td>60.1</td><td>60.1</td><td style="color:var(--red);">0.0</td></tr>
+  </table>
+  <p style="font-size:13px; color:var(--text-muted);">
+    A and B remain rock-stable at ~221.3 V / ~222.2 V / 60.1 Hz across all 17 cycles.
+    C is offline every single time. Boot terminated by abort() at ~108 s uptime.
+  </p>
+
+  <h3>No-Pulse Control Capture (60 s)</h3>
+  <p style="font-size:14px; color:var(--text-muted); margin-bottom:12px;">
+    Purpose: verify whether the UART payload-tail flood (<code>seMode":3}</code> /
+    <code>+08:00"}</code>) is a live serial output or a port-closed artifact.
+  </p>
+  <div class="callout warning">
+    <div class="callout-title">Control Result: Flood is LIVE</div>
+    60 s capture produced 5.5 MB of serial data. The repeated payload tail is transmitted at full
+    UART line rate (~115200 baud). This confirms it is <strong>not</strong> a port-closed artifact;
+    it is the actual serial output of the device during heap-exhaustion endgame.
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 3: SUPABASE COMPARISON                                -->
+  <!-- ============================================================ -->
+  <hr>
+  <h2>3. Supabase Cross-Check</h2>
+
+  <table>
+    <tr>
+      <th>Source</th><th>Timestamp</th><th>Phase A</th><th>Phase B</th><th>Phase C</th>
+      <th>Frequency</th><th>sensorOffline</th>
+    </tr>
+    <tr>
+      <td>Supabase baseline (02:22 UTC)</td>
+      <td>2026-09-12 02:22</td>
+      <td>221.2 V</td><td>222.0 V</td>
+      <td style="color:var(--red);">0.0 V</td>
+      <td>60.1 Hz</td><td>true</td>
+    </tr>
+    <tr>
+      <td>Live capture (this session)</td>
+      <td>2026-09-12</td>
+      <td>221.3 V</td><td>222.2 V</td>
+      <td style="color:var(--red);">0.0 V</td>
+      <td>60.1 Hz</td><td>true</td>
+    </tr>
+  </table>
+  <p style="font-size:13px; color:var(--text-muted);">
+    Supabase rows continue to flow for A and B. C is consistently 0.0 V / offline.
+    The relay is flagged <code>is_tripped: true</code> since 2026-08-24 (MANUAL), but this does
+    not affect PZEM readings (A and B measured valid voltage with the relay tripped).
+  </p>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 4: PZEM-C HYPOTHESIS STATUS                           -->
+  <!-- ============================================================ -->
+  <hr>
+  <h2>4. PZEM-C Hypothesis Status</h2>
+
+  <div class="callout success">
+    <div class="callout-title">Hypothesis: CONFIRMED LIVE</div>
+    <ul style="margin-top:8px;">
+      <li><strong>17/17 cycles:</strong> PZEM-C uniquely offline (0.0 V / 0.0 Hz) while A and B report real values.</li>
+      <li><strong>Supabase:</strong> C consistently shows 0.0 V / offline in the database.</li>
+      <li><strong>No-pulse control:</strong> Flood is live serial output (5.5 MB / 60 s) &mdash; confirms the flood appears in the exhaustion endgame and vanishes on clean boot.</li>
+      <li><strong>Diagnosis:</strong> Either hardware fault in the C-side harness/connectors, or RX/TX wires crossed at the module connector.</li>
+    </ul>
+  </div>
+
+  <h3>Prepared Diagnostic: Software Pin-Swap</h3>
+  <p style="font-size:14px;">
+    Branch: <code>diag/firmware-pzemc-pin-swap</code> (based on <code>fix/firmware-ws-reconnect-leak</code>).
+  </p>
+  <pre>// BEFORE (original):
+pzemCSerial = new SoftwareSerial(PZEM_C_RX, PZEM_C_TX);  // RX:18, TX:19
+
+// AFTER (diagnostic):
+pzemCSerial = new SoftwareSerial(PZEM_C_TX, PZEM_C_RX);  // RX:19, TX:18</pre>
+  <p style="font-size:14px; margin-top:12px;">
+    This swap is held pending Jeff's go-ahead. If the crash fix is flashed and the device stabilizes,
+    the pin-swap can be tested to determine whether the C-side harness is crossed (C comes online
+    with the swap) or if C has a separate hardware fault (C stays offline).
+  </p>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 5: CRASH-LOOP ROOT CAUSE                              -->
+  <!-- ============================================================ -->
+  <hr>
+  <h2>5. Crash-Loop Root Cause Analysis</h2>
+
+  <h3>5.1 The Backtrace</h3>
+  <p style="font-size:14px; color:var(--text-muted);">
+    Decoded via <code>xtensa-esp32-elf-addr2line</code> against <code>flashed_firmware.elf</code>
+    (preserved from the 20a7b34 build).
+  </p>
+  <pre>
+0x4008401d: abort()
+  /.../newlib/abort.c:46
+0x4008f13d: __cxa_throw()
+  /.../libsupc++/eh_throw.cc:95
+0x400946d5: operator new(unsigned int)
+  /.../libsupc++/new_op.cc:54
+0x401674a3: WiFiClientSecure::WiFiClientSecure()
+  WiFiClientSecure.cpp:37
+0x401674ea: sendToCloud(String const&amp;)
+  network.cpp:113
+0x4016744b: readAndUpload()
+  monitor.cpp:203  (full payload path)
+  // or monitor.cpp:93  (all-offline path, earlier boot)
+0x4016786a: loop()
+  main.ino:273
+  </pre>
+
+  <h3>5.2 The Leak Mechanism</h3>
+
+  <div class="callout danger">
+    <div class="callout-title">Leak Source: WebSocketsClient::begin()</div>
+    <code>WebSocketsClient.cpp</code> lines 59-64:
+    <pre style="margin-top:8px; margin-bottom:8px;">
+void WebSocketsClient::beginSSL(const char * host, ...) {
+    ...
+    // WebSocketsClient.cpp:59-64
+    _client.tcp = NULL;    // &larr; NULLs WITHOUT deleting
+    _client.ssl  = NULL;   // &larr; NULLs WITHOUT deleting
+    ...
+}
+    </pre>
+    Contrast with the library's <strong>own retry path</strong> (lines 252-262), which <strong>does</strong> delete properly:
+    <pre style="margin-top:8px; margin-bottom:8px;">
+// WebSocketsClient.cpp:256
+if(_client.tcp) { _client.tcp->stop(); delete _client.tcp; _client.tcp = NULL; }
+if(_client.ssl)  { _client.ssl->stop();  delete _client.ssl;  _client.ssl  = NULL; }
+    </pre>
+  </div>
+
+  <p style="font-size:14px; margin-top:16px;">
+    Our <code>loop()</code> called <code>initSupabaseRealtime()</code> every 5 s:
+  </p>
+  <ol style="font-size:14px; padding-left:22px; margin:12px 0;">
+    <li>Library retry allocates a new <code>WiFiClientSecure</code> (SSL context + open TCP PCB) &rarr; connects to Supabase.</li>
+    <li>Our <code>loop()</code> re-calls <code>initSupabaseRealtime()</code> &rarr; <code>beginSSL()</code> &rarr; <code>begin()</code>.</li>
+    <li><code>begin()</code> nulls <code>_client.tcp</code>/<code>_client.ssl</code> without delete &rarr; orphaned object (SSL context + open socket).</li>
+    <li>Library retries (no leaked pointer, clean alloc) &rarr; repeat from step 1.</li>
+  </ol>
+
+  <h3>5.3 Arithmetic</h3>
+  <table>
+    <tr><th>Measurement</th><th>Value</th></tr>
+    <tr><td>Leaked object size</td><td>~10-15 KB (<code>WiFiClientSecure</code> + <code>mbedtls</code> context + open TCP PCB)</td></tr>
+    <tr><td>Leak cycle interval</td><td>5 s (<code>WS_RECONNECT_INTERVAL_MS</code>)</td></tr>
+    <tr><td>Time to heap exhaustion</td><td>~40-70 s (first <code>-32512</code> at 60,289 ms in this capture; 40,761 ms in prior)</td></tr>
+    <tr><td>Estimated cycles before crash</td><td>~8-14 &rarr; 8 x 15 KB = 120 KB; 14 x 15 KB = 210 KB &rarr; both within the ~150-200 KB free heap of ESP32 with these libraries</td></tr>
+    <tr><td>Crash path</td><td><code>operator new</code> inside <code>WiFiClientSecure::WiFiClientSecure()</code> (network.cpp:113, sendToCloud) &rarr; <code>std::bad_alloc</code> &rarr; <code>std::terminate()</code> &rarr; <code>abort()</code> &rarr; reboot</td></tr>
+  </table>
+
+  <h3>5.4 Supporting Evidence</h3>
+  <ul style="font-size:14px; padding-left:22px; margin:12px 0;">
+    <li><strong>First SSL error at ~60 s</strong> (Boot 2) &mdash; coincides with ~12 leak cycles from boot.</li>
+    <li><strong>No-pulse control (60 s capture):</strong> 5.5 MB serial flood confirmed live &mdash; the payload-tail replay appears only in the exhaustion endgame and vanishes on clean boot.</li>
+    <li><strong>Clean boot (Boot 1, first ~10 s):</strong> A/B read normally, no flood, no abort.</li>
+    <li><strong>Abort backtrace decodes identically</strong> on both the all-offline path (monitor.cpp:93) and the full-payload path (monitor.cpp:203) &mdash; same root cause via both entry points.</li>
+    <li><strong>After abort/reboot:</strong> heap is cleared, A/B read fine for another 40-70 s, then the cycle repeats.</li>
+  </ul>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 6: THE UART FLOOD                                     -->
+  <!-- ============================================================ -->
+  <hr>
+  <h2>6. The UART Flood</h2>
+
+  <div class="callout warning">
+    <div class="callout-title">Symptom, Not Cause</div>
+    The repeated <code>seMode":3}</code> / <code>+08:00"}</code> UART output is a <strong>symptom</strong>
+    of heap exhaustion, not a separate bug. It appears in the 40-70 s exhaustion window and vanishes on
+    clean boot. The flood is a TX-side corruption artifact: stale payload tail bytes are replayed at full
+    UART line rate (~115200 baud) once the heap is corrupted and the serial TX buffer enters a bad state.
+    The no-pulse control confirmed this is live serial output (5.5 MB / 60 s), not a port-closed artifact.
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 7: THE FIX                                            -->
+  <!-- ============================================================ -->
+  <hr>
+  <h2>7. Applied Fix (Not Yet Flashed)</h2>
+
+  <h3>Branch: <code>fix/firmware-ws-reconnect-leak</code></h3>
+  <p style="font-size:14px;">
+    Commit: <code>fix(firmware): stop WS beginSSL re-init leak causing heap-exhaustion reboot loop</code>
+  </p>
+
+  <h3>Changes</h3>
+  <table>
+    <tr><th>File</th><th>Change</th></tr>
+    <tr>
+      <td><code>config.h</code></td>
+      <td>Add <code>WS_RECONNECT_MAX_MS = 60000</code> (backoff cap for library retry interval).</td>
+    </tr>
+    <tr>
+      <td><code>main.ino</code></td>
+      <td>
+        <ul style="padding-left:18px; margin:0;">
+          <li>Add globals: <code>wsInitialized</code>, <code>wsReconnectIntervalMs</code>.</li>
+          <li><code>setup()</code>: set <code>wsInitialized</code> after <code>initSupabaseRealtime()</code>.</li>
+          <li><code>loop()</code>: <strong>remove the repeated <code>initSupabaseRealtime()</code> call</strong> (the leak trigger).</li>
+          <li><code>loop()</code>: call <code>initSupabaseRealtime()</code> exactly once if WiFi was down at boot (via <code>wsInitialized</code> flag).</li>
+          <li><code>loop()</code>: add exponential backoff via <code>webSocket.setReconnectInterval()</code> (library retries natively, leak-free).</li>
+        </ul>
+      </td>
+    </tr>
+  </table>
+
+  <h3>Diff Summary</h3>
+  <pre>
+--- a/firmware/src/config.h
++++ b/firmware/src/config.h
+@@ WS_RECONNECT_INTERVAL_MS = 5000 @@
++// WebSocket reconnect backoff cap
++constexpr uint32_t WS_RECONNECT_MAX_MS = 60000;
+
+--- a/firmware/src/main.ino
++++ b/firmware/src/main.ino
+@@ globals @@
++bool wsInitialized = false;
++unsigned long wsReconnectIntervalMs = WS_RECONNECT_INTERVAL_MS;
+
+@@ setup() step 9 @@
+   initSupabaseRealtime();
++  wsInitialized = (WiFi.status() == WL_CONNECTED);
+
+@@ loop() reconnect block @@
+-  // Reconnect WebSocket if disconnected
+-  if (!wsConnected && (now - lastReconnectAttempt > WS_RECONNECT_INTERVAL_MS)) {
+-    lastReconnectAttempt = now;
+-    Serial.println("[WS] Reconnecting to Supabase Realtime...");
+-    initSupabaseRealtime();
+-  }
++  // WebSocket: begin() exactly once; library retries on its own.
++  if (!wsInitialized && WiFi.status() == WL_CONNECTED) {
++    wsInitialized = true;
++    initSupabaseRealtime();
++  }
++  if (!wsConnected && (now - lastReconnectAttempt > wsReconnectIntervalMs)) {
++    lastReconnectAttempt = now;
++    if (wsReconnectIntervalMs < WS_RECONNECT_MAX_MS) {
++      wsReconnectIntervalMs = min(wsReconnectIntervalMs * 2, (unsigned long)WS_RECONNECT_MAX_MS);
++      webSocket.setReconnectInterval(wsReconnectIntervalMs);
++    }
++    Serial.printf("[WS] Disconnected - library retry interval now %lus\n", wsReconnectIntervalMs / 1000);
++  }
++  if (wsConnected && wsReconnectIntervalMs != WS_RECONNECT_INTERVAL_MS) {
++    wsReconnectIntervalMs = WS_RECONNECT_INTERVAL_MS;
++    webSocket.setReconnectInterval(WS_RECONNECT_INTERVAL_MS);
++  }
+  </pre>
+
+  <h3>Build Verification</h3>
+  <p style="font-size:14px;">
+    <code>pio run</code>: SUCCESS (73.32 s, RAM 15.0%, Flash 79.9%, 0 warnings).
+  </p>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 8: GIT HYGIENE                                        -->
+  <!-- ============================================================ -->
+  <hr>
+  <h2>8. Branch Strategy &amp; Git Hygiene</h2>
+
+  <table>
+    <tr>
+      <th>Branch</th><th>Base</th><th>Commit</th><th>Content</th><th>Pushed</th>
+    </tr>
+    <tr>
+      <td><code>fix/firmware-ws-reconnect-leak</code></td>
+      <td><code>20a7b34</code></td>
+      <td><code>38c80f0</code></td>
+      <td>WS re-init leak fix (config.h + main.ino)</td>
+      <td><span class="badge green">VERIFIED on origin</span></td>
+    </tr>
+    <tr>
+      <td><code>diag/firmware-pzemc-pin-swap</code></td>
+      <td><code>38c80f0</code></td>
+      <td><code>caf7744</code></td>
+      <td>Pin-swap diagnostic (main.ino only)</td>
+      <td><span class="badge green">VERIFIED on origin</span></td>
+    </tr>
+  </table>
+
+  <div class="callout">
+    <div class="callout-title">Deployment Notes</div>
+    <ul style="font-size:14px; padding-left:18px; margin:0;">
+      <li>Both branches are firmware-only changes; no <code>apps/*</code> content touched.</li>
+      <li>Vercel branch-gating applies to pipeline branches only; these branches will not trigger deployments.</li>
+      <li><strong>No flash pending Jeff's explicit go-ahead.</strong></li>
+      <li>Recommended flash order: (1) <code>fix/firmware-ws-reconnect-leak</code> to stabilize the device, then (2) if stable, <code>diag/firmware-pzemc-pin-swap</code> to test the crossed-harness hypothesis.</li>
+    </ul>
+  </div>
+
+  <hr>
+
+  <!-- ============================================================ -->
+  <!-- ADDENDUM: FLASH RESULTS                                       -->
+  <!-- ============================================================ -->
+  <h2>9. Flash Results &amp; Final PZEM-C Determination (Addendum)</h2>
+  <p style="font-size:14px; color:var(--text-muted); margin-bottom:16px;">
+    Added after live flash verification on 2026-09-12.
+  </p>
+
+  <h3>9.1 Crash-Loop Fix — Flash Verification</h3>
+  <div class="callout success">
+    <div class="callout-title">STABLE — Zero Reboots</div>
+    <code>fix/firmware-ws-reconnect-leak</code> flashed to ESP32-CICT-001 at 10:33 UTC.
+    5.4-minute stability capture (323 s):
+    <ul style="margin-top:8px;">
+      <li><strong>Reboots:</strong> 1 (initial boot, not a crash)</li>
+      <li><strong>Aborts:</strong> 0 (old crash loop: rebooted every 40-70 s)</li>
+      <li><strong>Read cycles:</strong> 25 (A/B stable, C offline as expected)</li>
+      <li><strong>API uploads:</strong> 23 OK / 2 transient HTTP -11 timeouts (recovered)</li>
+      <li><strong>WS backoff:</strong> 10s → 20s → 40s → 60s (capped correctly)</li>
+    </ul>
+  </div>
+
+  <h3>9.2 Pin-Swap Diagnostic — Flash &amp; Result</h3>
+  <div class="callout success">
+    <div class="callout-title">PZEM-C ONLINE — Crossed-Harness CONFIRMED</div>
+    <code>diag/firmware-pzemc-pin-swap</code> flashed at 10:43 UTC.
+    3-minute capture (165 s), 11 read cycles:
+    <table style="margin-top:12px;">
+      <tr><th>Phase</th><th>Voltage</th><th>Status</th></tr>
+      <tr><td>A</td><td>221.1-221.3 V</td><td><span class="badge green">ONLINE</span></td></tr>
+      <tr><td>B</td><td>222.0-222.1 V</td><td><span class="badge green">ONLINE</span></td></tr>
+      <tr><td><strong>C</strong></td><td><strong>221.5-221.7 V</strong></td><td><span class="badge green">ONLINE (pin-swap fixed it)</span></td></tr>
+    </table>
+    <p style="font-size:14px; margin-top:12px;">
+      The C-side harness has RX and TX crossed at the module connector.
+      Swapping SoftwareSerial arguments from <code>(PZEM_C_RX, PZEM_C_TX)</code>
+      to <code>(PZEM_C_TX, PZEM_C_RX)</code> brought PZEM-C online with real
+      voltage readings consistent with A and B.
+    </p>
+  </div>
+
+  <h3>9.3 Final Hypothesis Status</h3>
+  <table>
+    <tr><th>Hypothesis</th><th>Status</th><th>Evidence</th></tr>
+    <tr>
+      <td>PZEM-C is genuinely offline (not a disconnection artifact)</td>
+      <td><span class="badge green">CONFIRMED</span></td>
+      <td>17/17 cycles offline under full live power; A/B stable control</td>
+    </tr>
+    <tr>
+      <td>C-side harness has RX/TX crossed</td>
+      <td><span class="badge green">CONFIRMED</span></td>
+      <td>Pin-swap diagnostic brought C online (221.5-221.7 V, 11/11 cycles)</td>
+    </tr>
+    <tr>
+      <td>Crash-loop caused by WS re-init leak</td>
+      <td><span class="badge green">FIXED</span></td>
+      <td>323+ s uptime, zero aborts, backoff functioning</td>
+    </tr>
+  </table>
+
+  <h3>9.4 Branch Final State</h3>
+  <table>
+    <tr><th>Branch</th><th>Commit</th><th>Status</th><th>Action</th></tr>
+    <tr>
+      <td><code>fix/firmware-ws-reconnect-leak</code></td>
+      <td><code>fcb91b9</code></td>
+      <td><span class="badge green">FLASHED &amp; VERIFIED</span></td>
+      <td>Keep. Do not merge without Jeff's go-ahead.</td>
+    </tr>
+    <tr>
+      <td><code>diag/firmware-pzemc-pin-swap</code></td>
+      <td><code>6aecd16</code></td>
+      <td><span class="badge green">FLASHED &amp; CONFIRMED</span></td>
+      <td>Keep on this branch. The permanent fix is a harness rewire (physical), not a software swap. Do not merge without Jeff's go-ahead.</td>
+    </tr>
+  </table>
+
+  <div class="callout warning">
+    <div class="callout-title">Next Steps (Physical, Not Software)</div>
+    The pin-swap diagnostic confirmed the C-side harness is crossed. The correct permanent fix is a physical harness rewire (swap the RX/TX wires on the C-side module connector). The software swap on <code>diag/firmware-pzemc-pin-swap</code> is a working workaround but should not be merged to production — the harness should be corrected and the software reverted to the original pin order.
+  </div>
+
+  <hr>
+  <div style="font-size:12px; color:var(--text-muted); margin-top:24px; text-align:center;">
+    Session: 2026-09-12 &middot; Agent: opencode/mimo-v2-free &middot; Parent session: pzem-c-rxtx-diagnosis-2026-09-12
+  </div>
+
+</div>
+</body>
+</html>

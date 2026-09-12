@@ -3,6 +3,12 @@
 
 #include <cstdint>
 
+// Backend defaults (API endpoint / Supabase host / anon key) come from the
+// gitignored secrets.h — copy secrets.example.h to secrets.h and fill it in.
+// Included here so every translation unit sees the real values instead of
+// the fallback placeholders at the bottom of this file.
+#include "secrets.h"
+
 // ──── PIN DEFINITIONS ─────────────────────────────────────
 // PZEM Phase A: Hardware Serial2
 constexpr uint8_t PZEM_A_RX = 16;
@@ -12,7 +18,10 @@ constexpr uint8_t PZEM_A_TX = 17;
 constexpr uint8_t PZEM_B_RX = 5;
 constexpr uint8_t PZEM_B_TX = 4;
 
-// PZEM Phase C: Hardware Serial (reassigned — no debug after boot)
+// PZEM Phase C: dedicated software serial (GPIO18/19).
+// UART0 (GPIO1/3, 115200) is reserved for the debug console — PZEM-C must
+// NOT use Serial/UART0. ESP32 has only 3 hardware UARTs (UART0=debug,
+// UART1=PZEM-B, UART2=PZEM-A), so PZEM-C uses EspSoftwareSerial instead.
 constexpr uint8_t PZEM_C_RX = 18;
 constexpr uint8_t PZEM_C_TX = 19;
 
@@ -34,6 +43,11 @@ constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 6UL * 60 * 60 * 1000; // 6 hours
 
 // WebSocket reconnection interval
 constexpr uint32_t WS_RECONNECT_INTERVAL_MS = 5000;
+
+// WebSocket reconnect backoff cap — while disconnected, the library retry
+// interval doubles from WS_RECONNECT_INTERVAL_MS up to this, then resets
+// on recovery.
+constexpr uint32_t WS_RECONNECT_MAX_MS = 60000;
 
 // WebSocket disconnect warning thresholds
 constexpr uint32_t WS_DISCONNECT_WARN_MS = 60000;
