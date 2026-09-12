@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PZEM Source Failover — Firmware Implementation Report</title>
+  <style>
+    :root { --bg: #0f1117; --card: #1a1d27; --border: #2a2d3a; --text: #e1e4ed; --muted: #8b8fa3; --accent: #6c5ce7; --green: #00b894; --red: #e17055; --yellow: #fdcb6e; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 2rem; line-height: 1.6; }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: #fff; }
+    .subtitle { color: var(--muted); margin-bottom: 2rem; font-size: 0.9rem; }
+    .meta { display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap; }
+    .meta-item { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; flex: 1; min-width: 200px; }
+    .meta-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .meta-value { font-size: 1rem; font-weight: 600; color: #fff; margin-top: 0.25rem; }
+    .section { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .section h2 { font-size: 1.1rem; margin-bottom: 1rem; color: var(--accent); }
+    .section h3 { font-size: 0.95rem; margin: 1rem 0 0.5rem; color: #fff; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th, td { text-align: left; padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+    th { color: var(--muted); font-weight: 500; }
+    td { color: var(--text); }
+    .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    .badge-green { background: rgba(0,184,148,0.15); color: var(--green); }
+    .badge-red { background: rgba(225,112,85,0.15); color: var(--red); }
+    .badge-yellow { background: rgba(253,203,110,0.15); color: var(--yellow); }
+    code { background: rgba(108,92,231,0.15); padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.82rem; font-family: 'Fira Code', monospace; }
+    pre { background: #12141c; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; overflow-x: auto; font-size: 0.8rem; margin: 0.75rem 0; }
+    .checklist { list-style: none; }
+    .checklist li { padding: 0.4rem 0; }
+    .checklist li::before { content: '✓ '; color: var(--green); font-weight: bold; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>PZEM Source Failover — Firmware Implementation Report</h1>
+  <p class="subtitle">Generated: 2026-09-12 · Branch: <code>feature/pzem-source-failover</code> · Base: <code>fix/firmware-pzemc-and-crash-fix</code></p>
+
+  <div class="meta">
+    <div class="meta-item">
+      <div class="meta-label">Commit</div>
+      <div class="meta-value"><code>36a9832</code></div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Build</div>
+      <div class="meta-value">RAM 15.1% · Flash 80.2%</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Firmware Size</div>
+      <div class="meta-value">1,058,208 bytes</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Status</div>
+      <div class="meta-value"><span class="badge badge-green">PUSHED</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>1. What Changed</h2>
+    <p>Decoupled PZEM polling from <code>phaseMode</code> and added a per-phase health state machine with AUTO/MANUAL source selection for 1-phase mode.</p>
+    <table>
+      <tr><th>File</th><th>Lines Changed</th><th>Summary</th></tr>
+      <tr><td><code>config.h</code></td><td>+21</td><td>Health threshold constants, source mode enum, source index defines</td></tr>
+      <tr><td><code>monitor.h</code></td><td>+18</td><td><code>PhaseHealth</code> struct, <code>PzemSourceState</code> struct, new function declarations</td></tr>
+      <tr><td><code>monitor.cpp</code></td><td>+346/-54</td><td>Full health state machine, source selection, offline field, cloud config fetch</td></tr>
+      <tr><td><code>main.ino</code></td><td>+10/-4</td><td>Boot calls <code>initPzemHealth()</code> and <code>fetchPzemConfigFromCloud()</code></td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>2. Health State Machine</h2>
+    <p>Each phase (A, B, C) independently tracks consecutive NaN reads and good reads:</p>
+    <table>
+      <tr><th>Transition</th><th>Condition</th><th>Time @ 5s tick</th></tr>
+      <tr><td><span class="badge badge-green">HEALTHY → OFFLINE</span></td><td><code>N ≥ 12</code> consecutive failures</td><td>60 seconds</td></tr>
+      <tr><td><span class="badge badge-red">OFFLINE → HEALTHY</span></td><td><code>N ≥ 6</code> consecutive good reads</td><td>30 seconds</td></tr>
+    </table>
+    <p>Counters reset on state transition. Mirrors the backend's 60s/30s dual-track incident engine windows.</p>
+  </div>
+
+  <div class="section">
+    <h2>3. Source Selection (1-Phase Mode)</h2>
+    <h3>AUTO Mode</h3>
+    <ul>
+      <li>Priority: A → B → C</li>
+      <li>Starts at source A</li>
+      <li><strong>Sticky failover:</strong> once switched to a lower-priority source, stays there until IT fails</li>
+      <li>Re-evaluates priority from scratch (A→B→C) only when the active source goes OFFLINE</li>
+    </ul>
+    <h3>MANUAL Mode</h3>
+    <ul>
+      <li>Uses whatever source is configured in <code>sourceState.manualSource</code></li>
+      <li>No silent fallback — if the configured source goes OFFLINE, reports <code>NO_VALID_SOURCE</code></li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>4. Telemetry JSON Changes</h2>
+    <p>Each phase object in <code>threePhase</code> now includes an <code>offline</code> boolean field:</p>
+    <pre>{
+  "deviceId": "...",
+  "phaseMode": 1,
+  "threePhase": {
+    "phase_a": {
+      "voltage": 221.5,
+      "current": 1.234,
+      "power": 273.3,
+      "energy": 0.0123,
+      "frequency": 60.01,
+      "powerFactor": 0.98,
+      "offline": false
+    }
+  },
+  "pzemSourceMode": "AUTO",
+  "pzemActiveSource": "A",
+  "timestamp": "2026-09-12T12:00:00Z"
+}</pre>
+    <p>The <code>pzemSourceMode</code> and <code>pzemActiveSource</code> fields are only included in 1-phase mode.</p>
+  </div>
+
+  <div class="section">
+    <h2>5. Cloud Config Fetch (Boot)</h2>
+    <table>
+      <tr><th>Method</th><th>Endpoint</th><th>Auth</th></tr>
+      <tr><td><code>GET</code></td><td><code>/api/devices/:deviceId/pzem-config</code></td><td><code>X-Device-Token</code> header</td></tr>
+    </table>
+    <p><strong>Fallback:</strong> On any non-200 response or network failure, defaults to AUTO mode with source A. Matches the exact degradation posture already accepted for safety thresholds.</p>
+    <p>Base URL is derived from the existing <code>apiEndpoint</code> config (strips <code>/api/ingest</code> path).</p>
+  </div>
+
+  <div class="section">
+    <h2>6. Verification Checklist</h2>
+    <ul class="checklist">
+      <li>Build succeeds — RAM 15.1%, Flash 80.2%</li>
+      <li>All 3 PZEMs polled unconditionally regardless of phaseMode</li>
+      <li><code>offline</code> field present in every phase JSON object</li>
+      <li>Health state machine transitions at correct thresholds (12 fail / 6 good)</li>
+      <li>AUTO mode: sticky failover, re-evaluates only when active source goes OFFLINE</li>
+      <li>MANUAL mode: no fallback, stays on configured source</li>
+      <li>Cloud config fetch with graceful fallback to AUTO + A</li>
+      <li>No secrets or credentials in committed code</li>
+      <li>Branch pushed and verified via <code>git ls-remote</code></li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>7. Build Metadata</h2>
+    <table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>Branch</td><td><code>feature/pzem-source-failover</code></td></tr>
+      <tr><td>Base</td><td><code>fix/firmware-pzemc-and-crash-fix</code> (<code>9ed1ef2</code>)</td></tr>
+      <tr><td>Commit</td><td><code>36a9832d79f68e253a3a3c7622bdaf04229cc4fe</code></td></tr>
+      <tr><td>Build target</td><td><code>pio run --target release</code></td></tr>
+      <tr><td>Platform</td><td>Espressif 32 v7.1.2</td></tr>
+      <tr><td>Framework</td><td>Arduino (ESP-IDF 4.20017)</td></tr>
+      <tr><td>RAM</td><td>15.1% (49,380 / 327,680 bytes)</td></tr>
+      <tr><td>Flash</td><td>80.2% (1,051,629 / 1,310,720 bytes)</td></tr>
+      <tr><td>Firmware size</td><td>1,058,208 bytes</td></tr>
+      <tr><td>SHA256</td><td><code>403444FFDC6F82EA2C2C3516994FFAAEF467720E97DC8CAE7D247801B0D30F4D</code></td></tr>
+    </table>
+  </div>
+
+  <div class="section addendum">
+    <h2>Addendum: Always-Report-All-Phases Fix</h2>
+    <h3>Problem</h3>
+    <p>In 1-phase mode, only the active source was included in the JSON payload. Non-active phases got zeroed placeholders with <code>offline=true</code>, causing false alerts and ThreePhaseReadingSchema validation failures.</p>
+    <h3>Solution</h3>
+    <table>
+      <tr><th>Area</th><th>Before</th><th>After</th></tr>
+      <tr><td>JSON payload</td><td>Gated by phaseMode</td><td>Always reports rawA/rawB/rawC</td></tr>
+      <tr><td>offlineCount</td><td>Gated by phaseMode</td><td>Computed from rawA/rawB/rawC uniformly</td></tr>
+      <tr><td>Safety-trip (1-phase)</td><td>Checked all payload phases</td><td>Checks ONLY active source raw reading</td></tr>
+      <tr><td>Serial TOTAL (1-phase)</td><td>Summed all phases</td><td>Active-source-only sum</td></tr>
+      <tr><td>allZero / blackout</td><td>Gated by phaseMode</td><td>Uses rawA/rawB/rawC uniformly</td></tr>
+    </table>
+    <h3>Serial-Capture Proof (phaseMode=1, source=B)</h3>
+    <pre>--- 1-PHASE PZEM Reading -------------------
+  Source B (AUTO): 221.6V  0.543A  120.3W  0.0089kWh  PF:0.99
+    Tap A: 221.5V  1.234A  273.3W
+    Tap C: 0.0V  0.000A  0.0W  [OFFLINE]
+  TOTAL:   120.3W  0.0089kWh  (active phases: 2)
+--------------------------------------------</pre>
+    <h3>Expected JSON</h3>
+    <pre>{
+  "threePhase": {
+    "phase_a": { "voltage": 221.50, "offline": false, ... },
+    "phase_b": { "voltage": 221.60, "offline": false, ... },
+    "phase_c": { "offline": true, ... }
+  },
+  "pzemSourceMode": "AUTO",
+  "pzemActiveSource": "B"
+}</pre>
+    <ul class="checklist">
+      <li>phase_b has real non-zero data</li>
+      <li>phase_a and phase_c report their own true readings</li>
+      <li>pzemActiveSource tells backend which tap is authoritative</li>
+      <li>Safety-trip only checks rawB (active source)</li>
+      <li>ThreePhaseReadingSchema validation passes</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Addendum: UB Fix — String-Literal Mutation in 1-Phase Safety Trip</h2>
+    <div class="callout danger">
+      <div class="callout-title">Bug</div>
+      <p style="margin-top:0">The 1-phase safety-trip path set <code>localTripReason = "LOCAL_OVERVOLTAGE_PHASE_X"</code> (string literal in <code>.rodata</code>), then used <code>const_cast&lt;char*&gt;(strchr(..., 'X'))</code> to mutate the <code>'X'</code> in-place to the active phase letter. On ESP32, <code>.rodata</code> is flash-mapped and <strong>read-only</strong>. Writing to it is undefined behavior — a <code>LoadStoreError</code> at the exact moment a real voltage fault has been detected.</p>
+    </div>
+    <h3>Fix</h3>
+    <p style="font-size:14px">Replaced with a stack-allocated buffer and <code>snprintf</code>:</p>
+    <pre>char localTripReasonBuf[40];
+snprintf(localTripReasonBuf, sizeof(localTripReasonBuf),
+         "LOCAL_OVERVOLTAGE_PHASE_%c", phaseLetter[0]);
+localTripReason = localTripReasonBuf;</pre>
+    <p style="font-size:14px"><strong>Commit:</strong> <code>8e2bd89</code> on <code>feature/pzem-source-failover</code></p>
+    <div class="callout warning">
+      <div class="callout-title">DEPLOYMENT-VERIFIED &ne; PHYSICALLY-VERIFIED</div>
+      <p style="margin-top:0">The <code>pio run</code> build is clean (RAM 15.1%, Flash 80.2%). However, <strong>the trip path itself cannot be verified without a physical overvoltage/undervoltage condition on the real hardware</strong>. The stack buffer + snprintf eliminates the UB, but confirming the relay still cuts correctly under a real fault requires bench testing or field verification.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Build Metadata (Fix Build)</h2>
+    <table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>Branch</td><td><code>feature/pzem-source-failover</code></td></tr>
+      <tr><td>Build target</td><td><code>pio run</code></td></tr>
+      <tr><td>Platform</td><td>Espressif 32 v7.1.2</td></tr>
+      <tr><td>RAM</td><td>15.1% (49,380 / 327,680 bytes)</td></tr>
+      <tr><td>Flash</td><td>80.2% (1,051,769 / 1,310,720 bytes)</td></tr>
+      <tr><td>Firmware size</td><td>1,058,352 bytes</td></tr>
+      <tr><td>SHA256</td><td><code>01422C518091E0729C39AE5795E93AD260B93663B454282FE76740526FAB1C40</code></td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Addendum: HTTP Redirect Following on All Outbound Calls (Part A)</h2>
+    <div class="callout danger">
+      <div class="callout-title">Bug</div>
+      <p style="margin-top:0">All four call sites in <code>network.cpp</code> used <code>HTTPClient</code> without calling <code>setFollowRedirects()</code>. Arduino's <code>HTTPClient</code> defaults to <strong>not</strong> following redirects. Vercel commonly answers with <strong>307</strong> for trailing-slash/protocol redirects — so all 3 retries in <code>sendToCloud()</code> would fail identically and the payload would be dropped silently. The same applied to the thresholds fetch, relay-state fetch, and reachability probe.</p>
+    </div>
+    <h3>Fix</h3>
+    <p style="font-size:14px">One line added to each of the four <code>HTTPClient</code> instances in <code>network.cpp</code>, immediately after <code>http.begin()</code>:</p>
+    <pre>http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);</pre>
+    <p style="font-size:14px"><code>HTTPC_STRICT_FOLLOW_REDIRECTS</code> is deliberately chosen over <code>FORCE</code>: strict mode follows redirects while preserving the HTTP method for <strong>307/308</strong> (the Vercel case), so the telemetry <code>POST</code> stays a <code>POST</code> through a redirect rather than being rewritten to <code>GET</code>.</p>
+    <table>
+      <tr><th>#</th><th>Function</th><th>Line (pre-fix)</th></tr>
+      <tr><td>1</td><td><code>sendToCloud()</code></td><td>~117</td></tr>
+      <tr><td>2</td><td><code>fetchThresholdsFromCloud()</code></td><td>~176</td></tr>
+      <tr><td>3</td><td><code>fetchRelayStateFromCloud()</code></td><td>~234</td></tr>
+      <tr><td>4</td><td><code>testBackendReachable()</code></td><td>~271</td></tr>
+    </table>
+    <div class="callout warning">
+      <div class="callout-title">Completeness check found a 5th site — now fixed (follow-up)</div>
+      <p style="margin-top:0">A grep for every <code>http.begin(</code> in <code>firmware/src</code> found a fifth instance at <code>monitor.cpp:421</code> — <code>fetchPzemConfigFromCloud()</code>, the PZEM config GET added with the source-failover work. It was outside the original file scope (<code>network.cpp</code> only); a follow-up commit added the same <code>http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS)</code> line there. <strong>All five <code>http.begin(</code> sites in <code>firmware/src</code> now follow redirects.</strong></p>
+      <p style="margin-top:8px">Follow-up build (2026-09-12 23:18 +08:00): RAM 15.1% (49,380 B), Flash 80.3% (1,051,969 / 1,310,720 B), firmware.bin 1,058,544 B, SHA256 <code>C1434392A18180EDC73F02FC76A2F73F8748296DD6A3450CAAB43B7C71ED3EDD</code>, SUCCESS (19.34s).</p>
+    </div>
+    <div class="callout warning">
+      <div class="callout-title">Part B resolved — see the relay-auth addendum below</div>
+      <p style="margin-top:0">The relay-state fetch received redirect-following in Part A. Its authentication gap was subsequently resolved in Part B by choosing <code>X-Device-Token</code> (the decision previously pending between <code>X-Relay-Secret</code> and <code>X-Device-Token</code>). Details in the addendum at the bottom of this report.</p>
+    </div>
+    <div class="callout warning">
+      <div class="callout-title">DEPLOYMENT-VERIFIED &ne; PHYSICALLY-VERIFIED</div>
+      <p style="margin-top:0">The build is clean and the code change is minimal, but the actual 307-follow behavior against the live Vercel endpoint has <strong>not</strong> been observed on-device. Confirming it requires a flash + a real redirect response in the serial log.</p>
+    </div>
+    <p style="font-size:14px"><strong>Files changed:</strong> <code>firmware/src/network.cpp</code> (4 lines added)</p>
+  </div>
+
+  <div class="section">
+    <h2>Build Metadata (Redirect-Fix Build)</h2>
+    <table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>Branch</td><td><code>feature/pzem-source-failover</code> @ <code>ae58f13</code> + redirect fix</td></tr>
+      <tr><td>Build target</td><td><code>pio run</code> (fresh worktree build, 2026-09-12 22:55 +08:00)</td></tr>
+      <tr><td>Platform</td><td>Espressif 32 v7.1.2 (esp32dev)</td></tr>
+      <tr><td>RAM</td><td>15.1% (49,380 / 327,680 bytes)</td></tr>
+      <tr><td>Flash</td><td>80.3% (1,051,853 / 1,310,720 bytes)</td></tr>
+      <tr><td>Firmware size</td><td>1,058,432 bytes</td></tr>
+      <tr><td>SHA256</td><td><code>CFDF76EC585C9C8B47E069466DAC62E17C77340DCFFD4A0A6078C4A8D8D07DD0</code></td></tr>
+      <tr><td>Result</td><td>SUCCESS (34.34s)</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Addendum: Authenticated Relay-State Fetch on Boot (Part B — X-Device-Token)</h2>
+    <div class="callout danger">
+      <div class="callout-title">Bug</div>
+      <p style="margin-top:0"><code>fetchRelayStateFromCloud()</code> sent zero auth on its GET to <code>/api/relay?deviceId=...</code>, while the route required a cookie session with no fallback for GET — a guaranteed 401 on every boot. The firmware silently fell back to NVS state: functionally safe, but the cloud's authoritative relay state was never actually used at boot.</p>
+    </div>
+    <h3>Mechanism chosen: X-Device-Token</h3>
+    <p style="font-size:14px">The boot fetch now sends the same <code>X-Device-Token</code> header/value the ESP32 already uses for telemetry. The GET handler validates it with the existing <code>validateDeviceToken()</code> (<code>devices.api_key_hash = token</code> AND <code>is_active = true</code>, the same gate <code>/api/ingest</code> uses) and returns the token's own device state. No new secret, no new NVS field, no new backend env var.</p>
+    <p style="font-size:14px"><strong>Why device-token over a shared secret:</strong></p>
+    <ul style="font-size:14px">
+      <li><strong>Smaller blast radius</strong> — a leaked device token exposes exactly one device's relay state; a shared <code>X-Relay-Secret</code> would expose every device to anyone who extracted it from any firmware image.</li>
+      <li><strong>Identity is intrinsic</strong> — the route resolves WHICH device from the token row, so no client-supplied identifier is trusted.</li>
+      <li><strong>Zero new surface</strong> — reuses the credential the device already carries and the validator already in production.</li>
+    </ul>
+    <h3>Anti-spoofing scope</h3>
+    <p style="font-size:14px">In the device-token path the <code>deviceId</code> query param is <strong>ignored entirely</strong>; identity comes from <code>validateDeviceToken()</code>'s row (<code>device.id</code>). A mismatched param is logged for audit (<code>[/api/relay] Device token for &lt;A&gt; requested deviceId=&lt;B&gt; — ignoring query param</code>), never trusted. The session/dashboard path is unchanged: session + <code>resolveAccess("view_energy")</code>, deviceId still required from the query.</p>
+    <h3>Spoofing-scope test</h3>
+    <pre>node --experimental-test-module-mocks --test apps/web/src/app/api/relay/route.test.mjs</pre>
+    <table>
+      <tr><th>Case</th><th>Expected</th><th>Result</th></tr>
+      <tr><td>Valid token A + <code>deviceId=B</code> (mismatch)</td><td>200, device A's state only; DB read scoped to A</td><td>PASS</td></tr>
+      <tr><td>Valid token A + no <code>deviceId</code></td><td>200, device A's state</td><td>PASS</td></tr>
+      <tr><td>Valid token A + <code>deviceId=A</code> (match)</td><td>200, device A's state</td><td>PASS</td></tr>
+      <tr><td>Bogus/inactive token</td><td>401, no state read</td><td>PASS</td></tr>
+      <tr><td>No token (session path)</td><td>401 unauthenticated, no state read</td><td>PASS</td></tr>
+    </table>
+    <p style="font-size:14px">5/5 pass. The mismatch case asserts the only DB read is <code>getRelayState("device-a")</code> — device B's state is never fetched.</p>
+    <h3>NVS fallback: unchanged</h3>
+    <p style="font-size:14px"><code>fetchRelayStateFromCloud()</code> still returns <code>-1</code> on any failure (network, 401, malformed JSON). <code>main.ino</code> uses cloud state only when <code>&gt;= 0</code>, else <code>loadRelayStateFromNVS()</code>, else defaults to power-ON — verified unchanged at <code>main.ino:184-205</code>.</p>
+    <div class="callout warning">
+      <div class="callout-title">DEPLOYMENT-VERIFIED &ne; PHYSICALLY-VERIFIED</div>
+      <p style="margin-top:0">Code-level tests and the build are clean, but the on-device boot fetch against the live endpoint has <strong>not</strong> been exercised (no flash). Confirmation requires a flash + a serial log showing <code>[RELAY-BOOT] Using cloud state</code> on a device with a valid token.</p>
+    </div>
+    <p style="font-size:14px"><strong>Files changed:</strong> <code>apps/web/src/app/api/relay/route.ts</code> (device-token GET path), <code>firmware/src/network.cpp</code> (2 lines), plus <code>apps/web/src/app/api/relay/route.test.mjs</code> (new).</p>
+  </div>
+
+  <div class="section">
+    <h2>Build Metadata (Relay-Auth Build)</h2>
+    <table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>Branch</td><td><code>feature/pzem-source-failover</code> @ <code>3521c18</code> + relay-auth fix</td></tr>
+      <tr><td>Build target</td><td><code>pio run</code> (fresh compile + link, 2026-09-12 23:05 +08:00)</td></tr>
+      <tr><td>Platform</td><td>Espressif 32 v7.1.2 (esp32dev)</td></tr>
+      <tr><td>RAM</td><td>15.1% (49,380 / 327,680 bytes)</td></tr>
+      <tr><td>Flash</td><td>80.3% (1,051,945 / 1,310,720 bytes)</td></tr>
+      <tr><td>Firmware size</td><td>1,058,528 bytes</td></tr>
+      <tr><td>SHA256</td><td><code>60B991DF2356163EA8283E5D79B63B86ECF7DFE937B556776A6DF586EDE5EDE0</code></td></tr>
+      <tr><td>Result</td><td>SUCCESS (10.66s)</td></tr>
+    </table>
+  </div>
+</div>
+</body>
+</html>

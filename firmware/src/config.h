@@ -70,6 +70,27 @@ const char* const TZ_OFFSET_STR = "+08:00";
 constexpr float DEFAULT_OVERVOLTAGE_THRESHOLD = 250.0;
 constexpr float DEFAULT_UNDERVOLTAGE_THRESHOLD = 200.0;
 
+// ──── PZEM HEALTH STATE MACHINE ──────────────────────────
+// These thresholds mirror the backend's dual-track incident engine:
+//   INCIDENT_PROMOTE_MS  = 60s → 12 reads × 5s = PZEM_COMM_FAIL_THRESHOLD
+//   RECOVERY_DEBOUNCE_MS = 30s →  6 reads × 5s = PZEM_RECOVER_THRESHOLD
+// If a PZEM returns NaN (all fields) for PZEM_COMM_FAIL_THRESHOLD
+// consecutive reads, it is marked OFFLINE. After PZEM_RECOVER_THRESHOLD
+// consecutive good reads, it returns to HEALTHY.
+constexpr int PZEM_COMM_FAIL_THRESHOLD = 12;
+constexpr int PZEM_RECOVER_THRESHOLD   = 6;
+
+// ──── PZEM SOURCE SELECTION (1-phase mode) ───────────────
+// AUTO: priority A → B → C, STICKY failover (once failed over to
+//   a lower-priority source, stay on it until IT fails — do not
+//   switch back just because a higher-priority source recovers).
+// MANUAL: use whatever source is configured; if that source goes
+//   OFFLINE, report NO_VALID_SOURCE rather than falling back.
+enum PzemSourceMode : uint8_t { PZEM_SOURCE_AUTO = 0, PZEM_SOURCE_MANUAL = 1 };
+constexpr uint8_t PZEM_SOURCE_A = 0;
+constexpr uint8_t PZEM_SOURCE_B = 1;
+constexpr uint8_t PZEM_SOURCE_C = 2;
+
 // ──── NVS CONFIGURATION KEYS ─────────────────────────────
 namespace EmuCfg {
   constexpr const char* NVS_NAMESPACE   = "emu_config";

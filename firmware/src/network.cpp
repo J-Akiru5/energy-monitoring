@@ -115,6 +115,7 @@ void sendToCloud(const String& payload) {
 
     HTTPClient http;
     http.begin(client, apiEndpoint);
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     http.addHeader("Content-Type", "application/json");
     http.addHeader("X-Device-Token", deviceToken);
     http.setTimeout(HTTP_TIMEOUT_MS);
@@ -174,6 +175,7 @@ void fetchThresholdsFromCloud() {
   String thresholdsUrl = String("https://") + getConfigSupabaseHost()
     + "/api/thresholds/esp32?deviceId=" + deviceId;
   http.begin(client, thresholdsUrl);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.addHeader("X-Device-Token", deviceToken);
   http.setTimeout(HTTP_TIMEOUT_MS);
 
@@ -216,6 +218,7 @@ int8_t fetchRelayStateFromCloud() {
   }
 
   const String& deviceId = getConfigDeviceId();
+  const String& deviceToken = getConfigDeviceToken();
   const String& apiEndpoint = getConfigApiEndpoint();
 
   Serial.println("[RELAY-BOOT] Fetching current relay state from cloud...");
@@ -232,7 +235,9 @@ int8_t fetchRelayStateFromCloud() {
 
   HTTPClient http;
   http.begin(client, relayUrl);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.setTimeout(5000);
+  http.addHeader("X-Device-Token", deviceToken);
 
   int httpCode = http.GET();
 
@@ -269,6 +274,7 @@ bool testBackendReachable() {
 
   HTTPClient http;
   http.begin(client, apiEndpoint);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.setTimeout(5000);
   int httpCode = http.GET();
   http.end();
