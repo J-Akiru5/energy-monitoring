@@ -5,12 +5,17 @@ export default function LoginPage() {
   return (
     <AuthSplitLayout
       productName="Admin Portal"
-      tagline="Authenticate to access the monitoring dashboard."
+      headline="Operations console for campus energy."
+      tagline="Building-manager access to monitoring, controls, and reporting."
+      institution={{
+        name: "Western Visayas State University",
+        shortName: "WVSU",
+      }}
     >
       <LoginForm
         action={login}
         subheading="Sign in to the admin console."
-        emailPlaceholder="admin@isufst.edu.ph"
+        emailPlaceholder="admin@wvsu.edu.ph"
         supportingText="Restricted access. Activity is logged."
       />
     </AuthSplitLayout>

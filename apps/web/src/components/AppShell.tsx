@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { usePolling } from "@/hooks/usePolling";
 import { usePrimaryDevice } from "@/hooks/usePrimaryDevice";
 import { APP_NAV_ITEMS, MOBILE_PRIMARY_NAV } from "@/lib/navigation";
+import { logout } from "@/app/actions";
 
 function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -14,11 +15,6 @@ function isActivePath(pathname: string, href: string) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { deviceId } = usePrimaryDevice();
-
-  // Hide the app shell entirely on the login screen
-  if (pathname === "/login") {
-    return <>{children}</>;
-  }
   const { latestReading, isConnected } = usePolling(deviceId);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [alertsCount, setAlertsCount] = useState(0);
@@ -50,6 +46,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       clearInterval(interval);
     };
   }, [deviceId]);
+
+  // Hide the app shell entirely on the login screen
+  if (pathname === "/login") {
+    return <>{children}</>;
+  }
 
   const lastSeen = latestReading?.recorded_at
     ? new Date(latestReading.recorded_at).toLocaleTimeString([], {
@@ -106,6 +107,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
           {alertsCount > 0 && <span className="alert-badge">{alertsCount}</span>}
         </div>
+
+        <form action={logout} className="app-shell-signout-form desktop-only">
+          <button type="submit" className="app-shell-signout-btn">
+            Sign out
+          </button>
+        </form>
       </header>
 
       <div className={`app-shell-overlay ${drawerOpen ? "open" : ""}`} onClick={() => setDrawerOpen(false)} />
@@ -144,6 +151,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
+
+        <div className="app-shell-drawer-footer">
+          <form action={logout}>
+            <button
+              type="submit"
+              className="app-shell-drawer-link app-shell-drawer-signout"
+            >
+              <span>Sign out</span>
+            </button>
+          </form>
+        </div>
       </aside>
 
       <main className="app-shell-main">{children}</main>
