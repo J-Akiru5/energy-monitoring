@@ -252,8 +252,9 @@ localTripReason = localTripReasonBuf;</pre>
       <tr><td>4</td><td><code>testBackendReachable()</code></td><td>~271</td></tr>
     </table>
     <div class="callout warning">
-      <div class="callout-title">Completeness check found a 5th site (not fixed here)</div>
-      <p style="margin-top:0">A grep for every <code>http.begin(</code> in <code>firmware/src</code> found a fifth instance at <code>monitor.cpp:421</code> — <code>fetchPzemConfigFromCloud()</code>, the PZEM config GET added with the source-failover work. It has the same redirect exposure but is outside the permitted file scope for this task (<code>network.cpp</code> only) and is left as a flagged follow-up.</p>
+      <div class="callout-title">Completeness check found a 5th site — now fixed (follow-up)</div>
+      <p style="margin-top:0">A grep for every <code>http.begin(</code> in <code>firmware/src</code> found a fifth instance at <code>monitor.cpp:421</code> — <code>fetchPzemConfigFromCloud()</code>, the PZEM config GET added with the source-failover work. It was outside the original file scope (<code>network.cpp</code> only); a follow-up commit added the same <code>http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS)</code> line there. <strong>All five <code>http.begin(</code> sites in <code>firmware/src</code> now follow redirects.</strong></p>
+      <p style="margin-top:8px">Follow-up build (2026-09-12 23:18 +08:00): RAM 15.1% (49,380 B), Flash 80.3% (1,051,969 / 1,310,720 B), firmware.bin 1,058,544 B, SHA256 <code>C1434392A18180EDC73F02FC76A2F73F8748296DD6A3450CAAB43B7C71ED3EDD</code>, SUCCESS (19.34s).</p>
     </div>
     <div class="callout warning">
       <div class="callout-title">Part B resolved — see the relay-auth addendum below</div>

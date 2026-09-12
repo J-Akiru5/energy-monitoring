@@ -419,6 +419,7 @@ void fetchPzemConfigFromCloud() {
 
   HTTPClient http;
   http.begin(client, configUrl);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.addHeader("X-Device-Token", getConfigDeviceToken());
   http.setTimeout(HTTP_TIMEOUT_MS);
 
