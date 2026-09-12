@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PZEM Health Backend — Implementation Report</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface2: #21262d; --border: #30363d;
+    --text: #e6edf3; --text-muted: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --red: #f85149; --yellow: #d29922; --purple: #bc8cff;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); line-height:1.65; padding:40px 20px; }
+  .container { max-width:980px; margin:0 auto; }
+  h1 { font-size:26px; margin-bottom:6px; }
+  h2 { font-size:20px; margin-top:36px; margin-bottom:12px; color:var(--accent);
+    border-bottom:1px solid var(--border); padding-bottom:8px; }
+  h3 { font-size:15px; margin-top:20px; margin-bottom:8px; }
+  .subtitle { color:var(--text-muted); font-size:14px; margin-bottom:36px; }
+  .badge { display:inline-block; padding:2px 10px; border-radius:20px; font-size:12px;
+    font-weight:600; margin-right:6px; }
+  .badge.green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.4)}
+  .badge.blue{background:rgba(88,166,255,.12);color:var(--accent);border:1px solid rgba(88,166,255,.3)}
+  .badge.yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid rgba(210,153,34,.4)}
+  .badge.red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid rgba(248,81,73,.4)}
+  .callout { background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent);
+    border-radius:6px; padding:14px 16px; margin:16px 0; font-size:14px; }
+  .callout.warning{border-left-color:var(--yellow)} .callout.success{border-left-color:var(--green)}
+  .callout.danger{border-left-color:var(--red)}
+  .callout-title{font-weight:600; margin-bottom:6px;}
+  code{font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace; font-size:12.5px;
+    background:var(--surface2); border:1px solid var(--border); border-radius:4px; padding:1px 5px;}
+  pre{background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:16px 20px;
+    overflow-x:auto; font-size:12.5px; font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+    line-height:1.6; margin:12px 0;}
+  table{width:100%; border-collapse:collapse; font-size:14px; margin:16px 0;}
+  th{background:var(--surface); border:1px solid var(--border); padding:10px 14px; text-align:left;
+    font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-muted); font-weight:600;}
+  td{border:1px solid var(--border); padding:10px 14px; vertical-align:top;}
+  tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+  .meta{display:flex; gap:24px; flex-wrap:wrap; margin-bottom:28px;}
+  .meta-item{font-size:13px; color:var(--text-muted);} .meta-item strong{color:var(--text);}
+  hr{border:none; border-top:1px solid var(--border); margin:36px 0;}
+  .commit-hash{font-family:monospace; font-size:12.5px; color:var(--accent);}
+  ul,ol{padding-left:22px;} li{margin:5px 0;}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1>PZEM Health Backend — Implementation Report</h1>
+  <div class="subtitle">Per-phase communication health, safety guard, config API &middot; 2026-09-12</div>
+
+  <div class="meta">
+    <div class="meta-item"><strong>Branch:</strong> <code>feature/pzem-health-backend</code> from <code>develop</code></div>
+    <div class="meta-item"><strong>Base:</strong> <span class="commit-hash">b4ff2c8</span></div>
+    <div class="meta-item"><strong>Build:</strong> <span class="badge green">tsc --noEmit CLEAN</span></div>
+  </div>
+
+  <hr>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 1: CHANGES                                            -->
+  <!-- ============================================================ -->
+  <h2>1. Changes Made</h2>
+
+  <table>
+    <tr><th>File</th><th>Change</th></tr>
+    <tr>
+      <td><code>packages/types/src/sensor.ts</code></td>
+      <td>Added <code>offline: z.boolean().default(false)</code> to <code>PhaseReadingSchema</code></td>
+    </tr>
+    <tr>
+      <td><code>apps/web/src/app/api/ingest/route.ts</code></td>
+      <td>
+        <ul style="padding-left:18px; margin:0;">
+          <li>Added <code>firePzemOfflineAlerts()</code> helper — loops phases, calls existing <code>processFaultCondition()</code> with <code>PZEM_OFFLINE</code></li>
+          <li>Wired into normal 3-phase path (after <code>insertReading()</code>) — each phase's real <code>.offline</code> flag</li>
+          <li>Replaced all-three-offline shortcut — synthesizes all phases as <code>true</code> instead of single non-phase alert</li>
+          <li>Added safety guard: skip OV/UV/OC for offline phases in <code>checkThreePhaseThresholds()</code></li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td><code>packages/database/src/queries/pzemConfig.ts</code></td>
+      <td>New file — <code>getPzemConfig()</code> and <code>updatePzemConfig()</code> query functions</td>
+    </tr>
+    <tr>
+      <td><code>packages/database/src/index.ts</code></td>
+      <td>Exports new pzemConfig queries</td>
+    </tr>
+    <tr>
+      <td><code>apps/web/src/app/api/devices/pzem-config/route.ts</code></td>
+      <td>New route — GET (dual auth: device token + session) and PUT (session only, with offline-phase rejection)</td>
+    </tr>
+    <tr>
+      <td><code>apps/mock-sensor/src/index.ts</code></td>
+      <td>Extended with <code>MOCK_PHASE_[A|B|C]_OFFLINE</code> env vars and <code>offline</code> flag in phase readings</td>
+    </tr>
+  </table>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 2: SAFETY BUG FIX                                     -->
+  <!-- ============================================================ -->
+  <hr>
+  <h2>2. Safety Bug Fix — Offline Phase Threshold Guard</h2>
+
+  <div class="callout danger">
+    <div class="callout-title">Bug: offline phases could auto-trip the relay</div>
+    <p style="margin-top:0;">
+      A dead PZEM reports <code>voltage: 0</code> (NaN zeroed by <code>readPhase()</code>),
+      which is <code>&lt; thresholds.undervoltage</code> (default 200V) by definition. Without the
+      guard, <code>checkThreePhaseThresholds()</code> would fire an UNDERVOLTAGE fault and
+      potentially auto-trip the relay on a communication failure, not a real electrical condition.
+    </p>
+    <p><strong>Fix:</strong> Skip OV/UV/OC evaluation for any phase where <code>phase.data.offline === true</code>.
+    Also clears any pending spike timers for that phase (the fault condition is a comm failure, not electrical).</p>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 3: ALERT ENGINE INTEGRATION                           -->
+  <!-- ============================================================ -->
+  <hr>
+  <h2>3. Alert Engine Integration</h2>
+
+  <p style="font-size:14px;">
+    The <code>firePzemOfflineAlerts()</code> helper reuses the existing
+    <code>processFaultCondition()</code> engine verbatim — same 60s spike window,
+    same 30s recovery debounce, same <code>device_alert_state</code> dedup key.
+    No new alert-engine code paths were created.
+  </p>
+
+  <pre>
+firePzemOfflineAlerts(deviceId, phaseFlags, activeStates)
+  for each phase [A, B, C]:
+    processFaultCondition({
+      deviceId, type: "PZEM_OFFLINE", phase,
+      isFault: phaseFlags[phase], ...
+    })
+  </pre>
+
+  <p style="font-size:14px;">
+    <strong>Unified, not a special case:</strong> The legacy <code>sensorOffline</code> shortcut
+    (which fired one non-phase-specific <code>phase: ''</code> alert) now calls the same helper,
+    synthesizing all phases as <code>true</code>. The <code>phase: ''</code> variant of
+    PZEM_OFFLINE stops being written going forward; historical rows are left alone.
+  </p>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 4: CONFIG API                                         -->
+  <!-- ============================================================ -->
+  <hr>
+  <h2>4. PZEM Config API</h2>
+
+  <h3>4.1 Contract (fixed per architecture doc Section 8)</h3>
+  <pre>
+GET  /api/devices/:deviceId/pzem-config
+  200: { "mode": "auto"|"manual", "manualSource": "A"|"B"|"C"|null }
+
+PUT  /api/devices/:deviceId/pzem-config
+  Body: { "mode": "auto"|"manual", "manualSource"?: "A"|"B"|"C"|null }
+  200: { "status": "ok", "mode": ..., "manualSource": ... }
+  409: { "status": "error", "error": "PZEM-X is currently unavailable..." }
+  </pre>
+
+  <h3>4.2 Config Table Proposal (awaiting Jeff's confirmation)</h3>
+  <div class="callout warning">
+    <div class="callout-title">Proposed: new <code>pzem_config</code> table</div>
+    <p style="margin-top:0;">
+      A dedicated <code>pzem_config</code> table, 1:1 with devices (device_id PK),
+      following the identical shape as <code>relay_config</code>. Columns:
+      <code>device_id</code> (uuid PK), <code>mode</code> (text, 'auto'|'manual'),
+      <code>manual_source</code> (text, 'A'|'B'|'C'|null), <code>updated_at</code> (timestamptz).
+    </p>
+    <p>
+      <strong>Why a sibling table, not extending relay_config:</strong> relay_config already has
+      11 columns of its own; adding pzem-specific columns would couple two independent concerns.
+      A dedicated table keeps each config surface clean and independently evolvable.
+    </p>
+    <p><strong>Status:</strong> <span class="badge yellow">AWAITING CONFIRMATION</span> — route works
+    regardless of storage (defaults to AUTO when no row exists). Migration will be written only after Jeff confirms.</p>
+  </div>
+
+  <h3>4.3 Offline-Phase Rejection</h3>
+  <p style="font-size:14px;">
+    PUT handler checks <code>getAlertState(deviceId, "PZEM_OFFLINE", manualSource)</code> before
+    persisting. If the phase is currently in an active OFFLINE incident, returns HTTP 409 with the
+    exact error message from the architecture doc. Rejection happens <em>before</em> persisting,
+    not accept-then-ignore.
+  </p>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 5: MOCK SENSOR EXTENSION                              -->
+  <!-- ============================================================ -->
+  <hr>
+  <h2>5. Mock Sensor Extension</h2>
+
+  <p style="font-size:14px;">
+    The mock sensor now supports per-phase offline simulation via environment variables:
+  </p>
+
+  <pre>
+MOCK_PHASE_A_OFFLINE=true   # Simulate Phase A communication failure
+MOCK_PHASE_B_OFFLINE=true   # Simulate Phase B communication failure
+MOCK_PHASE_C_OFFLINE=true   # Simulate Phase C communication failure
+  </pre>
+
+  <p style="font-size:14px;">
+    When flagged, the phase returns zeroed readings with <code>offline: true</code>,
+    matching the firmware's behavior when a PZEM is unreachable. This allows the entire
+    alert engine (firing, 60s promotion, 30s recovery, safety guard) to be exercised
+    with zero physical hardware — the CODE-VERIFIED layer per architecture doc Section 10.
+  </p>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 6: VERIFICATION                                       -->
+  <!-- ============================================================ -->
+  <hr>
+  <h2>6. Verification</h2>
+
+  <table>
+    <tr><th>Check</th><th>Result</th></tr>
+    <tr><td><code>pnpm --filter @energy/types build</code></td><td><span class="badge green">PASS</span></td></tr>
+    <tr><td><code>pnpm --filter @energy/database build</code></td><td><span class="badge green">PASS</span></td></tr>
+    <tr><td><code>pnpm --filter web exec tsc --noEmit</code></td><td><span class="badge green">PASS</span></td></tr>
+    <tr><td><code>pnpm --filter @energy/mock-sensor exec tsc --noEmit</code></td><td><span class="badge green">PASS</span></td></tr>
+  </table>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 7: WHAT'S STILL OPEN                                  -->
+  <!-- ============================================================ -->
+  <hr>
+  <h2>7. What's Still Open</h2>
+
+  <table>
+    <tr><th>Item</th><th>Status</th><th>Notes</th></tr>
+    <tr>
+      <td>Config table migration</td>
+      <td><span class="badge yellow">AWAITING CONFIRMATION</span></td>
+      <td>Route works with defaults; migration deferred until Jeff confirms table shape</td>
+    </tr>
+    <tr>
+      <td>Firmware: poll-all-three + offline field + 1-phase failover</td>
+      <td><span class="badge blue">AGENT F'S SCOPE</span></td>
+      <td>Separate worktree, separate prompt</td>
+    </tr>
+    <tr>
+      <td>Frontend: PZEM status panel + manual selector</td>
+      <td><span class="badge blue">AGENT 3'S SCOPE</span></td>
+      <td>Separate worktree, separate prompt</td>
+    </tr>
+    <tr>
+      <td>Super-admin redirect loop</td>
+      <td><span class="badge yellow">TRACKED — out of scope</span></td>
+      <td>Explicitly not folded into this work</td>
+    </tr>
+    <tr>
+      <td>Platform-wide password-reset gap</td>
+      <td><span class="badge yellow">TRACKED — out of scope</span></td>
+      <td>Explicitly not folded into this work</td>
+    </tr>
+  </table>
+
+  <hr>
+  <div style="font-size:12px; color:var(--text-muted); margin-top:24px; text-align:center;">
+    Session: 2026-09-12 &middot; Agent: opencode/mimo-v2-free &middot; Branch: feature/pzem-health-backend
+  </div>
+
+</div>
+</body>
+</html>

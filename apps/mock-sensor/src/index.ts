@@ -14,7 +14,10 @@
  *   MOCK_DEVICE_TOKEN=dev-test-token
  *   MOCK_DEVICE_ID=some-uuid
  *   MOCK_INTERVAL_MS=2000
- *   MOCK_THREE_PHASE=true  # Alternative to --3phase flag
+ * MOCK_THREE_PHASE=true  # Alternative to --3phase flag
+ * MOCK_PHASE_C_OFFLINE=true  # Simulate Phase C communication failure
+ * MOCK_PHASE_B_OFFLINE=true  # Simulate Phase B communication failure
+ * MOCK_PHASE_A_OFFLINE=true  # Simulate Phase A communication failure
  */
 
 import "dotenv/config";
@@ -30,6 +33,13 @@ const INTERVAL = parseInt(process.env.MOCK_INTERVAL_MS || "2000", 10);
 // Check for 3-phase mode via env var or CLI arg
 const IS_THREE_PHASE =
   process.env.MOCK_THREE_PHASE === "true" || process.argv.includes("--3phase");
+
+// Per-phase offline simulation (for testing the alert engine)
+const PHASE_OFFLINE = {
+  A: process.env.MOCK_PHASE_A_OFFLINE === "true",
+  B: process.env.MOCK_PHASE_B_OFFLINE === "true",
+  C: process.env.MOCK_PHASE_C_OFFLINE === "true",
+};
 
 // ──── STATE ─────────────────────────────────────────────────
 // Cumulative energy per phase (for 3-phase) or total (for single-phase)
@@ -101,6 +111,19 @@ function generatePhaseReading(
   phaseName: "A" | "B" | "C",
   loadMultiplier: number
 ): PhaseReading {
+  // If this phase is simulated as offline, return zeroed reading with offline flag
+  if (PHASE_OFFLINE[phaseName]) {
+    return {
+      voltage: 0,
+      current: 0,
+      power: 0,
+      energy: 0,
+      frequency: 0,
+      powerFactor: 0,
+      offline: true,
+    };
+  }
+
   // Each phase has slightly different characteristics
   const voltageOffsets = { A: 0, B: -0.3, C: 0.5 };
   const currentVariance = { A: 1.0, B: 0.85, C: 1.15 };
@@ -121,6 +144,7 @@ function generatePhaseReading(
     energy: 0, // Will be set after accumulation
     frequency,
     powerFactor,
+    offline: false,
   };
 }
 
@@ -176,14 +200,17 @@ async function sendReading(payload: TelemetryPayload): Promise<void> {
         console.log(
           `[✓] #${cycleCount} | 3-PHASE | Total: ${round(totalPower, 1)}W | ${round(totalEnergy, 4)} kWh`
         );
+        const statusA = phase_a.offline ? " [OFFLINE]" : "";
+        const statusB = phase_b.offline ? " [OFFLINE]" : "";
+        const statusC = phase_c.offline ? " [OFFLINE]" : "";
         console.log(
-          `    Phase A: ${phase_a.voltage}V ${phase_a.current}A ${phase_a.power}W`
+          `    Phase A: ${phase_a.voltage}V ${phase_a.current}A ${phase_a.power}W${statusA}`
         );
         console.log(
-          `    Phase B: ${phase_b.voltage}V ${phase_b.current}A ${phase_b.power}W`
+          `    Phase B: ${phase_b.voltage}V ${phase_b.current}A ${phase_b.power}W${statusB}`
         );
         console.log(
-          `    Phase C: ${phase_c.voltage}V ${phase_c.current}A ${phase_c.power}W`
+          `    Phase C: ${phase_c.voltage}V ${phase_c.current}A ${phase_c.power}W${statusC}`
         );
       } else if (payload.reading) {
         console.log(
@@ -211,6 +238,14 @@ async function main() {
   console.log(`  Device:   ${DEVICE_ID}`);
   console.log(`  Interval: ${INTERVAL}ms`);
   console.log(`  Mode:     ${IS_THREE_PHASE ? "3-PHASE" : "SINGLE-PHASE"}`);
+  if (IS_THREE_PHASE) {
+    const offlinePhases = Object.entries(PHASE_OFFLINE)
+      .filter(([, v]) => v)
+      .map(([k]) => k);
+    if (offlinePhases.length > 0) {
+      console.log(`  Offline:  Phase ${offlinePhases.join(", ")} (simulated)`);
+    }
+  }
   console.log("═══════════════════════════════════════\n");
 
   // Continuous loop
