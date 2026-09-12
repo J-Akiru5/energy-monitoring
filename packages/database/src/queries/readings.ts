@@ -22,9 +22,31 @@ export async function insertReading(
   if (isThreePhasePayload(payload)) {
     const { phase_a, phase_b, phase_c } = payload.threePhase;
 
-    // Calculate totals
-    const totalPower = phase_a.power + phase_b.power + phase_c.power;
-    const totalEnergy = phase_a.energy + phase_b.energy + phase_c.energy;
+    // In 1-phase mode (redundant-tap model), A/B/C are three CT taps on ONE
+    // circuit. total_power/total_energy come from the active source only — not
+    // a sum, which would triple-count. In 3-phase mode (pzemActiveSource
+    // absent), all three are independent phases and we sum as before.
+    const activeSource = payload.pzemActiveSource;
+    const activePhase = activeSource === "B"
+      ? phase_b
+      : activeSource === "C"
+        ? phase_c
+        : phase_a;
+
+    if (activeSource && activeSource !== "A") {
+      console.log(
+        `[InsertReading] 1-phase mode: activeSource=${activeSource}, ` +
+        `totalPower=${activePhase.power}W (from phase ${activeSource} only)`
+      );
+    }
+
+    // Totals: in 1-phase mode, use ONLY the active source; in 3-phase, sum all.
+    const totalPower = activeSource
+      ? activePhase.power
+      : phase_a.power + phase_b.power + phase_c.power;
+    const totalEnergy = activeSource
+      ? activePhase.energy
+      : phase_a.energy + phase_b.energy + phase_c.energy;
 
     // Average frequency and power factor (use available values)
     const frequencies = [phase_a.frequency, phase_b.frequency, phase_c.frequency].filter(
@@ -45,9 +67,10 @@ export async function insertReading(
 
     const { error } = await supabase.from("power_readings").insert({
       device_id: payload.deviceId,
-      // Legacy columns (Phase A values + totals for backward compatibility)
-      voltage: phase_a.voltage,
-      current_amp: phase_a.current,
+      // Legacy columns — from the active source (in 1-phase mode, these are
+      // redundant taps, so legacy reflects the one real circuit)
+      voltage: activePhase.voltage,
+      current_amp: activePhase.current,
       power_w: totalPower,
       energy_kwh: totalEnergy,
       frequency: avgFrequency,

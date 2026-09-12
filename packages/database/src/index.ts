@@ -83,3 +83,10 @@ export {
   getBlackoutEvents,
   getBlackoutStats,
 } from "./queries/blackouts";
+
+// PZEM config queries
+export {
+  getPzemConfig,
+  updatePzemConfig,
+} from "./queries/pzemConfig";
+export type { PzemConfig } from "./queries/pzemConfig";
