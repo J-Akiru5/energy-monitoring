@@ -233,6 +233,53 @@ localTripReason = localTripReasonBuf;</pre>
       <tr><td>SHA256</td><td><code>01422C518091E0729C39AE5795E93AD260B93663B454282FE76740526FAB1C40</code></td></tr>
     </table>
   </div>
+
+  <div class="section">
+    <h2>Addendum: HTTP Redirect Following on All Outbound Calls (Part A)</h2>
+    <div class="callout danger">
+      <div class="callout-title">Bug</div>
+      <p style="margin-top:0">All four call sites in <code>network.cpp</code> used <code>HTTPClient</code> without calling <code>setFollowRedirects()</code>. Arduino's <code>HTTPClient</code> defaults to <strong>not</strong> following redirects. Vercel commonly answers with <strong>307</strong> for trailing-slash/protocol redirects — so all 3 retries in <code>sendToCloud()</code> would fail identically and the payload would be dropped silently. The same applied to the thresholds fetch, relay-state fetch, and reachability probe.</p>
+    </div>
+    <h3>Fix</h3>
+    <p style="font-size:14px">One line added to each of the four <code>HTTPClient</code> instances in <code>network.cpp</code>, immediately after <code>http.begin()</code>:</p>
+    <pre>http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);</pre>
+    <p style="font-size:14px"><code>HTTPC_STRICT_FOLLOW_REDIRECTS</code> is deliberately chosen over <code>FORCE</code>: strict mode follows redirects while preserving the HTTP method for <strong>307/308</strong> (the Vercel case), so the telemetry <code>POST</code> stays a <code>POST</code> through a redirect rather than being rewritten to <code>GET</code>.</p>
+    <table>
+      <tr><th>#</th><th>Function</th><th>Line (pre-fix)</th></tr>
+      <tr><td>1</td><td><code>sendToCloud()</code></td><td>~117</td></tr>
+      <tr><td>2</td><td><code>fetchThresholdsFromCloud()</code></td><td>~176</td></tr>
+      <tr><td>3</td><td><code>fetchRelayStateFromCloud()</code></td><td>~234</td></tr>
+      <tr><td>4</td><td><code>testBackendReachable()</code></td><td>~271</td></tr>
+    </table>
+    <div class="callout warning">
+      <div class="callout-title">Completeness check found a 5th site (not fixed here)</div>
+      <p style="margin-top:0">A grep for every <code>http.begin(</code> in <code>firmware/src</code> found a fifth instance at <code>monitor.cpp:421</code> — <code>fetchPzemConfigFromCloud()</code>, the PZEM config GET added with the source-failover work. It has the same redirect exposure but is outside the permitted file scope for this task (<code>network.cpp</code> only) and is left as a flagged follow-up.</p>
+    </div>
+    <div class="callout warning">
+      <div class="callout-title">Not in scope: relay-fetch auth (Part B)</div>
+      <p style="margin-top:0">The relay-state fetch received redirect-following only. Its authentication change (<code>X-Relay-Secret</code> vs <code>X-Device-Token</code>) is Part B, blocked pending a decision — no default was chosen or applied.</p>
+    </div>
+    <div class="callout warning">
+      <div class="callout-title">DEPLOYMENT-VERIFIED &ne; PHYSICALLY-VERIFIED</div>
+      <p style="margin-top:0">The build is clean and the code change is minimal, but the actual 307-follow behavior against the live Vercel endpoint has <strong>not</strong> been observed on-device. Confirming it requires a flash + a real redirect response in the serial log.</p>
+    </div>
+    <p style="font-size:14px"><strong>Files changed:</strong> <code>firmware/src/network.cpp</code> (4 lines added)</p>
+  </div>
+
+  <div class="section">
+    <h2>Build Metadata (Redirect-Fix Build)</h2>
+    <table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>Branch</td><td><code>feature/pzem-source-failover</code> @ <code>ae58f13</code> + redirect fix</td></tr>
+      <tr><td>Build target</td><td><code>pio run</code> (fresh worktree build, 2026-09-12 22:55 +08:00)</td></tr>
+      <tr><td>Platform</td><td>Espressif 32 v7.1.2 (esp32dev)</td></tr>
+      <tr><td>RAM</td><td>15.1% (49,380 / 327,680 bytes)</td></tr>
+      <tr><td>Flash</td><td>80.3% (1,051,853 / 1,310,720 bytes)</td></tr>
+      <tr><td>Firmware size</td><td>1,058,432 bytes</td></tr>
+      <tr><td>SHA256</td><td><code>CFDF76EC585C9C8B47E069466DAC62E17C77340DCFFD4A0A6078C4A8D8D07DD0</code></td></tr>
+      <tr><td>Result</td><td>SUCCESS (34.34s)</td></tr>
+    </table>
+  </div>
 </div>
 </body>
 </html>
