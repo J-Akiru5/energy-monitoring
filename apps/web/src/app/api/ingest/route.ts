@@ -24,6 +24,30 @@ import {
 // ──── Rate limiting (in-memory, per device) ────────────────────────────
 const lastPostTime = new Map<string, number>();
 
+// ──── PZEM Offline Alert Helper ────────────────────────────────────────
+// Shared by both the normal 3-phase path and the all-three-offline shortcut.
+// Calls the EXISTING processFaultCondition() per phase — no new alert-engine
+// code paths. The `phase: ''` variant of PZEM_OFFLINE stops being written
+// going forward; historical rows with `phase: ''` are left alone.
+async function firePzemOfflineAlerts(
+  deviceId: string,
+  phaseFlags: { A: boolean; B: boolean; C: boolean },
+  activeStates: Map<string, import("@energy/database").AlertState>
+) {
+  for (const [phase, isFault] of Object.entries(phaseFlags)) {
+    await processFaultCondition({
+      deviceId,
+      type: "PZEM_OFFLINE",
+      phase,
+      isFault,
+      faultValue: 0,
+      threshold: 0,
+      message: `Phase ${phase} communication failure — inspection required. Check wiring, connector, sensor power, or the communication path.`,
+      activeStates,
+    });
+  }
+}
+
 // ──── Alert Incident Deduplication (in-memory, per server process) ─────
 //
 // Key format: `${deviceId}:${alertType}:${phase}`
@@ -110,18 +134,16 @@ export async function POST(req: NextRequest) {
     }
     lastPostTime.set(payload.deviceId, now);
 
-    // ── 4a. Handle Sensor Offline (deduplicated) ──
+    // ── 4a. Handle Sensor Offline (deduplicated, per-phase) ──
     if (payload.sensorOffline) {
-      await processFaultCondition({
-        deviceId:   payload.deviceId,
-        type:       "PZEM_OFFLINE",
-        phase:      "",
-        isFault:    true,
-        faultValue: 0,
-        threshold:  0,
-        message:
-          "PZEM sensor offline: ESP32 cannot communicate with power meter. Check wiring and sensor connection.",
-      });
+      // Synthesize all phases as offline. The firmware only sets
+      // sensorOffline when ALL phases return NaN, so all are offline.
+      const is3PhaseOff = isThreePhasePayload(payload);
+      const phaseFlags = is3PhaseOff
+        ? { A: true, B: true, C: true }
+        : { A: true, B: false, C: false }; // single-phase: only the active phase
+      const activeStates = await getAllActiveAlertStates(payload.deviceId);
+      await firePzemOfflineAlerts(payload.deviceId, phaseFlags, activeStates);
       return NextResponse.json({ status: "ok", sensorOffline: true }, { status: 200 });
     }
 
@@ -137,6 +159,16 @@ export async function POST(req: NextRequest) {
       timestamp: new Date().toISOString(),
     };
     await insertReading(serverPayload, tenantStamp);
+
+    // ── 4d. Per-Phase PZEM Offline Alerts (3-phase only) ──
+    if (is3Phase) {
+      const offlineStates = await getAllActiveAlertStates(payload.deviceId);
+      await firePzemOfflineAlerts(payload.deviceId, {
+        A: payload.threePhase!.phase_a.offline,
+        B: payload.threePhase!.phase_b.offline,
+        C: payload.threePhase!.phase_c.offline,
+      }, offlineStates);
+    }
 
     // ── 5. Smart Blackout Detection & Event Tracking (unchanged) ──
     const blackoutState = await getDeviceBlackoutState(payload.deviceId);
@@ -351,6 +383,19 @@ async function checkThreePhaseThresholds(
     ];
 
     for (const phase of phases) {
+      // ── Safety guard: skip threshold checks for offline phases ──
+      // A dead PZEM reports 0V (NaN zeroed by readPhase), which would
+      // falsely trigger UNDERVOLTAGE. Skip OV/UV/OC when the phase is
+      // known to be offline — the PZEM_OFFLINE alert handles it instead.
+      if (phase.data.offline) {
+        // Clear any pending OV/UV/OC spike timers for this phase (fault
+        // condition no longer applies — it's a comm failure, not electrical)
+        pendingFaults.delete(`${deviceId}:OVERVOLTAGE:${phase.name}`);
+        pendingFaults.delete(`${deviceId}:UNDERVOLTAGE:${phase.name}`);
+        pendingFaults.delete(`${deviceId}:OVERCURRENT:${phase.name}`);
+        continue;
+      }
+
       // ── Overvoltage ──
       const ovRes = await processFaultCondition({
         deviceId,

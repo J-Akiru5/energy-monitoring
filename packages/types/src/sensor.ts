@@ -22,6 +22,7 @@ export const PhaseReadingSchema = z.object({
   energy: z.number().min(0),
   frequency: z.number().min(0).max(65).optional(),
   powerFactor: z.number().min(0).max(1).optional(),
+  offline: z.boolean().default(false), // communication status, not a measurement
 });
 
 export type PhaseReading = z.infer<typeof PhaseReadingSchema>;
