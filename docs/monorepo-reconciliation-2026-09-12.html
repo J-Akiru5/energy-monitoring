@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monorepo Reconciliation — 2026-09-12</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 40px 20px;
+  }
+  .container { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 26px; margin-bottom: 6px; }
+  h2 { font-size: 20px; margin-top: 36px; margin-bottom: 12px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 15px; margin-top: 20px; margin-bottom: 8px; color: var(--text); }
+  .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 36px; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 6px;
+  }
+  .badge.green  { background: rgba(63,185,80,0.15);  color: var(--green);  border: 1px solid rgba(63,185,80,0.4); }
+  .badge.blue   { background: rgba(88,166,255,0.12);  color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
+  .badge.yellow { background: rgba(210,153,34,0.15);  color: var(--yellow); border: 1px solid rgba(210,153,34,0.4); }
+  .badge.red    { background: rgba(248,81,73,0.15);   color: var(--red);    border: 1px solid rgba(248,81,73,0.4); }
+  .badge.purple { background: rgba(188,140,255,0.15); color: var(--purple); border: 1px solid rgba(188,140,255,0.3); }
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .callout.warning { border-left-color: var(--yellow); }
+  .callout.success { border-left-color: var(--green); }
+  .callout.danger  { border-left-color: var(--red); }
+  .callout-title { font-weight: 600; margin-bottom: 6px; }
+  code {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 12.5px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    font-size: 12.5px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    line-height: 1.6;
+    margin: 12px 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin: 16px 0;
+  }
+  th {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  td {
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  .meta { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 28px; }
+  .meta-item { font-size: 13px; color: var(--text-muted); }
+  .meta-item strong { color: var(--text); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 36px 0; }
+  .commit-hash {
+    font-family: monospace;
+    font-size: 12.5px;
+    color: var(--accent);
+  }
+  ul, ol { padding-left: 22px; }
+  li { margin: 5px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Monorepo Reconciliation</h1>
+  <div class="subtitle">Three workstreams consolidated &middot; 2026-09-12</div>
+
+  <div class="meta">
+    <div class="meta-item"><strong>Branches reconciled:</strong> 3</div>
+    <div class="meta-item"><strong>PRs opened:</strong> 2</div>
+    <div class="meta-item"><strong>Target branches:</strong> main (firmware), develop (apps)</div>
+  </div>
+
+  <hr>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 1: DIVERGENCE FINDINGS                                -->
+  <!-- ============================================================ -->
+  <h2>1. Divergence Findings</h2>
+
+  <h3>1.1 Branch Inventory</h3>
+  <table>
+    <tr><th>Branch</th><th>Tip Commit</th><th>Commits Ahead</th><th>Files Changed</th></tr>
+    <tr>
+      <td><code>fix/firmware-ws-reconnect-leak</code></td>
+      <td><span class="commit-hash">162a2b8</span></td>
+      <td>5</td>
+      <td>firmware/src/{main.ino,config.h,monitor.cpp}, firmware/platformio.ini, docs/*.html</td>
+    </tr>
+    <tr>
+      <td><code>diag/firmware-pzemc-pin-swap</code></td>
+      <td><span class="commit-hash">a261dc4</span> (merge)</td>
+      <td>7 (+ 1 merge)</td>
+      <td>Same as above + firmware/src/main.ino (pin swap)</td>
+    </tr>
+    <tr>
+      <td><code>feature/unified-login-ui</code></td>
+      <td><span class="commit-hash">15bb778</span></td>
+      <td>1</td>
+      <td>apps/{web,admin,super-admin}/src/app/login/page.tsx, packages/ui/src/*, pnpm-lock.yaml</td>
+    </tr>
+  </table>
+
+  <h3>1.2 Target Branch Analysis</h3>
+  <div class="callout">
+    <div class="callout-title">No `preview` branch exists</div>
+    Only <code>develop</code> and <code>main</code> exist. They are currently synchronized at
+    <span class="commit-hash">b4ff2c8</span> (identical tips).
+  </div>
+
+  <table>
+    <tr><th>Feature</th><th>Target</th><th>Evidence</th></tr>
+    <tr>
+      <td>Firmware (both branches)</td>
+      <td><code>main</code></td>
+      <td>
+        <code>fix/firmware-production-provisioning</code> branched from
+        <span class="commit-hash">2b2c42a</span> (main-only commit at the time).
+        All firmware work has historically targeted main. Firmware subtree has its own
+        deployment cycle separate from apps.
+      </td>
+    </tr>
+    <tr>
+      <td>Unified login UI</td>
+      <td><code>develop</code></td>
+      <td>
+        Touches <code>apps/*</code> and <code>packages/ui</code> — app-level work that follows
+        the standard develop convention. Branch created from
+        <span class="commit-hash">b4ff2c8</span> (on both develop and main).
+      </td>
+    </tr>
+  </table>
+
+  <h3>1.3 Merge-Base Verification</h3>
+  <p style="font-size:14px; color:var(--text-muted);">
+    All three feature branches share the same merge-base with develop/main:
+    <span class="commit-hash">b4ff2c8</span>. No preview branch exists. No divergence
+    between develop and main to account for.
+  </p>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 2: FIRMWARE RECONCILIATION                            -->
+  <!-- ============================================================ -->
+  <hr>
+  <h2>2. Firmware Reconciliation</h2>
+
+  <h3>2.1 Ancestry Verification</h3>
+  <table>
+    <tr><th>Commit</th><th>Is ancestor of pin-swap?</th></tr>
+    <tr><td><code>38c80f0</code> (leak fix)</td><td><span class="badge green">YES</span></td></tr>
+    <tr><td><code>fcb91b9</code> (docs report)</td><td><span class="badge green">YES</span></td></tr>
+    <tr><td><code>162a2b8</code> (docs addendum on fix branch)</td><td><span class="badge yellow">NO (separate commit, same content)</span></td></tr>
+  </table>
+  <p style="font-size:14px; margin-top:8px;">
+    The pin-swap branch has its own docs addendum (<code>063845d</code>) with identical content.
+    The leak fix's addendum (<code>162a2b8</code>) was merged in during this session.
+  </p>
+
+  <h3>2.2 Merged Branch: <code>fix/firmware-pzemc-and-crash-fix</code></h3>
+  <p style="font-size:14px;">
+    Commit: <span class="commit-hash">a261dc4</span> (merge commit)
+  </p>
+  <pre>
+a261dc4 Merge branch 'fix/firmware-ws-reconnect-leak' into diag/firmware-pzemc-pin-swap
+14e6aea fix(firmware): relabel PZEM-C pin-swap as permanent crossed-harness fix
+162a2b8 docs: add flash verification results and PZEM-C crossed-harness confirmation
+063845d docs: add flash verification results and PZEM-C crossed-harness confirmation
+6aecd16 diag(firmware): swap PZEM-C SoftwareSerial RX/TX to test crossed-harness hypothesis
+fcb91b9 docs: full-power retest and crash-loop root cause report (2026-09-12)
+38c80f0 fix(firmware): stop WS beginSSL re-init leak causing heap-exhaustion reboot loop
+20a7b34 fix(firmware): restore secrets.h include for backend compile-time defaults
+5c94b5f fix(firmware): restore debug UART0 — move PZEM-C to dedicated software serial
+  </pre>
+
+  <h3>2.3 PR #3 — Firmware to main</h3>
+  <div class="callout success">
+    <div class="callout-title">PR #3: fix(firmware): crash-loop leak fix + permanent PZEM-C crossed-harness fix</div>
+    <ul style="margin-top:8px;">
+      <li><strong>Target:</strong> <code>main</code></li>
+      <li><strong>Head:</strong> <code>fix/firmware-pzemc-and-crash-fix</code></li>
+      <li><strong>URL:</strong> <a href="https://github.com/J-Akiru5/energy-monitoring/pull/3" style="color:var(--accent);">github.com/J-Akiru5/energy-monitoring/pull/3</a></li>
+      <li><strong>Status:</strong> <span class="badge blue">OPEN — awaiting review</span></li>
+    </ul>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 3: UNIFIED LOGIN UI RECONCILIATION                    -->
+  <!-- ============================================================ -->
+  <hr>
+  <h2>3. Unified Login UI Reconciliation</h2>
+
+  <h3>3.1 Worktree Status</h3>
+  <p style="font-size:14px;">
+    Branch <code>feature/unified-login-ui</code> checked out in separate worktree at
+    <code>S:\Dev\Monorepo\ems-agent2-login-ui</code>. Main worktree untouched.
+  </p>
+
+  <h3>3.2 Verification Re-Run</h3>
+  <table>
+    <tr><th>Check</th><th>Result</th></tr>
+    <tr><td><code>pnpm install</code></td><td><span class="badge green">CLEAN</span></td></tr>
+    <tr><td><code>tsc --noEmit</code> — @energy/ui</td><td><span class="badge green">PASS</span></td></tr>
+    <tr><td><code>tsc --noEmit</code> — web</td><td><span class="badge green">PASS</span></td></tr>
+    <tr><td><code>tsc --noEmit</code> — @energy/admin</td><td><span class="badge green">PASS</span></td></tr>
+    <tr><td><code>tsc --noEmit</code> — @energy/super-admin</td><td><span class="badge green">PASS</span></td></tr>
+    <tr><td><code>next build</code> — web</td><td><span class="badge green">PASS</span> (8.3s)</td></tr>
+    <tr><td><code>next build</code> — admin</td><td><span class="badge green">PASS</span> (4.6s)</td></tr>
+    <tr><td><code>next build</code> — super-admin</td><td><span class="badge green">PASS</span> (2.4s)</td></tr>
+    <tr><td><code>eslint</code> — login pages</td><td><span class="badge green">PASS</span> (all 3 apps)</td></tr>
+  </table>
+  <p style="font-size:13px; color:var(--text-muted); margin-top:8px;">
+    Note: Full-project eslint shows pre-existing errors in unrelated files (phases/page.tsx,
+    AppShell.tsx, process-icons.mjs). These are not introduced by this feature.
+  </p>
+
+  <h3>3.3 PR #4 — Login UI to develop</h3>
+  <div class="callout success">
+    <div class="callout-title">PR #4: feat(ui): unified enterprise split-layout login across all three apps</div>
+    <ul style="margin-top:8px;">
+      <li><strong>Target:</strong> <code>develop</code></li>
+      <li><strong>Head:</strong> <code>feature/unified-login-ui</code></li>
+      <li><strong>URL:</strong> <a href="https://github.com/J-Akiru5/energy-monitoring/pull/4" style="color:var(--accent);">github.com/J-Akiru5/energy-monitoring/pull/4</a></li>
+      <li><strong>Status:</strong> <span class="badge blue">OPEN — awaiting review</span></li>
+    </ul>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 4: CONSOLIDATED STATUS                                -->
+  <!-- ============================================================ -->
+  <hr>
+  <h2>4. Consolidated Status</h2>
+
+  <table>
+    <tr>
+      <th>Workstream</th><th>Branch</th><th>PR</th><th>Target</th><th>Status</th>
+    </tr>
+    <tr>
+      <td>Firmware crash-loop fix</td>
+      <td><code>fix/firmware-pzemc-and-crash-fix</code></td>
+      <td><a href="https://github.com/J-Akiru5/energy-monitoring/pull/3">#3</a></td>
+      <td><code>main</code></td>
+      <td><span class="badge blue">OPEN — awaiting review</span></td>
+    </tr>
+    <tr>
+      <td>Firmware PZEM-C pin-swap</td>
+      <td><code>fix/firmware-pzemc-and-crash-fix</code></td>
+      <td><a href="https://github.com/J-Akiru5/energy-monitoring/pull/3">#3</a></td>
+      <td><code>main</code></td>
+      <td><span class="badge blue">OPEN — awaiting review</span> (same PR)</td>
+    </tr>
+    <tr>
+      <td>Unified login UI</td>
+      <td><code>feature/unified-login-ui</code></td>
+      <td><a href="https://github.com/J-Akiru5/energy-monitoring/pull/4">#4</a></td>
+      <td><code>develop</code></td>
+      <td><span class="badge blue">OPEN — awaiting review</span></td>
+    </tr>
+  </table>
+
+  <h3>4.1 Still Open (Not In Scope)</h3>
+  <table>
+    <tr><th>Issue</th><th>Status</th><th>Notes</th></tr>
+    <tr>
+      <td>Super-admin redirect loop</td>
+      <td><span class="badge yellow">TRACKED — not resolved</span></td>
+      <td>Explicitly out of scope for this session</td>
+    </tr>
+    <tr>
+      <td>Platform-wide password-reset gap</td>
+      <td><span class="badge yellow">TRACKED — not resolved</span></td>
+      <td>Explicitly out of scope for this session</td>
+    </tr>
+  </table>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 5: BRANCH CLEANUP                                     -->
+  <!-- ============================================================ -->
+  <hr>
+  <h2>5. Branch Cleanup Notes</h2>
+  <div class="callout warning">
+    <div class="callout-title">Superseded Branches</div>
+    <p style="font-size:14px;">
+      The following branches are now superseded by the merged PR branches. They can be
+      deleted after the PRs are merged:
+    </p>
+    <ul style="font-size:14px; padding-left:18px; margin-top:8px;">
+      <li><code>fix/firmware-ws-reconnect-leak</code> — merged into <code>fix/firmware-pzemc-and-crash-fix</code></li>
+      <li><code>diag/firmware-pzemc-pin-swap</code> — merged into <code>fix/firmware-pzemc-and-crash-fix</code></li>
+    </ul>
+  </div>
+
+  <hr>
+  <div style="font-size:12px; color:var(--text-muted); margin-top:24px; text-align:center;">
+    Session: 2026-09-12 &middot; Agent: opencode/mimo-v2-free &middot;
+    PRs: <a href="https://github.com/J-Akiru5/energy-monitoring/pull/3" style="color:var(--accent);">#3</a> (firmware),
+    <a href="https://github.com/J-Akiru5/energy-monitoring/pull/4" style="color:var(--accent);">#4</a> (login UI)
+  </div>
+
+</div>
+</body>
+</html>
