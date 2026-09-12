@@ -1,6 +1,8 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getSupabaseAdmin } from "@energy/database";
+import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -131,6 +133,24 @@ function isBlackoutRow(row: Record<string, unknown>, phase: Phase): boolean {
 
 export async function GET(req: NextRequest) {
   try {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    let customerId: string;
+    try {
+      const access = await resolveAccess(user.id, "view_reports");
+      customerId = access.customerId;
+    } catch (err) {
+      if (err instanceof AccessDeniedError) {
+        return NextResponse.json({ error: err.message }, { status: 403 });
+      }
+      throw err;
+    }
+
     const { searchParams } = new URL(req.url);
     const deviceId = searchParams.get("deviceId");
     const phase = getPhase(searchParams);
@@ -143,8 +163,9 @@ export async function GET(req: NextRequest) {
     let query = client
       .from("power_readings")
       .select(
-        "id, recorded_at, voltage, current_amp, power_w, energy_kwh, frequency, power_factor, voltage_a, voltage_b, voltage_c, current_a, current_b, current_c, power_a, power_b, power_c, energy_a, energy_b, energy_c, frequency_a, frequency_b, frequency_c, power_factor_a, power_factor_b, power_factor_c, total_power, total_energy"
+        "id, recorded_at, voltage, current_amp, power_w, energy_kwh, frequency, power_factor, voltage_a, voltage_b, voltage_c, current_a, current_b, current_c, power_a, power_b, power_c, energy_a, energy_b, energy_c, frequency_a, frequency_b, frequency_c, power_factor_a, power_factor_b, power_factor_c, total_power, total_energy, customer_id"
       )
+      .eq("customer_id", customerId)
       .order("recorded_at", { ascending: true });
 
     if (deviceId) {
@@ -153,7 +174,6 @@ export async function GET(req: NextRequest) {
 
     query = query.gte("recorded_at", fromIso).lte("recorded_at", toIso);
 
-    // Limit to 2000 rows max to prevent overload
     query = query.limit(2000);
 
     const { data, error } = await query;
@@ -164,6 +184,7 @@ export async function GET(req: NextRequest) {
       let alertsQuery = client
         .from("alerts")
         .select("created_at, ended_at")
+        .eq("customer_id", customerId)
         .lte("created_at", toIso)
         .or(`ended_at.gte.${fromIso},ended_at.is.null`)
         .order("created_at", { ascending: true });
@@ -219,7 +240,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     return NextResponse.json(
-      { error: (err as Error).message },
+      { error: "Failed to fetch reports" },
       { status: 500 }
     );
   }

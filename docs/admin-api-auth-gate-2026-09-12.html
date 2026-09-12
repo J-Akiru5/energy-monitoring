@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin API Auth Gate — Implementation Report</title>
+<style>
+  :root { --bg: #0f1117; --surface: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --green: #3fb950; --red: #f85149; --yellow: #d29922; --blue: #58a6ff; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem; max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+  .meta { color: var(--muted); font-size: 0.85rem; margin-bottom: 2rem; }
+  h2 { font-size: 1.15rem; margin: 2rem 0 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+  h3 { font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--border); }
+  th { background: var(--surface); font-weight: 600; }
+  .pass { color: var(--green); font-weight: 600; }
+  .fail { color: var(--red); font-weight: 600; }
+  .note { color: var(--yellow); font-weight: 600; }
+  code { background: var(--surface); padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.88em; }
+  pre { background: var(--surface); padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; margin: 0.75rem 0; border: 1px solid var(--border); }
+  .summary-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin: 1rem 0; }
+  .summary-row { display: flex; justify-content: space-between; padding: 0.25rem 0; }
+  ul { padding-left: 1.5rem; margin: 0.5rem 0; }
+  li { margin: 0.3rem 0; }
+  .badge { display: inline-block; padding: 0.15em 0.5em; border-radius: 4px; font-size: 0.8em; font-weight: 600; }
+  .badge-fixed { background: #1a3a1a; color: var(--green); }
+  .badge-closed { background: #1a3a1a; color: var(--green); }
+</style>
+</head>
+<body>
+
+<h1>Admin API Auth Gate — Implementation Report</h1>
+<div class="meta">
+  Branch: <code>fix/admin-api-auth</code> &nbsp;|&nbsp;
+  Date: 2026-09-12 &nbsp;|&nbsp;
+  Scope: 6 admin API routes &nbsp;|&nbsp;
+  Audit finding: P0 #1
+</div>
+
+<h2>Executive Summary</h2>
+<div class="summary-box">
+  <div class="summary-row"><span>Routes secured</span><span class="pass">6 of 6</span></div>
+  <div class="summary-row"><span>Build status</span><span class="pass">Passes (tsc + next build)</span></div>
+  <div class="summary-row"><span>Cross-customer relay trip (audit #9)</span><span class="pass">Closed</span></div>
+  <div class="summary-row"><span>Error message leakage (audit #8)</span><span class="pass">Closed</span></div>
+  <div class="summary-row"><span>Files changed</span><span>6</span></div>
+  <div class="summary-row"><span>Lines added / removed</span><span>+405 / -91</span></div>
+</div>
+
+<h2>What Changed</h2>
+<p>Every admin API route that previously had <strong>zero authentication</strong> now performs its own server-side session check and permission gate, independent of the (non-functional) <code>proxy.ts</code> middleware. The relay routes were refactored from a proxy-to-web-app pattern to direct <code>@energy/database</code> calls with full customer scoping.</p>
+
+<h2>Route-by-Route Changes</h2>
+
+<table>
+  <thead>
+    <tr><th>Route</th><th>Permission</th><th>Customer Scoping</th><th>Change Type</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>GET /api/billing</code></td>
+      <td><code>manage_billing</code></td>
+      <td>Global (no customer_id column)</td>
+      <td>Session gate added</td>
+    </tr>
+    <tr>
+      <td><code>PUT /api/billing</code></td>
+      <td><code>manage_billing</code></td>
+      <td>Global</td>
+      <td>Session gate added</td>
+    </tr>
+    <tr>
+      <td><code>GET /api/thresholds</code></td>
+      <td><code>manage_devices</code></td>
+      <td>Global (no customer_id column)</td>
+      <td>Session gate added</td>
+    </tr>
+    <tr>
+      <td><code>PUT /api/thresholds</code></td>
+      <td><code>manage_devices</code></td>
+      <td>Global</td>
+      <td>Session gate added</td>
+    </tr>
+    <tr>
+      <td><code>GET /api/devices</code></td>
+      <td><code>manage_devices</code></td>
+      <td>Scoped via <code>listDevices(customerId)</code></td>
+      <td>Session gate + query scoped</td>
+    </tr>
+    <tr>
+      <td><code>PATCH /api/devices</code></td>
+      <td><code>manage_devices</code></td>
+      <td>Scoped via <code>lookupControllerByDevice</code></td>
+      <td>Session gate + ownership check</td>
+    </tr>
+    <tr>
+      <td><code>GET /api/reports</code></td>
+      <td><code>view_reports</code></td>
+      <td>Scoped via <code>.eq("customer_id", customerId)</code></td>
+      <td>Session gate + query scoped</td>
+    </tr>
+    <tr>
+      <td><code>GET /api/relay</code></td>
+      <td><code>control_relay</code></td>
+      <td>Scoped via <code>lookupControllerByDevice</code></td>
+      <td>Proxy removed, direct DB call</td>
+    </tr>
+    <tr>
+      <td><code>POST /api/relay</code></td>
+      <td><code>control_relay</code></td>
+      <td>Scoped via <code>lookupControllerByDevice</code></td>
+      <td>Proxy removed, direct DB call</td>
+    </tr>
+    <tr>
+      <td><code>GET /api/relay/config</code></td>
+      <td><code>control_relay</code></td>
+      <td>Scoped via <code>lookupControllerByDevice</code></td>
+      <td>Session gate + ownership check</td>
+    </tr>
+    <tr>
+      <td><code>PUT /api/relay/config</code></td>
+      <td><code>control_relay</code></td>
+      <td>Scoped via <code>lookupControllerByDevice</code></td>
+      <td>Session gate + ownership check</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Auth Pattern</h2>
+<p>Every route now follows the same pattern established in <code>apps/web/src/app/api/devices/route.ts</code>:</p>
+<pre>
+1. cookies() → createClient(cookieStore) → supabase.auth.getUser()
+2. If no user → 401 "Not authenticated"
+3. resolveAccess(user.id, "&lt;permission&gt;") → customerId
+4. If AccessDeniedError → 403 with err.message
+5. (For scoped routes) lookupControllerByDevice(deviceId) → verify stamp.customerId === customerId
+6. If mismatch → 403 "Device not found or access denied"
+</pre>
+
+<h2>Relay Refactor Detail</h2>
+<p>The relay routes were the biggest structural change. Previously:</p>
+<ul>
+  <li><code>GET /api/relay</code> proxied to <code>apps/web</code>'s GET endpoint with <strong>no auth forwarded</strong> (always got 401 upstream)</li>
+  <li><code>POST /api/relay</code> proxied to <code>apps/web</code>'s POST endpoint, attaching <code>RELAY_ADMIN_SECRET</code> header server-side</li>
+</ul>
+<p>Now:</p>
+<ul>
+  <li>Both routes call <code>@energy/database</code> functions directly (<code>getRelayState</code>, <code>updateRelayState</code>, <code>getRelayConfig</code>, <code>logRelayAction</code>)</li>
+  <li>Both routes perform session auth + <code>resolveAccess(userId, "control_relay")</code></li>
+  <li>Both routes verify device ownership via <code>lookupControllerByDevice</code></li>
+  <li><code>RELAY_ADMIN_SECRET</code> forwarding removed — real auth replaces shared-secret proxy trust</li>
+  <li>Super Admin bypass works via <code>SUPER_ADMIN_CUSTOMER_ID</code> sentinel ("*")</li>
+</ul>
+
+<h2>Side Effects Closed</h2>
+<table>
+  <thead><tr><th>Audit Finding</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>P0 #1: Admin 6 routes unauthenticated</td><td><span class="badge badge-fixed">FIXED</span></td></tr>
+    <tr><td>#8: Error message leakage in admin routes</td><td><span class="badge badge-closed">CLOSED</span> — all routes now return generic messages</td></tr>
+    <tr><td>#9: Cross-customer relay trip</td><td><span class="badge badge-closed">CLOSED</span> — <code>lookupControllerByDevice</code> verifies device belongs to customer</td></tr>
+  </tbody>
+</table>
+
+<h2>What Was NOT Changed</h2>
+<ul>
+  <li><code>apps/admin/src/app/api/overview/route.ts</code> — already had auth (session + resolveAccess)</li>
+  <li><code>apps/admin/src/app/api/alerts/route.ts</code> — already had auth</li>
+  <li><code>apps/admin/src/app/api/relay/logs/route.ts</code> — already had auth</li>
+  <li><code>apps/admin/src/proxy.ts</code> — not touched (separate tracked fix)</li>
+  <li><code>apps/web/</code> — not touched</li>
+  <li><code>firmware/</code> — not touched</li>
+  <li><code>packages/</code> — not touched (no shared query function signatures changed)</li>
+  <li>No production data modified, no credentials rotated</li>
+</ul>
+
+<h2>Verification</h2>
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>TypeScript compilation (packages)</td><td class="pass">Pass</td></tr>
+    <tr><td>Next.js build (admin app)</td><td class="pass">Pass</td></tr>
+    <tr><td>All 11 admin API routes compiled</td><td class="pass">Pass (visible in build output)</td></tr>
+    <tr><td>No shared package signatures changed</td><td class="pass">Confirmed</td></tr>
+  </tbody>
+</table>
+
+<h2>Recommended Manual Tests</h2>
+<ol>
+  <li><strong>Unauthenticated curl</strong> — <code>curl https://&lt;admin-url&gt;/api/billing</code> should return 401</li>
+  <li><strong>Wrong permission</strong> — Login as VIEWER, call <code>/api/billing</code> → 403</li>
+  <li><strong>Scoped devices</strong> — Login as OWNER of Customer A, call <code>/api/devices</code> → only Customer A's devices</li>
+  <li><strong>Cross-customer relay</strong> — Login as OWNER of Customer A, POST <code>/api/relay</code> with Customer B's deviceId → 403</li>
+  <li><strong>Super Admin bypass</strong> — Login as super admin, call <code>/api/devices</code> → all devices; call <code>/api/relay</code> with any deviceId → succeeds</li>
+  <li><strong>Reports scoping</strong> — Login as OWNER, call <code>/api/reports</code> → only that customer's power_readings</li>
+</ol>
+
+<h2>Commit</h2>
+<pre>
+Branch: fix/admin-api-auth (from develop)
+Base:   3c7f5a5 (Merge pull request #4 from feature/unified-login-ui)
+</pre>
+
+</body>
+</html>
