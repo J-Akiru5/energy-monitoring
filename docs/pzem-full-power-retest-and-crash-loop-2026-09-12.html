@@ -519,6 +519,91 @@ if(_client.ssl)  { _client.ssl->stop();  delete _client.ssl;  _client.ssl  = NUL
   </div>
 
   <hr>
+
+  <!-- ============================================================ -->
+  <!-- ADDENDUM: FLASH RESULTS                                       -->
+  <!-- ============================================================ -->
+  <h2>9. Flash Results &amp; Final PZEM-C Determination (Addendum)</h2>
+  <p style="font-size:14px; color:var(--text-muted); margin-bottom:16px;">
+    Added after live flash verification on 2026-09-12.
+  </p>
+
+  <h3>9.1 Crash-Loop Fix — Flash Verification</h3>
+  <div class="callout success">
+    <div class="callout-title">STABLE — Zero Reboots</div>
+    <code>fix/firmware-ws-reconnect-leak</code> flashed to ESP32-CICT-001 at 10:33 UTC.
+    5.4-minute stability capture (323 s):
+    <ul style="margin-top:8px;">
+      <li><strong>Reboots:</strong> 1 (initial boot, not a crash)</li>
+      <li><strong>Aborts:</strong> 0 (old crash loop: rebooted every 40-70 s)</li>
+      <li><strong>Read cycles:</strong> 25 (A/B stable, C offline as expected)</li>
+      <li><strong>API uploads:</strong> 23 OK / 2 transient HTTP -11 timeouts (recovered)</li>
+      <li><strong>WS backoff:</strong> 10s → 20s → 40s → 60s (capped correctly)</li>
+    </ul>
+  </div>
+
+  <h3>9.2 Pin-Swap Diagnostic — Flash &amp; Result</h3>
+  <div class="callout success">
+    <div class="callout-title">PZEM-C ONLINE — Crossed-Harness CONFIRMED</div>
+    <code>diag/firmware-pzemc-pin-swap</code> flashed at 10:43 UTC.
+    3-minute capture (165 s), 11 read cycles:
+    <table style="margin-top:12px;">
+      <tr><th>Phase</th><th>Voltage</th><th>Status</th></tr>
+      <tr><td>A</td><td>221.1-221.3 V</td><td><span class="badge green">ONLINE</span></td></tr>
+      <tr><td>B</td><td>222.0-222.1 V</td><td><span class="badge green">ONLINE</span></td></tr>
+      <tr><td><strong>C</strong></td><td><strong>221.5-221.7 V</strong></td><td><span class="badge green">ONLINE (pin-swap fixed it)</span></td></tr>
+    </table>
+    <p style="font-size:14px; margin-top:12px;">
+      The C-side harness has RX and TX crossed at the module connector.
+      Swapping SoftwareSerial arguments from <code>(PZEM_C_RX, PZEM_C_TX)</code>
+      to <code>(PZEM_C_TX, PZEM_C_RX)</code> brought PZEM-C online with real
+      voltage readings consistent with A and B.
+    </p>
+  </div>
+
+  <h3>9.3 Final Hypothesis Status</h3>
+  <table>
+    <tr><th>Hypothesis</th><th>Status</th><th>Evidence</th></tr>
+    <tr>
+      <td>PZEM-C is genuinely offline (not a disconnection artifact)</td>
+      <td><span class="badge green">CONFIRMED</span></td>
+      <td>17/17 cycles offline under full live power; A/B stable control</td>
+    </tr>
+    <tr>
+      <td>C-side harness has RX/TX crossed</td>
+      <td><span class="badge green">CONFIRMED</span></td>
+      <td>Pin-swap diagnostic brought C online (221.5-221.7 V, 11/11 cycles)</td>
+    </tr>
+    <tr>
+      <td>Crash-loop caused by WS re-init leak</td>
+      <td><span class="badge green">FIXED</span></td>
+      <td>323+ s uptime, zero aborts, backoff functioning</td>
+    </tr>
+  </table>
+
+  <h3>9.4 Branch Final State</h3>
+  <table>
+    <tr><th>Branch</th><th>Commit</th><th>Status</th><th>Action</th></tr>
+    <tr>
+      <td><code>fix/firmware-ws-reconnect-leak</code></td>
+      <td><code>fcb91b9</code></td>
+      <td><span class="badge green">FLASHED &amp; VERIFIED</span></td>
+      <td>Keep. Do not merge without Jeff's go-ahead.</td>
+    </tr>
+    <tr>
+      <td><code>diag/firmware-pzemc-pin-swap</code></td>
+      <td><code>6aecd16</code></td>
+      <td><span class="badge green">FLASHED &amp; CONFIRMED</span></td>
+      <td>Keep on this branch. The permanent fix is a harness rewire (physical), not a software swap. Do not merge without Jeff's go-ahead.</td>
+    </tr>
+  </table>
+
+  <div class="callout warning">
+    <div class="callout-title">Next Steps (Physical, Not Software)</div>
+    The pin-swap diagnostic confirmed the C-side harness is crossed. The correct permanent fix is a physical harness rewire (swap the RX/TX wires on the C-side module connector). The software swap on <code>diag/firmware-pzemc-pin-swap</code> is a working workaround but should not be merged to production — the harness should be corrected and the software reverted to the original pin order.
+  </div>
+
+  <hr>
   <div style="font-size:12px; color:var(--text-muted); margin-top:24px; text-align:center;">
     Session: 2026-09-12 &middot; Agent: opencode/mimo-v2-free &middot; Parent session: pzem-c-rxtx-diagnosis-2026-09-12
   </div>
