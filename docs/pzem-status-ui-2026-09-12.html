@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PZEM Status UI — Implementation &amp; Verification Report</title>
+<style>
+  :root{--bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;--text:#e6edf3;--text-muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.65;padding:40px 20px}
+  .container{max-width:980px;margin:0 auto}
+  h1{font-size:26px;margin-bottom:6px}h2{font-size:20px;margin-top:36px;margin-bottom:12px;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:8px}h3{font-size:15px;margin-top:20px;margin-bottom:8px}
+  .subtitle{color:var(--text-muted);font-size:14px;margin-bottom:36px}
+  .badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;margin-right:6px}
+  .badge.green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.4)}
+  .badge.blue{background:rgba(88,166,255,.12);color:var(--accent);border:1px solid rgba(88,166,255,.3)}
+  .badge.yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid rgba(210,153,34,.4)}
+  .badge.red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid rgba(248,81,73,.4)}
+  .callout{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:6px;padding:14px 16px;margin:16px 0;font-size:14px}
+  .callout.warning{border-left-color:var(--yellow)}.callout.success{border-left-color:var(--green)}.callout.danger{border-left-color:var(--red)}
+  .callout-title{font-weight:600;margin-bottom:6px}
+  code{font-family:'SFMono-Regular',Consolas,monospace;font-size:12.5px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+  pre{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;overflow-x:auto;font-size:12.5px;font-family:'SFMono-Regular',Consolas,monospace;line-height:1.6;margin:12px 0}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:16px 0}
+  th{background:var(--surface);border:1px solid var(--border);padding:10px 14px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);font-weight:600}
+  td{border:1px solid var(--border);padding:10px 14px;vertical-align:top}
+  tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+  .meta{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:28px}.meta-item{font-size:13px;color:var(--text-muted)}.meta-item strong{color:var(--text)}
+  hr{border:none;border-top:1px solid var(--border);margin:36px 0}
+  .commit-hash{font-family:monospace;font-size:12.5px;color:var(--accent)}
+  ul,ol{padding-left:22px}li{margin:5px 0}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>PZEM Status UI — Implementation &amp; Verification Report</h1>
+  <div class="subtitle">Per-phase health display &amp; 1-phase source selection &middot; corrected firmware-free branch rebuild &middot; 2026-09-12</div>
+  <div class="meta">
+    <div class="meta-item"><strong>Branch:</strong> <code>feature/pzem-status-ui</code> into <code>develop</code></div>
+    <div class="meta-item"><strong>Rebuilt from:</strong> <span class="commit-hash">origin/develop 3c7f5a5</span></div>
+    <div class="meta-item"><strong>Superseded tip:</strong> <span class="commit-hash">99dfd6b</span> (firmware-contaminated merge)</div>
+  </div>
+  <hr>
+
+  <h2>1. Corrected Branch History</h2>
+
+  <div class="callout danger">
+    <div class="callout-title">Contamination that was removed</div>
+    <p style="margin-top:0">
+      The previous tip <code>99dfd6b</code> was a merge of <code>d994206</code> (backend) and
+      <code>a6b50d2</code> ("feat(admin): add PZEM health display…"). <code>a6b50d2</code> was
+      stacked on firmware commit <code>633b464</code>, so the merge dragged the entire
+      <code>feature/pzem-source-failover</code> firmware line into a branch that should not touch
+      <code>firmware/</code> at all. Firmware in this project has its own direct-to-main pipeline
+      and has never gone through <code>develop</code>. <code>a6b50d2</code> itself also carried
+      <code>firmware/src/monitor.cpp</code>, <code>packages/database/src/index.ts</code> and
+      <code>packages/database/src/queries/pzemConfig.ts</code> — i.e. even the "frontend" commit
+      was not frontend-only. A <strong>454-line</strong> <code>firmware/</code> diff had to be removed.
+    </p>
+  </div>
+
+  <p style="font-size:14px">The branch was rebuilt as <code>origin/develop</code> + the
+  firmware-free backend commits + the admin UI only:</p>
+
+  <table>
+    <tr><th>Step</th><th>Commit</th><th>Contents</th></tr>
+    <tr><td>Base</td><td><span class="commit-hash">3c7f5a5</span></td><td><code>origin/develop</code> (includes unified-login-ui)</td></tr>
+    <tr><td>Cherry-pick</td><td><span class="commit-hash">a329caa</span></td><td><code>d485fff</code> — backend: per-phase health/failover telemetry, config API, safety guard, mock-sensor offline flags</td></tr>
+    <tr><td>Cherry-pick</td><td><span class="commit-hash">2a0f433</span></td><td><code>be2a70b</code> — backend: route segment mismatch, 1-phase triple-counting, schema fields</td></tr>
+    <tr><td>Cherry-pick</td><td><span class="commit-hash">e5b0467</span></td><td><code>d994206</code> — database: remove duplicate pzemConfig exports</td></tr>
+    <tr><td>Cherry-pick</td><td><span class="commit-hash">765e18b</span></td><td><code>d128816</code> — ingest: report all three phases on sensorOffline shortcut (+ regression test)</td></tr>
+    <tr><td>Admin UI</td><td><span class="commit-hash">dbcebc6</span></td><td>New admin routes/services/UI from <code>99dfd6b</code>, restricted to <code>apps/admin/src/app/**</code></td></tr>
+  </table>
+
+  <p style="font-size:14px"><strong>Firmware-free confirmation:</strong></p>
+  <pre>git diff --stat origin/develop HEAD -- firmware/
+# (no output — clean)</pre>
+
+  <div class="callout warning">
+    <div class="callout-title">Note — the rebuild is not literally frontend-only</div>
+    <p style="margin-top:0">
+      A strict <code>develop + apps/admin</code> branch cannot compile: the admin
+      <code>pzem-config</code> route imports <code>getPzemConfig</code>/<code>updatePzemConfig</code>
+      from <code>@energy/database</code>, and that export does not exist on
+      <code>origin/develop</code> (<code>feature/pzem-health-backend</code> was never merged).
+      The firmware-free backend commits above are therefore required for a buildable, verifiable
+      branch and were retained. They touch <code>packages/database</code>,
+      <code>packages/types</code>, <code>apps/web</code> and <code>apps/mock-sensor</code>.
+    </p>
+  </div>
+
+  <hr>
+  <h2>2. Behavior Checklist (verified against actual code)</h2>
+
+  <table>
+    <tr><th>#</th><th>Behavior</th><th>Label</th><th>Evidence</th></tr>
+    <tr>
+      <td>1</td>
+      <td>3-phase: A+B+C all independently monitored, none substituted</td>
+      <td><span class="badge green">CODE-VERIFIED</span></td>
+      <td>
+        <code>packages/database/src/queries/readings.ts:44-49</code> — with no
+        <code>pzemActiveSource</code>, totals sum all three; per-phase columns persisted
+        (lines 79-105). <code>apps/web/src/app/api/ingest/route.ts:331-395</code> —
+        <code>checkThreePhaseThresholds()</code> iterates A/B/C and evaluates OV/UV/OC per phase
+        independently. <code>apps/admin/src/app/pzem/page.tsx</code> renders all three health cards
+        and states each phase is always its own source.
+      </td>
+    </tr>
+    <tr>
+      <td>2a</td>
+      <td>1-phase: backend <em>uses</em> only the selected active source</td>
+      <td><span class="badge green">CODE-VERIFIED</span></td>
+      <td>
+        <code>readings.ts:29-49,72-74</code> — totals/legacy columns come from the active source only.
+        <code>ingest/route.ts:347-352</code> skips OV/UV/OC on non-active taps;
+        <code>:397-406</code> HIGH_POWER uses active source only.
+      </td>
+    </tr>
+    <tr>
+      <td>2b</td>
+      <td>1-phase: dashboard <em>displays</em> / lets operator set the active source</td>
+      <td><span class="badge red">NOT VERIFIED</span></td>
+      <td>
+        Panel is gated by <code>isSinglePhase</code> (<code>pzem/page.tsx:163</code>) derived from
+        <code>phaseMode?.phaseMode</code> (<code>:89</code>). The admin
+        <code>/api/overview</code> returns only <code>{activeDevices,totalReadings,unreadAlerts}</code>
+        and ignores <code>?deviceId</code> — it never returns <code>phaseMode</code>. So
+        <code>isSinglePhase</code> is always <code>false</code> and the 1-phase selector never renders.
+        See <a href="#bugs" style="color:var(--accent)">§4.1</a>.
+      </td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td>MANUAL selection of an offline PZEM is rejected with 409 + message</td>
+      <td><span class="badge green">CODE-VERIFIED</span></td>
+      <td>
+        <code>apps/admin/src/app/api/devices/pzem-config/route.ts:62-73</code> — with
+        <code>mode==="manual"</code>, <code>getAlertState(deviceId,"PZEM_OFFLINE",manualSource)</code>;
+        if active &rarr; <code>409</code> and
+        <code>"PZEM-&lt;X&gt; is currently unavailable because communication with the sensor has failed."</code>
+        Mirrored in <code>apps/web/src/app/api/devices/pzem-config/route.ts:128-136</code> and
+        <code>.../[deviceId]/pzem-config/route.ts:110-118</code>.
+      </td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td>AUTO failover selects a healthy source per priority (A&rarr;B&rarr;C)</td>
+      <td><span class="badge red">NOT VERIFIED</span></td>
+      <td>
+        Not implemented on this branch. The state machine lives in the excluded firmware branch.
+        <code>git grep pzemActiveSource</code> finds no selection logic in <code>apps/</code> or
+        <code>packages/</code> — only schema fields (<code>types/sensor.ts:53-54</code>), backend
+        consumption of an already-chosen source, and mock-sensor, which hard-codes
+        <code>pzemSourceMode:"MANUAL"</code> (<code>mock-sensor/src/index.ts:83</code>). The admin UI
+        only prints the literal <code>"Priority: A -&gt; B -&gt; C"</code>.
+      </td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td>MANUAL overrides AUTO when set</td>
+      <td><span class="badge red">NOT VERIFIED</span></td>
+      <td>
+        Only persistence exists (<code>pzemConfig.ts</code> upsert of <code>mode</code>/
+        <code>manual_source</code>). <code>getPzemConfig()</code> is called only by the two config
+        routes; nothing on this branch reads the config to override a failover decision. Precedence
+        is enforced firmware-side.
+      </td>
+    </tr>
+  </table>
+
+  <hr>
+  <h2>3. PZEM_OFFLINE Operator Notification</h2>
+
+  <p style="font-size:14px">
+    The exact wording designed into the backend is present and rendered:
+  </p>
+  <ul style="font-size:14px">
+    <li>Created with message <code>"Phase &lt;X&gt; communication failure — inspection required. Check wiring, connector, sensor power, or the communication path."</code> — <code>apps/web/src/app/api/ingest/route.ts:41</code> (via <code>firePzemOfflineAlerts()</code>).</li>
+    <li>Rendered on the admin Alerts page: <code>apps/admin/src/app/alerts/page.tsx:146</code> prints <code>{alert.message}</code>, with a dedicated <code>PZEM_OFFLINE</code> icon at line 40.</li>
+    <li>The PZEM Status page additionally shows per-phase <code>HEALTHY</code>/<code>OFFLINE</code> and "Offline since …" from <code>device_alert_state</code> (<code>apps/admin/src/app/api/devices/pzem-health/route.ts</code>).</li>
+  </ul>
+
+  <div class="callout danger">
+    <div class="callout-title">POTENTIAL BUG — alert may not reach customer-scoped operators</div>
+    <p style="margin-top:0">
+      <code>createAlert()</code> inserts without <code>customer_id</code>
+      (<code>packages/database/src/queries/alerts.ts:28-38</code>), but
+      <code>getUnreadAlerts(customerId)</code> filters <code>.eq("customer_id", customerId)</code>
+      (<code>:81</code>). <code>alerts.customer_id</code> was added by migration
+      <code>20260910120001_phase3a_additive_columns.sql</code>; there is no trigger/default to
+      populate it. Newly ingested PZEM_OFFLINE alerts therefore have <code>NULL customer_id</code>
+      and are filtered out of <code>/api/alerts</code> for normal customer users. They are visible
+      only to Super Admins, whose query is unscoped (<code>apps/admin/src/app/api/alerts/route.ts:29-31</code>).
+      The doc comment on <code>createAlert()</code> claims callers set
+      <code>customer_id</code> "through the TenantStamp" — but the stamp is applied only to
+      <code>power_readings</code>, never to <code>alerts</code>. This is pre-existing (not introduced
+      by this branch) but it directly limits the operator notification required here.
+    </p>
+  </div>
+
+  <hr>
+  <h2>4. Other Findings</h2>
+
+  <h3 id="bugs">4.1 Frontend/backend discrepancy — <code>phaseMode</code> is never supplied</h3>
+  <p style="font-size:14px">
+    <code>apps/admin/src/app/pzem/page.tsx:89</code> reads <code>overviewData.phaseMode</code> from
+    <code>/api/overview?deviceId=…</code>, but <code>apps/admin/src/app/api/overview/route.ts</code>
+    takes no request parameter and returns no <code>phaseMode</code>. Result: the entire
+    1-phase source-selection panel is dead code from the UI's perspective. Minimal fix would be to
+    expose the EMU <code>phase_mode</code> (already available via
+    <code>emu_configurations.phase_mode</code> in <code>packages/database/src/queries/tenant.ts</code>)
+    on a device-scoped route. <strong>Not implemented in this branch</strong> — reported only.
+  </p>
+
+  <h3>4.2 Admin <code>pzem-health</code> / <code>pzem-config</code> routes have no session guard</h3>
+  <p style="font-size:14px">
+    Unlike the other admin API routes (alerts, overview, devices), the two new PZEM routes do not
+    call <code>resolveAccess()</code>. <code>pzem-config</code> lets any caller read/write source
+    mode for any <code>deviceId</code>; <code>pzem-health</code> reads any device's alert state.
+    Reported only; no change made.
+  </p>
+
+  <h3>4.3 Real firmware on <code>develop</code> does not emit the failover fields</h3>
+  <p style="font-size:14px">
+    <code>firmware/src/monitor.cpp</code> on this branch has no <code>pzemActiveSource</code>/
+    <code>pzemSourceMode</code>, so until the firmware branch lands, real 1-phase payloads will not
+    carry an active source and behaviors 2a/4/5 have no live producer. This is an integration
+    dependency, not a defect in this branch.
+  </p>
+
+  <hr>
+  <h2>5. Standard Verification</h2>
+  <table>
+    <tr><th>Check</th><th>Command</th><th>Result</th></tr>
+    <tr><td>Firmware-free diff</td><td><code>git diff --stat origin/develop HEAD -- firmware/</code></td><td><span class="badge green">PASS</span> empty</td></tr>
+    <tr><td>Type check</td><td><code>pnpm --filter @energy/admin exec tsc --noEmit</code></td><td><span class="badge green">PASS</span> exit 0</td></tr>
+    <tr><td>Production build</td><td><code>pnpm --filter @energy/admin build</code></td><td><span class="badge green">PASS</span> compiled, 16/16 pages, routes <code>/pzem</code>, <code>/api/devices/pzem-config</code>, <code>/api/devices/pzem-health</code> present</td></tr>
+    <tr><td>Lint</td><td><code>pnpm --filter @energy/admin lint</code></td><td><span class="badge yellow">NOT CLEAN (pre-existing)</span> 3 errors in <code>account/page.tsx</code> and <code>billing/page.tsx</code> — both byte-identical to <code>origin/develop</code>, untouched by this branch</td></tr>
+  </table>
+
+  <hr>
+  <div style="font-size:12px;color:var(--text-muted);margin-top:24px;text-align:center">
+    Session: 2026-09-12 &middot; Branch: feature/pzem-status-ui &rarr; develop &middot; Audit + rebuild
+  </div>
+</div>
+</body>
+</html>
