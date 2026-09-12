@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin API Auth Fixes — Security Audit Report</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface2: #21262d; --border: #30363d;
+    --text: #e6edf3; --text-muted: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --red: #f85149; --yellow: #d29922; --purple: #bc8cff;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); line-height:1.65; padding:0 0 80px; }
+  .wrap { max-width:1120px; margin:0 auto; padding:40px clamp(20px,5vw,60px); }
+  h1 { font-size:clamp(24px,4vw,30px); margin-bottom:8px; }
+  h2 { font-size:clamp(20px,3vw,23px); margin-top:48px; margin-bottom:14px; color:var(--accent);
+    border-bottom:1px solid var(--border); padding-bottom:10px; }
+  h3 { font-size:16px; margin-top:24px; margin-bottom:10px; }
+  p, li { color:var(--text-muted); font-size:14px; }
+  a { color:var(--accent); text-decoration:none; }
+  code { background:var(--surface2); padding:2px 6px; border-radius:4px; font-size:13px; color:#e6edf3; }
+  pre { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:16px;
+    overflow-x:auto; font-size:13px; line-height:1.5; margin:12px 0; color:#e6edf3; }
+  .callout { border-radius:8px; padding:16px 20px; margin:16px 0; border:1px solid; }
+  .callout.success { background:rgba(63,185,80,0.08); border-color:rgba(63,185,80,0.3); }
+  .callout.warning { background:rgba(210,153,34,0.08); border-color:rgba(210,153,34,0.3); }
+  .callout.danger { background:rgba(248,81,73,0.08); border-color:rgba(248,81,73,0.3); }
+  .callout-title { font-weight:700; font-size:14px; margin-bottom:6px; color:var(--text); }
+  table { width:100%; border-collapse:collapse; margin:16px 0; }
+  th,td { padding:10px 14px; text-align:left; border-bottom:1px solid var(--border); font-size:13px; }
+  th { color:var(--text); font-weight:600; background:var(--surface); }
+  td { color:var(--text-muted); }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; }
+  .badge.green { background:rgba(63,185,80,0.15); color:var(--green); }
+  .badge.red { background:rgba(248,81,73,0.15); color:var(--red); }
+  .badge.yellow { background:rgba(210,153,34,0.15); color:var(--yellow); }
+  .badge.blue { background:rgba(88,166,255,0.15); color:var(--accent); }
+  .cols2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media(max-width:768px){ .cols2{grid-template-columns:1fr;} }
+  .meta { color:var(--text-muted); font-size:13px; margin-bottom:32px; }
+  .arrow { color:var(--accent); margin:0 6px; }
+  ul { padding-left:20px; margin:8px 0; }
+  li { margin:4px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Admin API Auth Fixes</h1>
+<p class="meta">Branch: <code>fix/admin-api-auth</code> &mdash; commit <code>5c9f6cf</code> &mdash; 2026-09-12</p>
+
+<div class="callout success">
+  <div class="callout-title">Summary</div>
+  <p style="margin-top:0">All six unauthenticated admin API routes now enforce server-side session authentication via <code>resolveAccess()</code>. Device-specific routes also perform ownership verification via <code>lookupControllerByDevice()</code>, preventing cross-customer access. Generic error messages replace <code>(err as Error).message</code> in all six routes, eliminating information leakage.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>1. Per-Route Confirmation</h2>
+
+<h3>1.1 <code>/api/devices</code> &mdash; <span class="badge green">CONFIRMED</span></h3>
+<table>
+<tr><th>Method</th><th>Permission</th><th>Scoping</th><th>Ownership Check</th></tr>
+<tr><td><code>GET</code></td><td><code>manage_devices</code></td><td><code>listDevices(customerId)</code></td><td>N/A (list is scoped)</td></tr>
+<tr><td><code>PATCH</code></td><td><code>manage_devices</code></td><td><code>lookupControllerByDevice(deviceId)</code></td><td><code>stamp.customerId !== customerId</code> &rarr; 403</td></tr>
+</table>
+<p><strong>Before:</strong> No session check. Any browser visitor could list all devices or deactivate any device.</p>
+<p><strong>After:</strong> Session required. List returns only devices belonging to the resolved customer. Deactivate verifies device ownership before action.</p>
+<p><strong>Error handling:</strong> Generic <code>"Failed to fetch devices"</code> / <code>"Failed to process request"</code> in catch blocks.</p>
+
+<h3>1.2 <code>/api/billing</code> &mdash; <span class="badge green">CONFIRMED</span></h3>
+<table>
+<tr><th>Method</th><th>Permission</th><th>Scoping</th><th>Ownership Check</th></tr>
+<tr><td><code>GET</code></td><td><code>manage_billing</code></td><td>Global (no customer filter)</td><td>N/A (billing is system-wide)</td></tr>
+<tr><td><code>PUT</code></td><td><code>manage_billing</code></td><td>Global (no customer filter)</td><td>N/A (billing is system-wide)</td></tr>
+</table>
+<p><strong>Before:</strong> No session check. Unauthenticated rate reads and writes.</p>
+<p><strong>After:</strong> Session required. Only users with <code>manage_billing</code> permission can read or update the billing rate.</p>
+<p><strong>Why no customer filter:</strong> Billing rate is a system-wide configuration (single <code>billing_rates</code> row), not per-customer. Correctly left unscoped.</p>
+<p><strong>Error handling:</strong> Generic <code>"Failed to fetch billing rate"</code> / <code>"Failed to update billing rate"</code> in catch blocks.</p>
+
+<h3>1.3 <code>/api/thresholds</code> &mdash; <span class="badge green">CONFIRMED</span></h3>
+<table>
+<tr><th>Method</th><th>Permission</th><th>Scoping</th><th>Ownership Check</th></tr>
+<tr><td><code>GET</code></td><td><code>manage_devices</code></td><td>Global (no customer filter)</td><td>N/A (thresholds are system-wide)</td></tr>
+<tr><td><code>PUT</code></td><td><code>manage_devices</code></td><td>Global (no customer filter)</td><td>N/A (thresholds are system-wide)</td></tr>
+</table>
+<p><strong>Before:</strong> No session check. Unauthenticated threshold reads and writes.</p>
+<p><strong>After:</strong> Session required. Only users with <code>manage_devices</code> permission can read or update alert thresholds.</p>
+<p><strong>Why no customer filter:</strong> Alert thresholds are global configuration (single <code>alert_thresholds</code> row), not per-customer. Correctly left unscoped.</p>
+<p><strong>Error handling:</strong> Generic <code>"Failed to fetch thresholds"</code> / <code>"Failed to update thresholds"</code> in catch blocks.</p>
+
+<h3>1.4 <code>/api/reports</code> &mdash; <span class="badge green">CONFIRMED</span></h3>
+<table>
+<tr><th>Method</th><th>Permission</th><th>Scoping</th><th>Ownership Check</th></tr>
+<tr><td><code>GET</code></td><td><code>view_reports</code></td><td><code>.eq("customer_id", customerId)</code> on both <code>power_readings</code> and <code>alerts</code></td><td>N/A (query filter is the boundary)</td></tr>
+</table>
+<p><strong>Before:</strong> No session check. Unauthenticated access to all customers' power readings.</p>
+<p><strong>After:</strong> Session required. Every <code>power_readings</code> query is filtered by <code>.eq("customer_id", customerId)</code> from <code>resolveAccess()</code>. The <code>alerts</code> sub-query (when <code>alertOnly</code> is used) is also scoped by the same <code>customerId</code>.</p>
+<p><strong>Why <code>view_reports</code> not <code>view_energy</code>:</strong> Reports are read-only historical data. <code>view_reports</code> is the explicit permission for this use case, separating it from live energy viewing.</p>
+<p><strong>Error handling:</strong> Generic <code>"Failed to fetch reports"</code> in catch block.</p>
+
+<h3>1.5 <code>/api/relay</code> &mdash; <span class="badge green">CONFIRMED</span></h3>
+<table>
+<tr><th>Method</th><th>Permission</th><th>Scoping</th><th>Ownership Check</th></tr>
+<tr><td><code>GET</code></td><td><code>control_relay</code></td><td><code>lookupControllerByDevice(deviceId)</code></td><td><code>stamp.customerId !== customerId</code> &rarr; 403</td></tr>
+<tr><td><code>POST</code></td><td><code>control_relay</code></td><td><code>lookupControllerByDevice(command.deviceId)</code></td><td><code>stamp.customerId !== customerId</code> &rarr; 403</td></tr>
+</table>
+<p><strong>Before:</strong> Proxied to <code>apps/web</code> via <code>RELAY_ADMIN_SECRET</code> header. The admin app forwarded the secret server-side, but the web app's dual-auth path (secret OR session) meant the admin proxy relied on a shared secret for trust, not user-level permissions.</p>
+<p><strong>After:</strong> Calls <code>@energy/database</code> directly. Session required. Each request verifies device ownership via <code>lookupControllerByDevice()</code>. Super Admin bypass via <code>SUPER_ADMIN_CUSTOMER_ID</code> sentinel.</p>
+<p><strong>Error handling:</strong> Generic <code>"Failed to get relay state"</code> / <code>"Internal server error"</code> in catch blocks. No <code>(err as Error).message</code>.</p>
+
+<h3>1.6 <code>/api/relay/config</code> &mdash; <span class="badge green">CONFIRMED</span></h3>
+<table>
+<tr><th>Method</th><th>Permission</th><th>Scoping</th><th>Ownership Check</th></tr>
+<tr><td><code>GET</code></td><td><code>control_relay</code></td><td><code>lookupControllerByDevice(deviceId)</code></td><td><code>stamp.customerId !== customerId</code> &rarr; 403</td></tr>
+<tr><td><code>PUT</code></td><td><code>control_relay</code></td><td><code>lookupControllerByDevice(parsed.data.deviceId)</code></td><td><code>stamp.customerId !== customerId</code> &rarr; 403</td></tr>
+</table>
+<p><strong>Before:</strong> No session check. Anyone could read or modify relay configuration for any device.</p>
+<p><strong>After:</strong> Session required. Each request verifies device ownership. Super Admin bypass via <code>SUPER_ADMIN_CUSTOMER_ID</code> sentinel.</p>
+<p><strong>Error handling:</strong> Generic <code>"Failed to get config"</code> / <code>"Internal server error"</code> in catch blocks.</p>
+
+<!-- ============================================================ -->
+<h2>2. Error Message Audit (Finding #8)</h2>
+
+<p>All six routes now return generic error messages in their outer <code>catch</code> blocks. The <code>(err as Error).message</code> pattern has been eliminated from the target routes.</p>
+
+<table>
+<tr><th>Route</th><th>GET catch</th><th>Mutating catch</th></tr>
+<tr><td><code>/api/devices</code></td><td><code>"Failed to fetch devices"</code></td><td><code>"Failed to process request"</code></td></tr>
+<tr><td><code>/api/billing</code></td><td><code>"Failed to fetch billing rate"</code></td><td><code>"Failed to update billing rate"</code></td></tr>
+<tr><td><code>/api/thresholds</code></td><td><code>"Failed to fetch thresholds"</code></td><td><code>"Failed to update thresholds"</code></td></tr>
+<tr><td><code>/api/reports</code></td><td><code>"Failed to fetch reports"</code></td><td>&mdash;</td></tr>
+<tr><td><code>/api/relay</code></td><td><code>"Failed to get relay state"</code></td><td><code>"Internal server error"</code></td></tr>
+<tr><td><code>/api/relay/config</code></td><td><code>"Failed to get config"</code></td><td><code>"Internal server error"</code></td></tr>
+</table>
+
+<p><strong>Note:</strong> Two routes outside this scope still leak error messages: <code>/api/alerts</code> (lines 35, 63) and <code>/api/overview</code> (line 57). These use <code>(err as Error).message</code> in their catch blocks and should be fixed in a follow-up.</p>
+
+<!-- ============================================================ -->
+<h2>3. Cross-Customer Rejection Test</h2>
+
+<div class="callout success">
+  <div class="callout-title">Test: User authorized for Customer A attempts relay on Customer B's device</div>
+  <p style="margin-top:0"><strong>Scenario:</strong> User has a membership granting <code>control_relay</code> for Customer A. They call <code>POST /api/relay</code> with <code>{ deviceId: "device-b-uuid", action: "TRIP" }</code>.</p>
+</div>
+
+<p><strong>Execution trace through <code>/api/relay</code>:</strong></p>
+
+<ol style="color:var(--text-muted); font-size:13px;">
+  <li><code>authenticateAndScope(req, "control_relay")</code> calls <code>resolveAccess(user.id, "control_relay")</code></li>
+  <li><code>resolveAccess</code> looks up memberships for this user. Finds one for Customer A with <code>control_relay</code> granted. Returns <code>{ customerId: "customer-a-uuid", ... }</code></li>
+  <li><code>verifyDeviceOwnership("device-b-uuid", "customer-a-uuid")</code> is called</li>
+  <li>Since <code>"customer-a-uuid" !== SUPER_ADMIN_CUSTOMER_ID ("*")</code>, it proceeds to <code>lookupControllerByDevice("device-b-uuid")</code></li>
+  <li><code>lookupControllerByDevice</code> returns <code>{ customerId: "customer-b-uuid", ... }</code></li>
+  <li>Comparison: <code>"customer-b-uuid" !== "customer-a-uuid"</code> &rarr; returns <code>false</code></li>
+  <li>Route returns <span class="badge red">403</span> <code>{ error: "Device not found or access denied" }</code></li>
+</ol>
+
+<p><strong>Result:</strong> Cross-customer relay access is <span class="badge green">BLOCKED</span>. The same flow applies identically to <code>/api/relay/config</code> and <code>/api/devices</code> PATCH (deactivate).</p>
+
+<p><strong>Super Admin bypass:</strong> If the user is a Super Admin, <code>resolveAccess</code> returns <code>customerId = "*"</code>. <code>verifyDeviceOwnership</code> short-circuits at the <code>SUPER_ADMIN_CUSTOMER_ID</code> check and returns <code>true</code> without hitting the database. This is intentional — Super Admins have cross-customer access.</p>
+
+<!-- ============================================================ -->
+<h2>4. Auth Pattern Summary</h2>
+
+<p>All six routes follow the same authentication pattern:</p>
+
+<pre>// 1. Create session client from cookies
+const cookieStore = await cookies();
+const supabase = createClient(cookieStore);
+const { data: { user } } = await supabase.auth.getUser();
+if (!user) return 401;
+
+// 2. Resolve access (permission + customer scope)
+try {
+  const access = await resolveAccess(user.id, "required_permission");
+  customerId = access.customerId;
+} catch (err) {
+  if (err instanceof AccessDeniedError) return 403;
+  throw err;
+}
+
+// 3. (Device-specific routes only) Verify ownership
+if (customerId !== SUPER_ADMIN_CUSTOMER_ID) {
+  const stamp = await lookupControllerByDevice(deviceId);
+  if (!stamp || stamp.customerId !== customerId) return 403;
+}</pre>
+
+<h3>Permission Matrix</h3>
+<table>
+<tr><th>Route</th><th>Permission</th><th>Scoping</th><th>Ownership</th></tr>
+<tr><td><code>/api/devices</code></td><td><code>manage_devices</code></td><td>Customer-scoped</td><td>Yes (PATCH)</td></tr>
+<tr><td><code>/api/billing</code></td><td><code>manage_billing</code></td><td>Global</td><td>No</td></tr>
+<tr><td><code>/api/thresholds</code></td><td><code>manage_devices</code></td><td>Global</td><td>No</td></tr>
+<tr><td><code>/api/reports</code></td><td><code>view_reports</code></td><td>Customer-scoped (query filter)</td><td>No (query filter is boundary)</td></tr>
+<tr><td><code>/api/relay</code></td><td><code>control_relay</code></td><td>Customer-scoped</td><td>Yes (GET + POST)</td></tr>
+<tr><td><code>/api/relay/config</code></td><td><code>control_relay</code></td><td>Customer-scoped</td><td>Yes (GET + PUT)</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>5. What Changed (Before &rarr; After)</h2>
+
+<table>
+<tr><th>Route</th><th>Before</th><th>After</th></tr>
+<tr><td><code>/api/devices</code></td><td>No auth. Open to any visitor.</td><td>Session + <code>manage_devices</code>. Customer-scoped list. Ownership check on deactivate.</td></tr>
+<tr><td><code>/api/billing</code></td><td>No auth. Open to any visitor.</td><td>Session + <code>manage_billing</code>. Global (correct for system-wide config).</td></tr>
+<tr><td><code>/api/thresholds</code></td><td>No auth. Open to any visitor.</td><td>Session + <code>manage_devices</code>. Global (correct for system-wide config).</td></tr>
+<tr><td><code>/api/reports</code></td><td>No auth. Open to any visitor.</td><td>Session + <code>view_reports</code>. Every query filtered by resolved <code>customer_id</code>.</td></tr>
+<tr><td><code>/api/relay</code></td><td>Proxied to <code>apps/web</code> via <code>RELAY_ADMIN_SECRET</code>.</td><td>Direct <code>@energy/database</code> calls. Session + <code>control_relay</code>. Ownership check on every request.</td></tr>
+<tr><td><code>/api/relay/config</code></td><td>No auth. Open to any visitor.</td><td>Session + <code>control_relay</code>. Ownership check on every request.</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>6. Remaining Work (Out of Scope)</h2>
+
+<ul>
+  <li><code>/api/alerts</code> GET + PATCH: Has auth (<code>view_energy</code>) but leaks <code>(err as Error).message</code> in catch blocks (lines 35, 63)</li>
+  <li><code>/api/overview</code> GET: Has auth (<code>view_energy</code>) but leaks <code>(err as Error).message</code> in catch block (line 57)</li>
+  <li>Admin app: no logout/session-expiry mechanism beyond Supabase defaults</li>
+</ul>
+
+</div>
+</body>
+</html>
