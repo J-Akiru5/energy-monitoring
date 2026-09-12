@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PZEM Health Backend — Implementation Report</title>
+<style>
+  :root{--bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;--text:#e6edf3;--text-muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.65;padding:40px 20px}
+  .container{max-width:980px;margin:0 auto}
+  h1{font-size:26px;margin-bottom:6px}h2{font-size:20px;margin-top:36px;margin-bottom:12px;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:8px}h3{font-size:15px;margin-top:20px;margin-bottom:8px}
+  .subtitle{color:var(--text-muted);font-size:14px;margin-bottom:36px}
+  .badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;margin-right:6px}
+  .badge.green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.4)}
+  .badge.blue{background:rgba(88,166,255,.12);color:var(--accent);border:1px solid rgba(88,166,255,.3)}
+  .badge.yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid rgba(210,153,34,.4)}
+  .badge.red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid rgba(248,81,73,.4)}
+  .callout{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:6px;padding:14px 16px;margin:16px 0;font-size:14px}
+  .callout.warning{border-left-color:var(--yellow)}.callout.success{border-left-color:var(--green)}.callout.danger{border-left-color:var(--red)}
+  .callout-title{font-weight:600;margin-bottom:6px}
+  code{font-family:'SFMono-Regular',Consolas,monospace;font-size:12.5px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+  pre{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;overflow-x:auto;font-size:12.5px;font-family:'SFMono-Regular',Consolas,monospace;line-height:1.6;margin:12px 0}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:16px 0}
+  th{background:var(--surface);border:1px solid var(--border);padding:10px 14px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);font-weight:600}
+  td{border:1px solid var(--border);padding:10px 14px;vertical-align:top}
+  tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+  .meta{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:28px}.meta-item{font-size:13px;color:var(--text-muted)}.meta-item strong{color:var(--text)}
+  hr{border:none;border-top:1px solid var(--border);margin:36px 0}
+  .commit-hash{font-family:monospace;font-size:12.5px;color:var(--accent)}
+  ul,ol{padding-left:22px}li{margin:5px 0}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>PZEM Health Backend — Implementation Report</h1>
+  <div class="subtitle">Per-phase communication health, safety guard, config API, 1-phase redundant-tap fixes &middot; 2026-09-12</div>
+  <div class="meta">
+    <div class="meta-item"><strong>Branch:</strong> <code>feature/pzem-health-backend</code> from <code>develop</code></div>
+    <div class="meta-item"><strong>Base:</strong> <span class="commit-hash">b4ff2c8</span></div>
+    <div class="meta-item"><strong>PR:</strong> <span class="badge blue">#5</span></div>
+  </div>
+  <hr>
+
+  <h2>1. Changes</h2>
+  <table>
+    <tr><th>File</th><th>Change</th></tr>
+    <tr><td><code>packages/types/src/sensor.ts</code></td><td>Added <code>offline</code> to PhaseReadingSchema; added <code>pzemSourceMode</code> and <code>pzemActiveSource</code> to TelemetryPayloadSchema</td></tr>
+    <tr><td><code>apps/web/src/app/api/ingest/route.ts</code></td><td><code>firePzemOfflineAlerts()</code> helper, per-phase offline alerts, offline safety guard, 1-phase redundant-tap guard, active-source totals for all paths</td></tr>
+    <tr><td><code>apps/web/src/app/api/devices/[deviceId]/pzem-config/route.ts</code></td><td>New route — GET (dual auth) and PUT (session + 409 offline rejection)</td></tr>
+    <tr><td><code>packages/database/src/queries/pzemConfig.ts</code></td><td>New — <code>getPzemConfig()</code> and <code>updatePzemConfig()</code></td></tr>
+    <tr><td><code>packages/database/src/index.ts</code></td><td>Exports new pzemConfig queries</td></tr>
+    <tr><td><code>packages/database/src/queries/readings.ts</code></td><td><code>insertReading()</code>: active-source totals in 1-phase mode, legacy columns from active source</td></tr>
+    <tr><td><code>apps/mock-sensor/src/index.ts</code></td><td>Extended with <code>MOCK_1PHASE_SOURCE</code> and <code>MOCK_PHASE_[A|B|C]_OFFLINE</code> env vars</td></tr>
+  </table>
+
+  <hr>
+  <h2>2. Bugs Fixed in Review</h2>
+
+  <h3>2.1 Route Segment Mismatch</h3>
+  <p style="font-size:14px">Original route at <code>devices/pzem-config/route.ts</code> (flat) but handler destructured <code>params.deviceId</code> — always undefined, firmware got 404.</p>
+  <p style="font-size:14px"><strong>Fix:</strong> Moved to <code>devices/[deviceId]/pzem-config/route.ts</code>.</p>
+
+  <h3>2.2 Missing Schema Fields</h3>
+  <p style="font-size:14px">Agent F's firmware sends <code>pzemSourceMode</code>/<code>pzemActiveSource</code> on 3-phase payloads in 1-phase mode. Without schema fields, Zod silently stripped them.</p>
+  <p style="font-size:14px"><strong>Fix:</strong> Added both as optional enums.</p>
+
+  <h3>2.3 1-Phase Triple-Counting</h3>
+  <p style="font-size:14px">A/B/C are three redundant CT taps on ONE circuit. Original code summed all three — triple-counting one real circuit. And OV/UV/OC on all three produced duplicate incidents.</p>
+
+  <div class="callout success">
+    <div class="callout-title">Fix — Redundant-Tap Guard</div>
+    <p style="margin-top:0"><strong>insertReading():</strong> Legacy columns and totals use only the active source.</p>
+    <p><strong>checkThreePhaseThresholds():</strong> OV/UV/OC + relay-trip only on the matching phase. PZEM_OFFLINE still runs on all three (failover visibility).</p>
+    <p><strong>HIGH_POWER:</strong> Uses active source only.</p>
+    <p><strong>localTrip + blackout voltage:</strong> Uses active source in 1-phase mode.</p>
+  </div>
+
+  <hr>
+  <h2>3. Mock Sensor 1-Phase-B Scenario</h2>
+  <pre>MOCK_1PHASE_SOURCE=B MOCK_DEVICE_ID=d566ef3b-... pnpm --filter @energy/mock-sensor dev</pre>
+  <p style="font-size:14px">Sends <code>threePhase</code> with all three taps + <code>pzemActiveSource: "B"</code>. Backend uses only phase B for totals and threshold checks.</p>
+
+  <hr>
+  <h2>4. Verification</h2>
+  <table>
+    <tr><th>Check</th><th>Result</th></tr>
+    <tr><td><code>pnpm --filter @energy/types build</code></td><td><span class="badge green">PASS</span></td></tr>
+    <tr><td><code>pnpm --filter @energy/database build</code></td><td><span class="badge green">PASS</span></td></tr>
+    <tr><td><code>pnpm --filter web exec tsc --noEmit</code></td><td><span class="badge green">PASS</span></td></tr>
+    <tr><td><code>pnpm --filter @energy/mock-sensor exec tsc --noEmit</code></td><td><span class="badge green">PASS</span></td></tr>
+  </table>
+
+  <hr>
+  <h2>5. What's Still Open</h2>
+  <table>
+    <tr><th>Item</th><th>Status</th><th>Notes</th></tr>
+    <tr><td>Config table migration</td><td><span class="badge yellow">AWAITING CONFIRMATION</span></td><td>Route defaults to AUTO when no row exists</td></tr>
+    <tr><td>Firmware: poll-all-three + offline field + 1-phase failover</td><td><span class="badge blue">AGENT F'S SCOPE</span></td><td></td></tr>
+    <tr><td>Frontend: PZEM status panel + manual selector</td><td><span class="badge blue">AGENT 3'S SCOPE</span></td><td></td></tr>
+  </table>
+
+  <hr>
+  <h2>6. Addendum — Unreachable Branch in the sensorOffline Shortcut</h2>
+
+  <div class="callout danger">
+    <div class="callout-title">Bug: every total-loss event reported as "Phase A offline" only</div>
+    <p style="margin-top:0">
+      The <code>sensorOffline</code> shortcut synthesized its phase flags like this:
+    </p>
+    <pre>const is3PhaseOff = isThreePhasePayload(payload);
+const phaseFlags = is3PhaseOff
+  ? { A: true, B: true, C: true }
+  : { A: true, B: false, C: false };  // ← always taken</pre>
+    <p>
+      The shortcut payload never includes a <code>threePhase</code> key — confirmed against
+      <code>firmware/src/monitor.cpp</code>, which sends only
+      <code>{ deviceId, timestamp, sensorOffline: true, phaseMode }</code> whether triggered by
+      3-phase total loss or 1-phase AUTO exhausting A/B/C. <code>isThreePhasePayload()</code> is
+      therefore always <code>false</code> here: the all-true branch was dead code, and every real
+      total-loss event was recorded as a Phase A communication failure.
+    </p>
+  </div>
+
+  <p style="font-size:14px"><strong>Fix:</strong> the flags are now unconditional —
+  <code>{ A: true, B: true, C: true }</code> — since the condition that triggers the shortcut
+  (all raw phases offline) is unified across both modes. The <code>phaseMode</code> field is
+  irrelevant to this path; no narrower case exists.</p>
+
+  <p style="font-size:14px"><strong>Callers audited:</strong> the shortcut is consumed only by
+  <code>POST /api/ingest</code>. <code>firePzemOfflineAlerts()</code>'s other caller (the normal
+  3-phase path) passes real per-phase flags from sensor readings and is unaffected. No consumer
+  reads phase information back from the shortcut response
+  (<code>{ status: "ok", sensorOffline: true }</code>).</p>
+
+  <h3>6.1 Regression Test</h3>
+  <p style="font-size:14px">
+    New: <code>apps/web/src/app/api/ingest/route.test.mjs</code> — a bare
+    <code>{ sensorOffline: true, phaseMode: 1 }</code> payload must create three
+    <code>PZEM_OFFLINE</code> alerts (A, B, C). Uses Node's built-in test runner with
+    <code>mock.module()</code> to stub <code>@energy/database</code> (no live DB), plus a
+    resolve hook for <code>next/server</code>/extensionless dist imports.
+  </p>
+  <pre>node --experimental-test-module-mocks --test apps/web/src/app/api/ingest/route.test.mjs</pre>
+  <table>
+    <tr><th>Run</th><th>Result</th></tr>
+    <tr>
+      <td>Against pre-fix code</td>
+      <td><span class="badge red">FAIL</span> expected 3 PZEM_OFFLINE alerts (A, B, C), got 1: ["A"]</td>
+    </tr>
+    <tr>
+      <td>Against fixed code</td>
+      <td><span class="badge green">PASS</span> 1 test, 0 failures</td>
+    </tr>
+  </table>
+
+  <hr>
+  <div style="font-size:12px;color:var(--text-muted);margin-top:24px;text-align:center">
+    Session: 2026-09-12 &middot; Agent: opencode/mimo-v2-free &middot; Branch: feature/pzem-health-backend
+  </div>
+</div>
+</body>
+</html>

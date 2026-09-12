@@ -22,6 +22,7 @@ export const PhaseReadingSchema = z.object({
   energy: z.number().min(0),
   frequency: z.number().min(0).max(65).optional(),
   powerFactor: z.number().min(0).max(1).optional(),
+  offline: z.boolean().default(false), // communication status, not a measurement
 });
 
 export type PhaseReading = z.infer<typeof PhaseReadingSchema>;
@@ -48,6 +49,9 @@ export const TelemetryPayloadSchema = z
     localTrip: z.boolean().optional(), // ESP32 local safety override triggered
     localTripReason: z.string().optional(), // "LOCAL_OVERVOLTAGE" or "LOCAL_UNDERVOLTAGE"
     sensorOffline: z.boolean().optional(), // ESP32 alive but PZEM returns NaN
+    // ── PZEM source-failover fields (sent by firmware in 1-phase mode) ──
+    pzemSourceMode: z.enum(["AUTO", "MANUAL"]).optional(),
+    pzemActiveSource: z.enum(["A", "B", "C"]).optional(),
   })
   .refine(
     (data) =>

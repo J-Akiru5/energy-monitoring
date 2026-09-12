@@ -24,19 +24,27 @@ import {
 // ──── Rate limiting (in-memory, per device) ────────────────────────────
 const lastPostTime = new Map<string, number>();
 
-// ──── Alert Incident Deduplication (in-memory, per server process) ─────
-//
-// Key format: `${deviceId}:${alertType}:${phase}`
-//   phase is '' for non-phase-specific alerts (single-phase, HIGH_POWER, PZEM_OFFLINE)
-//   phase is 'A' | 'B' | 'C' for 3-phase per-phase alerts
-//
-// pendingFaults: tracks the timestamp when a fault was first detected + the
-//   alert ID that was immediately created. After INCIDENT_PROMOTE_MS elapses
-//   without recovery, the alert is promoted to a full incident.
-//
-// pendingRecovery: tracks the timestamp when recovery (good readings) started.
-//   The incident is only CLOSED after RECOVERY_DEBOUNCE_MS of clean readings.
+// ──── PZEM Offline Alert Helper ────────────────────────────────────────
+async function firePzemOfflineAlerts(
+  deviceId: string,
+  phaseFlags: { A: boolean; B: boolean; C: boolean },
+  activeStates: Map<string, import("@energy/database").AlertState>
+) {
+  for (const [phase, isFault] of Object.entries(phaseFlags)) {
+    await processFaultCondition({
+      deviceId,
+      type: "PZEM_OFFLINE",
+      phase,
+      isFault,
+      faultValue: 0,
+      threshold: 0,
+      message: `Phase ${phase} communication failure — inspection required. Check wiring, connector, sensor power, or the communication path.`,
+      activeStates,
+    });
+  }
+}
 
+// ──── Alert Incident Deduplication (in-memory, per server process) ─────
 interface PendingFault {
   firstSeenAt: number;
   alertId:     string;
@@ -45,25 +53,17 @@ interface PendingFault {
 const pendingFaults    = new Map<string, PendingFault>();
 const pendingRecovery  = new Map<string, { recoveryStartedAt: number }>();
 
-const INCIDENT_PROMOTE_MS  = 60_000; // 60s → promote spike to incident
-const RECOVERY_DEBOUNCE_MS = 30_000; // 30s of clean readings → close incident
+const INCIDENT_PROMOTE_MS  = 60_000;
+const RECOVERY_DEBOUNCE_MS = 30_000;
 
 /**
  * POST /api/ingest
  *
  * Receives telemetry from ESP32 (or mock sensor).
- * Supports both single-phase and 3-phase payloads.
- *
- * 1. Validates X-Device-Token header
- * 2. Validates body with Zod schema
- * 3. Rate-limits to 1 req/sec per device
- * 4. Writes to power_readings
- * 5. Smart blackout detection (unchanged)
- * 6. Deduplicating threshold checks (NEW: dual-track incident model)
+ * Supports single-phase, 3-phase, and 1-phase redundant-tap payloads.
  */
 export async function POST(req: NextRequest) {
   try {
-    // ── 1. Device Authentication ──
     const token = req.headers.get("x-device-token");
     if (!token) {
       return NextResponse.json(
@@ -80,13 +80,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── 1b. Tenant Lookup (Phase 3a bridging) ──
-    // Look up the controllers row for this device to get the
-    // customer/EMU/installation stamp. If no match (pre-backfill),
-    // ingest proceeds without tenant columns — never fails the request.
     const tenantStamp = await lookupControllerByDevice(device.id);
 
-    // ── 2. Parse & Validate Body ──
     const body = await req.json();
     const parsed = TelemetryPayloadSchema.safeParse(body);
 
@@ -99,7 +94,6 @@ export async function POST(req: NextRequest) {
 
     const payload = parsed.data;
 
-    // ── 3. Rate Limiting (1 req/sec per device) ──
     const now = Date.now();
     const lastTime = lastPostTime.get(payload.deviceId) || 0;
     if (now - lastTime < 1000) {
@@ -110,41 +104,51 @@ export async function POST(req: NextRequest) {
     }
     lastPostTime.set(payload.deviceId, now);
 
-    // ── 4a. Handle Sensor Offline (deduplicated) ──
+    // ── 4a. Handle Sensor Offline (deduplicated, per-phase) ──
     if (payload.sensorOffline) {
-      await processFaultCondition({
-        deviceId:   payload.deviceId,
-        type:       "PZEM_OFFLINE",
-        phase:      "",
-        isFault:    true,
-        faultValue: 0,
-        threshold:  0,
-        message:
-          "PZEM sensor offline: ESP32 cannot communicate with power meter. Check wiring and sensor connection.",
-      });
+      // This shortcut is only sent when ALL raw phases are unavailable — in
+      // 3-phase mode when every PZEM is dead, and in 1-phase AUTO once A/B/C
+      // have all failed over and none responds. The payload never carries
+      // `threePhase` in either mode, so the flags are always all-true; any
+      // narrower branch here would be unreachable and would misreport a
+      // total-loss event as single-phase comm failure.
+      const activeStates = await getAllActiveAlertStates(payload.deviceId);
+      await firePzemOfflineAlerts(payload.deviceId, { A: true, B: true, C: true }, activeStates);
       return NextResponse.json({ status: "ok", sensorOffline: true }, { status: 200 });
     }
 
-    // ── 4b. Validate that reading data exists ──
     const is3Phase = isThreePhasePayload(payload);
     if (!is3Phase && !payload.reading) {
       return NextResponse.json({ error: "Missing reading data" }, { status: 422 });
     }
 
-    // ── 4c. Write Reading to Database ──
     const serverPayload = {
       ...payload,
       timestamp: new Date().toISOString(),
     };
     await insertReading(serverPayload, tenantStamp);
 
-    // ── 5. Smart Blackout Detection & Event Tracking (unchanged) ──
+    // ── 4d. Per-Phase PZEM Offline Alerts (3-phase only) ──
+    if (is3Phase) {
+      const offlineStates = await getAllActiveAlertStates(payload.deviceId);
+      await firePzemOfflineAlerts(payload.deviceId, {
+        A: payload.threePhase!.phase_a.offline,
+        B: payload.threePhase!.phase_b.offline,
+        C: payload.threePhase!.phase_c.offline,
+      }, offlineStates);
+    }
+
+    // ── 5. Smart Blackout Detection ──
     const blackoutState = await getDeviceBlackoutState(payload.deviceId);
     const wasInBlackout = blackoutState?.inBlackout ?? false;
     const isBlackout    = payload.blackout === true;
 
     const currentVoltage = is3Phase
-      ? payload.threePhase!.phase_a.voltage
+      ? (payload.pzemActiveSource === "B"
+          ? payload.threePhase!.phase_b.voltage
+          : payload.pzemActiveSource === "C"
+            ? payload.threePhase!.phase_c.voltage
+            : payload.threePhase!.phase_a.voltage)
       : payload.reading!.voltage;
 
     if (isBlackout && !wasInBlackout) {
@@ -170,21 +174,18 @@ export async function POST(req: NextRequest) {
         });
         console.log(`[Blackout] Ended for device ${payload.deviceId}`);
       }
-      // Fall through to normal threshold checks
       if (is3Phase) {
-        await checkThreePhaseThresholds(payload.deviceId, payload.threePhase!);
+        await checkThreePhaseThresholds(payload.deviceId, payload.threePhase!, payload.pzemActiveSource);
       } else {
         await checkThresholds(payload.deviceId, payload.reading!);
       }
 
     } else if (isBlackout && wasInBlackout) {
-      // Ongoing blackout — no new alerts
       console.log(`[Blackout] Ongoing for device ${payload.deviceId} (silent)`);
 
     } else {
-      // Normal operation — run deduplicating threshold checks
       if (is3Phase) {
-        await checkThreePhaseThresholds(payload.deviceId, payload.threePhase!);
+        await checkThreePhaseThresholds(payload.deviceId, payload.threePhase!, payload.pzemActiveSource);
       } else {
         await checkThresholds(payload.deviceId, payload.reading!);
       }
@@ -194,12 +195,25 @@ export async function POST(req: NextRequest) {
     if (payload.localTrip && payload.localTripReason) {
       const reading = is3Phase
         ? {
-            voltage: payload.threePhase!.phase_a.voltage,
-            current: payload.threePhase!.phase_a.current,
-            power:
-              payload.threePhase!.phase_a.power +
-              payload.threePhase!.phase_b.power +
-              payload.threePhase!.phase_c.power,
+            voltage: payload.pzemActiveSource === "B"
+              ? payload.threePhase!.phase_b.voltage
+              : payload.pzemActiveSource === "C"
+                ? payload.threePhase!.phase_c.voltage
+                : payload.threePhase!.phase_a.voltage,
+            current: payload.pzemActiveSource === "B"
+              ? payload.threePhase!.phase_b.current
+              : payload.pzemActiveSource === "C"
+                ? payload.threePhase!.phase_c.current
+                : payload.threePhase!.phase_a.current,
+            power: payload.pzemActiveSource
+              ? (payload.pzemActiveSource === "B"
+                  ? payload.threePhase!.phase_b.power
+                  : payload.pzemActiveSource === "C"
+                    ? payload.threePhase!.phase_c.power
+                    : payload.threePhase!.phase_a.power)
+              : payload.threePhase!.phase_a.power +
+                payload.threePhase!.phase_b.power +
+                payload.threePhase!.phase_c.power,
           }
         : payload.reading!;
 
@@ -217,26 +231,10 @@ export async function POST(req: NextRequest) {
 // ══════════════════════════════════════════════════════════════════════════
 // processFaultCondition — Dual-Track Alert / Incident Engine
 // ══════════════════════════════════════════════════════════════════════════
-//
-// Called for every condition on every tick.  Returns the newly-created alert
-// (if any) so callers can optionally auto-trip the relay on the initial alert.
-//
-// TRACK A — Fault detected:
-//   First bad reading   → create ONE immediate alert + start 60s timer
-//   Timer < 60s         → no-op (spike window still open)
-//   Timer ≥ 60s, no active incident → PROMOTE: mark alert as incident,
-//                                      write device_alert_state row
-//   Active incident already exists  → silent no-op
-//
-// TRACK B — No fault (good reading):
-//   No active incident  → clear any pending spike timer, no-op
-//   Active incident     → start 30s recovery debounce
-//   Recovery ≥ 30s      → close incident (stamp ended_at + duration_seconds)
 
 async function processFaultCondition(opts: {
   deviceId:    string;
   type:        AlertType;
-  /** '' for non-phase alerts, 'A'|'B'|'C' for 3-phase */
   phase:       string;
   isFault:     boolean;
   faultValue:  number;
@@ -248,56 +246,45 @@ async function processFaultCondition(opts: {
   const mapKey = `${deviceId}:${type}:${phase}`;
   const now    = Date.now();
 
-  // ── TRACK A: Fault detected ──────────────────────────────────────────
   if (isFault) {
-    // Cancel any active recovery countdown (fault has returned)
     if (pendingRecovery.has(mapKey)) {
       pendingRecovery.delete(mapKey);
       await cancelAlertRecovery(deviceId, type, phase);
     }
 
-    // Check active incident state (prefer caller-supplied batch map for perf)
     const stateKey = `${type}:${phase}`;
     const activeIncident = opts.activeStates
       ? opts.activeStates.get(stateKey)
       : null;
 
     if (activeIncident?.isActive) {
-      // Already an active incident → silent no-op
       return { alert: null };
     }
 
     const pending = pendingFaults.get(mapKey);
 
     if (!pending) {
-      // First observation of this fault → create ONE immediate alert
       const alert = await createAlert({ deviceId, type, value: faultValue, threshold, message, phase: phase || null });
       pendingFaults.set(mapKey, { firstSeenAt: now, alertId: alert.id });
       return { alert };
     }
 
     if (now - pending.firstSeenAt >= INCIDENT_PROMOTE_MS) {
-      // 60s elapsed without recovery → promote to sustained incident
       await promoteAlertToIncident(pending.alertId);
       await startAlertIncident(deviceId, type, phase, pending.alertId);
       pendingFaults.delete(mapKey);
       console.log(`[AlertEngine] Promoted to incident: ${type}${phase ? `/Phase${phase}` : ""} for ${deviceId}`);
-      return { alert: null }; // alert was already returned 60s ago; no relay re-trip
+      return { alert: null };
     }
 
-    // Still within the 60s spike window → no-op
     return { alert: null };
   }
 
-  // ── TRACK B: Good reading ────────────────────────────────────────────
-  // Cancel any pending spike promotion (fault resolved before 60s)
   pendingFaults.delete(mapKey);
 
-  // Check if there's a current active incident to close
   const stateKey = `${type}:${phase}`;
   const activeIncident = opts.activeStates ? opts.activeStates.get(stateKey) : null;
 
-  // If we don't have it from the batch map, do a targeted DB check
   const hasActiveIncident =
     activeIncident?.isActive ??
     (await import("@energy/database").then((m) =>
@@ -308,9 +295,7 @@ async function processFaultCondition(opts: {
     return { alert: null };
   }
 
-  // Active incident exists — run recovery debounce
   if (!pendingRecovery.has(mapKey)) {
-    // First good reading after incident — start 30s recovery window
     pendingRecovery.set(mapKey, { recoveryStartedAt: now });
     await setAlertRecovery(deviceId, type, phase);
     return { alert: null };
@@ -318,7 +303,6 @@ async function processFaultCondition(opts: {
 
   const recovery = pendingRecovery.get(mapKey)!;
   if (now - recovery.recoveryStartedAt >= RECOVERY_DEBOUNCE_MS) {
-    // 30s of clean readings → close the incident
     await endAlertIncident(deviceId, type, phase);
     pendingRecovery.delete(mapKey);
   }
@@ -332,7 +316,8 @@ async function processFaultCondition(opts: {
 
 async function checkThreePhaseThresholds(
   deviceId: string,
-  threePhase: ThreePhaseReading
+  threePhase: ThreePhaseReading,
+  pzemActiveSource?: "A" | "B" | "C"
 ) {
   try {
     const thresholds    = await getAlertThresholds();
@@ -341,7 +326,6 @@ async function checkThreePhaseThresholds(
     const relayConfig   = await getRelayConfig(deviceId);
     const shouldAutoTrip = relayConfig?.autoTripEnabled ?? false;
 
-    // Pre-fetch all active incident states in ONE query (avoids N+1 per condition)
     const activeStates = await getAllActiveAlertStates(deviceId);
 
     const phases = [
@@ -351,7 +335,22 @@ async function checkThreePhaseThresholds(
     ];
 
     for (const phase of phases) {
-      // ── Overvoltage ──
+      // Safety guard: skip threshold checks for offline phases
+      if (phase.data.offline) {
+        pendingFaults.delete(`${deviceId}:OVERVOLTAGE:${phase.name}`);
+        pendingFaults.delete(`${deviceId}:UNDERVOLTAGE:${phase.name}`);
+        pendingFaults.delete(`${deviceId}:OVERCURRENT:${phase.name}`);
+        continue;
+      }
+
+      // 1-phase redundant-tap guard: skip OV/UV/OC on non-active taps
+      if (pzemActiveSource && phase.name !== pzemActiveSource) {
+        pendingFaults.delete(`${deviceId}:OVERVOLTAGE:${phase.name}`);
+        pendingFaults.delete(`${deviceId}:UNDERVOLTAGE:${phase.name}`);
+        pendingFaults.delete(`${deviceId}:OVERCURRENT:${phase.name}`);
+        continue;
+      }
+
       const ovRes = await processFaultCondition({
         deviceId,
         type:        "OVERVOLTAGE",
@@ -366,7 +365,6 @@ async function checkThreePhaseThresholds(
         await triggerRelayTrip(deviceId, `OVERVOLTAGE_PHASE_${phase.name}`, phase.data.voltage, thresholds.overvoltage, ovRes.alert.id);
       }
 
-      // ── Undervoltage ──
       const uvRes = await processFaultCondition({
         deviceId,
         type:        "UNDERVOLTAGE",
@@ -381,7 +379,6 @@ async function checkThreePhaseThresholds(
         await triggerRelayTrip(deviceId, `UNDERVOLTAGE_PHASE_${phase.name}`, phase.data.voltage, thresholds.undervoltage, uvRes.alert.id);
       }
 
-      // ── Overcurrent ──
       const ocRes = await processFaultCondition({
         deviceId,
         type:        "OVERCURRENT",
@@ -397,11 +394,16 @@ async function checkThreePhaseThresholds(
       }
     }
 
-    // ── Total Power ──
-    const totalPower =
-      threePhase.phase_a.power +
-      threePhase.phase_b.power +
-      threePhase.phase_c.power;
+    // Total Power — active source only in 1-phase mode
+    const totalPower = pzemActiveSource
+      ? (pzemActiveSource === "B"
+          ? threePhase.phase_b.power
+          : pzemActiveSource === "C"
+            ? threePhase.phase_c.power
+            : threePhase.phase_a.power)
+      : threePhase.phase_a.power +
+        threePhase.phase_b.power +
+        threePhase.phase_c.power;
 
     await processFaultCondition({
       deviceId,
@@ -436,60 +438,44 @@ async function checkThresholds(
 
     const activeStates = await getAllActiveAlertStates(deviceId);
 
-    // ── Overvoltage ──
     const ovRes = await processFaultCondition({
-      deviceId,
-      type:        "OVERVOLTAGE",
-      phase:       "",
-      isFault:     reading.voltage > thresholds.overvoltage,
-      faultValue:  reading.voltage,
-      threshold:   thresholds.overvoltage,
-      message:     `High voltage detected: ${reading.voltage}V (threshold: ${thresholds.overvoltage}V)`,
+      deviceId, type: "OVERVOLTAGE", phase: "",
+      isFault: reading.voltage > thresholds.overvoltage,
+      faultValue: reading.voltage, threshold: thresholds.overvoltage,
+      message: `High voltage detected: ${reading.voltage}V (threshold: ${thresholds.overvoltage}V)`,
       activeStates,
     });
     if (ovRes.alert && shouldAutoTrip && relayConfig?.tripOnOvervoltage) {
       await triggerRelayTrip(deviceId, "OVERVOLTAGE", reading.voltage, thresholds.overvoltage, ovRes.alert.id);
     }
 
-    // ── Undervoltage ──
     const uvRes = await processFaultCondition({
-      deviceId,
-      type:        "UNDERVOLTAGE",
-      phase:       "",
-      isFault:     reading.voltage < thresholds.undervoltage,
-      faultValue:  reading.voltage,
-      threshold:   thresholds.undervoltage,
-      message:     `Low voltage detected: ${reading.voltage}V (threshold: ${thresholds.undervoltage}V)`,
+      deviceId, type: "UNDERVOLTAGE", phase: "",
+      isFault: reading.voltage < thresholds.undervoltage,
+      faultValue: reading.voltage, threshold: thresholds.undervoltage,
+      message: `Low voltage detected: ${reading.voltage}V (threshold: ${thresholds.undervoltage}V)`,
       activeStates,
     });
     if (uvRes.alert && shouldAutoTrip && relayConfig?.tripOnUndervoltage) {
       await triggerRelayTrip(deviceId, "UNDERVOLTAGE", reading.voltage, thresholds.undervoltage, uvRes.alert.id);
     }
 
-    // ── Overcurrent ──
     const ocRes = await processFaultCondition({
-      deviceId,
-      type:        "OVERCURRENT",
-      phase:       "",
-      isFault:     reading.current > thresholds.overcurrent,
-      faultValue:  reading.current,
-      threshold:   thresholds.overcurrent,
-      message:     `High current detected: ${reading.current}A (threshold: ${thresholds.overcurrent}A)`,
+      deviceId, type: "OVERCURRENT", phase: "",
+      isFault: reading.current > thresholds.overcurrent,
+      faultValue: reading.current, threshold: thresholds.overcurrent,
+      message: `High current detected: ${reading.current}A (threshold: ${thresholds.overcurrent}A)`,
       activeStates,
     });
     if (ocRes.alert && shouldAutoTrip && relayConfig?.tripOnOvercurrent) {
       await triggerRelayTrip(deviceId, "OVERCURRENT", reading.current, thresholds.overcurrent, ocRes.alert.id);
     }
 
-    // ── High Power ──
     await processFaultCondition({
-      deviceId,
-      type:        "HIGH_POWER",
-      phase:       "",
-      isFault:     reading.power > thresholds.high_power,
-      faultValue:  reading.power,
-      threshold:   thresholds.high_power,
-      message:     `High power draw detected: ${reading.power}W (threshold: ${thresholds.high_power}W)`,
+      deviceId, type: "HIGH_POWER", phase: "",
+      isFault: reading.power > thresholds.high_power,
+      faultValue: reading.power, threshold: thresholds.high_power,
+      message: `High power draw detected: ${reading.power}W (threshold: ${thresholds.high_power}W)`,
       activeStates,
     });
 
@@ -499,21 +485,15 @@ async function checkThresholds(
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// Relay Helpers (unchanged)
+// Relay Helpers
 // ══════════════════════════════════════════════════════════════════════════
 
 async function triggerRelayTrip(
-  deviceId: string,
-  trigger: string,
-  value: number,
-  threshold: number,
-  alertId?: string
+  deviceId: string, trigger: string, value: number, threshold: number, alertId?: string
 ) {
   try {
     await updateRelayState(deviceId, true, trigger, alertId);
-    await logRelayAction(
-      deviceId, "TRIP", trigger, value, threshold, alertId, "SYSTEM", "Auto-trip triggered by alert"
-    );
+    await logRelayAction(deviceId, "TRIP", trigger, value, threshold, alertId, "SYSTEM", "Auto-trip triggered by alert");
     console.log(`[Relay] Auto-tripped relay for device ${deviceId} due to ${trigger}`);
   } catch (err) {
     console.error("[Relay] Failed to trip relay:", err);
@@ -521,30 +501,25 @@ async function triggerRelayTrip(
 }
 
 async function handleLocalTrip(payload: {
-  deviceId:       string;
-  localTripReason: string;
-  reading:         { voltage: number; current: number; power: number };
+  deviceId: string; localTripReason: string;
+  reading: { voltage: number; current: number; power: number };
 }) {
   try {
-    const thresholds      = await getAlertThresholds();
-    const isOvervoltage   = payload.localTripReason === "LOCAL_OVERVOLTAGE";
-    const alertType       = isOvervoltage ? "OVERVOLTAGE" : "UNDERVOLTAGE";
-    const thresholdValue  = isOvervoltage
-      ? thresholds?.overvoltage   ?? 250
-      : thresholds?.undervoltage  ?? 200;
+    const thresholds     = await getAlertThresholds();
+    const isOvervoltage  = payload.localTripReason === "LOCAL_OVERVOLTAGE";
+    const alertType      = isOvervoltage ? "OVERVOLTAGE" : "UNDERVOLTAGE";
+    const thresholdValue = isOvervoltage
+      ? thresholds?.overvoltage  ?? 250
+      : thresholds?.undervoltage ?? 200;
 
-    await logRelayAction(
-      payload.deviceId, "LOCAL_TRIP", payload.localTripReason,
+    await logRelayAction(payload.deviceId, "LOCAL_TRIP", payload.localTripReason,
       payload.reading.voltage, thresholdValue, undefined, "ESP32_LOCAL",
-      "Automatic local hardware safety override by ESP32"
-    );
+      "Automatic local hardware safety override by ESP32");
     await updateRelayState(payload.deviceId, true, payload.localTripReason, undefined);
     await createAlert({
-      deviceId:  payload.deviceId,
-      type:      alertType as AlertType,
-      value:     payload.reading.voltage,
-      threshold: thresholdValue,
-      message:   `ESP32 LOCAL SAFETY TRIP: ${isOvervoltage ? "Overvoltage" : "Undervoltage"} detected (${payload.reading.voltage}V). Power cut locally by hardware override.`,
+      deviceId: payload.deviceId, type: alertType as AlertType,
+      value: payload.reading.voltage, threshold: thresholdValue,
+      message: `ESP32 LOCAL SAFETY TRIP: ${isOvervoltage ? "Overvoltage" : "Undervoltage"} detected (${payload.reading.voltage}V). Power cut locally by hardware override.`,
     });
 
     console.log(`[Ingest] Local safety trip logged for device ${payload.deviceId}: ${payload.localTripReason}`);
