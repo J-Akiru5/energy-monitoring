@@ -106,12 +106,14 @@ export async function POST(req: NextRequest) {
 
     // ── 4a. Handle Sensor Offline (deduplicated, per-phase) ──
     if (payload.sensorOffline) {
-      const is3PhaseOff = isThreePhasePayload(payload);
-      const phaseFlags = is3PhaseOff
-        ? { A: true, B: true, C: true }
-        : { A: true, B: false, C: false };
+      // This shortcut is only sent when ALL raw phases are unavailable — in
+      // 3-phase mode when every PZEM is dead, and in 1-phase AUTO once A/B/C
+      // have all failed over and none responds. The payload never carries
+      // `threePhase` in either mode, so the flags are always all-true; any
+      // narrower branch here would be unreachable and would misreport a
+      // total-loss event as single-phase comm failure.
       const activeStates = await getAllActiveAlertStates(payload.deviceId);
-      await firePzemOfflineAlerts(payload.deviceId, phaseFlags, activeStates);
+      await firePzemOfflineAlerts(payload.deviceId, { A: true, B: true, C: true }, activeStates);
       return NextResponse.json({ status: "ok", sensorOffline: true }, { status: 200 });
     }
 
