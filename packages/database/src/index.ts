@@ -27,6 +27,14 @@ export {
 export { lookupControllerByDevice } from "./queries/tenant";
 export type { TenantStamp } from "./queries/tenant";
 
+// Super admin grants (temporary demo access — decision #9)
+export {
+  getActiveSuperAdminGrant,
+  recordSuperAdminAccess,
+  grantTemporarySuperAdmin,
+} from "./queries/superAdmin";
+export type { SuperAdminGrant } from "./queries/superAdmin";
+
 // Alert queries
 export {
   createAlert,
