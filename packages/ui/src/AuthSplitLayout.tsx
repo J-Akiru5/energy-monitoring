@@ -1,5 +1,21 @@
 import type { ReactNode } from "react";
 
+export interface AuthFeature {
+  title: string;
+  description: string;
+}
+
+/**
+ * Primary institutional identity for the brand panel (e.g. a university).
+ * When provided, this becomes the hero identity and `platformName` is
+ * demoted to a small "Platform by ..." credit. Use typography only —
+ * never a fabricated logo asset.
+ */
+export interface AuthInstitution {
+  name: string;
+  shortName: string;
+}
+
 /**
  * Enterprise split-layout shell for authentication screens.
  *
@@ -14,12 +30,18 @@ import type { ReactNode } from "react";
 export function AuthSplitLayout({
   productName,
   tagline,
+  headline = "Energy monitoring,\nunder control.",
   platformName = "Syntaxure Labs",
+  institution,
+  features,
   children,
 }: {
   productName: string;
   tagline: string;
+  headline?: string;
   platformName?: string;
+  institution?: AuthInstitution;
+  features?: AuthFeature[];
   children: ReactNode;
 }) {
   return (
@@ -47,27 +69,36 @@ export function AuthSplitLayout({
         />
 
         <div className="relative z-10 flex w-full items-center gap-3 lg:h-full lg:flex-col lg:items-start lg:justify-between lg:gap-0">
-          {/* Logo row — always visible (compact band on mobile) */}
+          {/* Identity row — always visible (compact band on mobile) */}
           <div className="flex items-center gap-3">
-            <span
-              aria-hidden="true"
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#06B6D4]/30 bg-[#06B6D4]/10"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                className="h-5 w-5 text-[#06B6D4]"
-                stroke="currentColor"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            {institution ? (
+              <span
+                aria-hidden="true"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#06B6D4]/30 bg-[#06B6D4]/10 text-[11px] font-bold tracking-wide text-[#06B6D4]"
               >
-                <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
-              </svg>
-            </span>
+                {institution.shortName}
+              </span>
+            ) : (
+              <span
+                aria-hidden="true"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#06B6D4]/30 bg-[#06B6D4]/10"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  className="h-5 w-5 text-[#06B6D4]"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
+                </svg>
+              </span>
+            )}
             <span className="flex flex-col">
               <span className="text-sm font-semibold tracking-tight">
-                {platformName}
+                {institution ? institution.name : platformName}
               </span>
               <span className="text-xs text-[#94A3B8] lg:hidden">
                 {productName}
@@ -80,15 +111,38 @@ export function AuthSplitLayout({
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#06B6D4] mb-4">
               {productName}
             </p>
-            <h1 className="text-3xl font-semibold tracking-tight text-[#F8FAFC] mb-3">
-              Energy monitoring,
-              <br />
-              under control.
+            <h1 className="text-3xl font-semibold tracking-tight text-[#F8FAFC] mb-3 whitespace-pre-line">
+              {headline}
             </h1>
             <p className="max-w-sm text-sm leading-relaxed text-[#94A3B8]">
               {tagline}
             </p>
+
+            {features && features.length > 0 ? (
+              <dl className="mt-8 grid max-w-md grid-cols-2 gap-3">
+                {features.map((feature) => (
+                  <div
+                    key={feature.title}
+                    className="rounded-xl border border-[#334155]/50 bg-[#1E293B]/50 p-4"
+                  >
+                    <dt className="text-xs font-semibold text-[#E2E8F0]">
+                      {feature.title}
+                    </dt>
+                    <dd className="mt-1 text-[11px] leading-relaxed text-[#94A3B8]">
+                      {feature.description}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
           </div>
+
+          {/* Platform credit — only when an institution is the hero identity */}
+          {institution ? (
+            <p className="hidden lg:block text-[11px] uppercase tracking-[0.2em] text-[#475569]">
+              Platform by {platformName}
+            </p>
+          ) : null}
         </div>
       </section>
 
