@@ -281,6 +281,7 @@ void readAndUpload() {
   // In 1-phase mode, only check the active source.
   bool localTrip = false;
   const char* localTripReason = nullptr;
+  char localTripReasonBuf[40];
   float tripVoltage = 0;
 
   if (localSafetyEnabled && !relayState) {
@@ -295,16 +296,17 @@ void readAndUpload() {
         if (src && !src->offline) {
             if (src->voltage > localOvervoltageThreshold) {
                 localTrip = true;
-                localTripReason = "LOCAL_OVERVOLTAGE_PHASE_X";
+                snprintf(localTripReasonBuf, sizeof(localTripReasonBuf),
+                         "LOCAL_OVERVOLTAGE_PHASE_%c", phaseLetter[0]);
                 tripVoltage = src->voltage;
             } else if (src->voltage < localUndervoltageThreshold && src->voltage > 0) {
                 localTrip = true;
-                localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_X";
+                snprintf(localTripReasonBuf, sizeof(localTripReasonBuf),
+                         "LOCAL_UNDERVOLTAGE_PHASE_%c", phaseLetter[0]);
                 tripVoltage = src->voltage;
             }
-            if (localTrip && phaseLetter) {
-                char* xPos = const_cast<char*>(strchr(localTripReason, 'X'));
-                if (xPos) *xPos = phaseLetter[0];
+            if (localTrip) {
+                localTripReason = localTripReasonBuf;
             }
         }
     } else {
