@@ -29,6 +29,9 @@ importers:
       '@energy/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@energy/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       html2canvas:
         specifier: ^1.4.1
         version: 1.4.1
