@@ -44,6 +44,11 @@ constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 6UL * 60 * 60 * 1000; // 6 hours
 // WebSocket reconnection interval
 constexpr uint32_t WS_RECONNECT_INTERVAL_MS = 5000;
 
+// WebSocket reconnect backoff cap — while disconnected, the library retry
+// interval doubles from WS_RECONNECT_INTERVAL_MS up to this, then resets
+// on recovery.
+constexpr uint32_t WS_RECONNECT_MAX_MS = 60000;
+
 // WebSocket disconnect warning thresholds
 constexpr uint32_t WS_DISCONNECT_WARN_MS = 60000;
 constexpr uint32_t WS_DISCONNECT_WARN_INTERVAL_MS = 30000;

@@ -88,6 +88,8 @@ WebSocketsClient webSocket;
 bool wsConnected = false;
 unsigned long lastReconnectAttempt = 0;
 unsigned long wsDisconnectTime = 0;
+bool wsInitialized = false;
+unsigned long wsReconnectIntervalMs = WS_RECONNECT_INTERVAL_MS;
 
 // ════════════════════════════════════════════════════════════
 // SETUP
@@ -201,6 +203,7 @@ void setup() {
 
   // 9. Initialize Supabase Realtime WebSocket for relay control
   initSupabaseRealtime();
+  wsInitialized = (WiFi.status() == WL_CONNECTED);
 
   // 10. Final state
   if (!relayState && getBootState() != BOOT_PROTECTIVE_TRIP) {
@@ -226,11 +229,25 @@ void loop() {
   // Maintain WebSocket connection
   webSocket.loop();
 
-  // Reconnect WebSocket if disconnected
-  if (!wsConnected && (now - lastReconnectAttempt > WS_RECONNECT_INTERVAL_MS)) {
-    lastReconnectAttempt = now;
-    Serial.println("[WS] Reconnecting to Supabase Realtime...");
+  // WebSocket: begin() exactly once; library retries on its own.
+  // Repeated initSupabaseRealtime()/beginSSL() leaks the WiFiClientSecure
+  // allocated by the library retry (WebSocketsClient.cpp:59-64 orphaning),
+  // exhausting heap in ~40-70s (2026-09-12 crash-loop root cause).
+  if (!wsInitialized && WiFi.status() == WL_CONNECTED) {
+    wsInitialized = true;
     initSupabaseRealtime();
+  }
+  if (!wsConnected && (now - lastReconnectAttempt > wsReconnectIntervalMs)) {
+    lastReconnectAttempt = now;
+    if (wsReconnectIntervalMs < WS_RECONNECT_MAX_MS) {
+      wsReconnectIntervalMs = min(wsReconnectIntervalMs * 2, (unsigned long)WS_RECONNECT_MAX_MS);
+      webSocket.setReconnectInterval(wsReconnectIntervalMs);
+    }
+    Serial.printf("[WS] Disconnected — library retry interval now %lus\n", wsReconnectIntervalMs / 1000);
+  }
+  if (wsConnected && wsReconnectIntervalMs != WS_RECONNECT_INTERVAL_MS) {
+    wsReconnectIntervalMs = WS_RECONNECT_INTERVAL_MS;
+    webSocket.setReconnectInterval(WS_RECONNECT_INTERVAL_MS);
   }
 
   // Track WebSocket disconnect duration and warn periodically
