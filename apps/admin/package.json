@@ -12,6 +12,7 @@
     "@energy/auth": "workspace:*",
     "@energy/database": "workspace:*",
     "@energy/types": "workspace:*",
+    "@energy/ui": "workspace:*",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.0",
     "lucide-react": "^0.577.0",
