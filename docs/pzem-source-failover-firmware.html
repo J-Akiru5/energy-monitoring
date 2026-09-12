@@ -161,6 +161,59 @@
       <tr><td>SHA256</td><td><code>403444FFDC6F82EA2C2C3516994FFAAEF467720E97DC8CAE7D247801B0D30F4D</code></td></tr>
     </table>
   </div>
+
+  <div class="section addendum">
+    <h2>Addendum: Always-Report-All-Phases Fix</h2>
+    <h3>Problem</h3>
+    <p>In 1-phase mode, only the active source was included in the JSON payload. Non-active phases got zeroed placeholders with <code>offline=true</code>, causing false alerts and ThreePhaseReadingSchema validation failures.</p>
+    <h3>Solution</h3>
+    <table>
+      <tr><th>Area</th><th>Before</th><th>After</th></tr>
+      <tr><td>JSON payload</td><td>Gated by phaseMode</td><td>Always reports rawA/rawB/rawC</td></tr>
+      <tr><td>offlineCount</td><td>Gated by phaseMode</td><td>Computed from rawA/rawB/rawC uniformly</td></tr>
+      <tr><td>Safety-trip (1-phase)</td><td>Checked all payload phases</td><td>Checks ONLY active source raw reading</td></tr>
+      <tr><td>Serial TOTAL (1-phase)</td><td>Summed all phases</td><td>Active-source-only sum</td></tr>
+      <tr><td>allZero / blackout</td><td>Gated by phaseMode</td><td>Uses rawA/rawB/rawC uniformly</td></tr>
+    </table>
+    <h3>Serial-Capture Proof (phaseMode=1, source=B)</h3>
+    <pre>--- 1-PHASE PZEM Reading -------------------
+  Source B (AUTO): 221.6V  0.543A  120.3W  0.0089kWh  PF:0.99
+    Tap A: 221.5V  1.234A  273.3W
+    Tap C: 0.0V  0.000A  0.0W  [OFFLINE]
+  TOTAL:   120.3W  0.0089kWh  (active phases: 2)
+--------------------------------------------</pre>
+    <h3>Expected JSON</h3>
+    <pre>{
+  "threePhase": {
+    "phase_a": { "voltage": 221.50, "offline": false, ... },
+    "phase_b": { "voltage": 221.60, "offline": false, ... },
+    "phase_c": { "offline": true, ... }
+  },
+  "pzemSourceMode": "AUTO",
+  "pzemActiveSource": "B"
+}</pre>
+    <ul class="checklist">
+      <li>phase_b has real non-zero data</li>
+      <li>phase_a and phase_c report their own true readings</li>
+      <li>pzemActiveSource tells backend which tap is authoritative</li>
+      <li>Safety-trip only checks rawB (active source)</li>
+      <li>ThreePhaseReadingSchema validation passes</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Build Metadata (Fix Build)</h2>
+    <table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>Branch</td><td><code>feature/pzem-source-failover</code></td></tr>
+      <tr><td>Build target</td><td><code>pio run</code></td></tr>
+      <tr><td>Platform</td><td>Espressif 32 v7.1.2</td></tr>
+      <tr><td>RAM</td><td>15.1% (49,380 / 327,680 bytes)</td></tr>
+      <tr><td>Flash</td><td>80.2% (1,051,657 / 1,310,720 bytes)</td></tr>
+      <tr><td>Firmware size</td><td>1,058,256 bytes</td></tr>
+      <tr><td>SHA256</td><td><code>8AA40CBF2CB595D3B414429F517CFF7D3C68448DE76442268C7F1B35998C464E</code></td></tr>
+    </table>
+  </div>
 </div>
 </body>
 </html>

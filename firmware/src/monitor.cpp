@@ -185,43 +185,21 @@ void readAndUpload() {
       // MANUAL: do not auto-switch; sourceState.activeSource stays as configured
   }
 
-  // ── STEP 4: Determine which readings go into the payload ──
-  PhaseReading payloadA = {0,0,0,0,0,0,true};
-  PhaseReading payloadB = {0,0,0,0,0,0,true};
-  PhaseReading payloadC = {0,0,0,0,0,0,true};
-
-  if (phaseMode == 3) {
-      // 3-phase: include all phases (each reports its own offline status)
-      payloadA = rawA;
-      payloadB = rawB;
-      payloadC = rawC;
-  } else if (phaseMode == 1) {
-      // 1-phase: include only the selected source
-      // In 3-phase 1-physical-PZEM scenarios, only one PZEM is wired.
-      // AUTO selects the first healthy source; MANUAL uses the configured one.
-      switch (sourceState.activeSource) {
-          case PZEM_SOURCE_A: payloadA = rawA; break;
-          case PZEM_SOURCE_B: payloadB = rawB; break;
-          case PZEM_SOURCE_C: payloadC = rawC; break;
-      }
-
-      // In MANUAL mode, if the selected source is OFFLINE, the payload
-      // will have offline=true for that phase. The backend handles this
-      // as NO_VALID_SOURCE.
-  }
-
-  // ── STEP 5: Count offline phases in the payload ──
+  // ── STEP 4: Count offline phases from raw readings ──
+  // All three PZEMs are always polled; report all three honestly.
+  // pzemActiveSource tells the backend which tap is authoritative.
   int offlineCount = 0;
-  if (phaseMode >= 1 && payloadA.offline) offlineCount++;
-  if (phaseMode >= 2 && payloadB.offline) offlineCount++;
-  if (phaseMode >= 3 && payloadC.offline) offlineCount++;
+  if (rawA.offline) offlineCount++;
+  if (rawB.offline) offlineCount++;
+  if (rawC.offline) offlineCount++;
 
-  int activePhases = (phaseMode == 1 ? 1 : 3) - offlineCount;
+  int activePhases = 3 - offlineCount;
 
-  // All payload sensors offline
+  // All sensors offline -- covers both 3-phase total loss and
+  // 1-phase AUTO exhausted A, B, and C (Case D).
   if (activePhases == 0) {
-    Serial.println("[PZEM] All payload sensors offline (NaN readings)!");
-    Serial.println("[PZEM]   -> Check wiring for active phase(s)");
+    Serial.println("[PZEM] All sensors offline (NaN readings)!");
+    Serial.println("[PZEM]   -> Check wiring for all phases");
 
     JsonDocument doc;
     doc["deviceId"] = deviceId;
@@ -236,20 +214,19 @@ void readAndUpload() {
   }
 
   // Log individual offline phases
-  if (phaseMode >= 1 && payloadA.offline) Serial.println("[PZEM] Phase A offline — sensor comm failed");
-  if (phaseMode >= 2 && payloadB.offline) Serial.println("[PZEM] Phase B offline — sensor comm failed");
-  if (phaseMode >= 3 && payloadC.offline) Serial.println("[PZEM] Phase C offline — sensor comm failed");
+  if (rawA.offline) Serial.println("[PZEM] Phase A offline -- sensor comm failed");
+  if (rawB.offline) Serial.println("[PZEM] Phase B offline -- sensor comm failed");
+  if (rawC.offline) Serial.println("[PZEM] Phase C offline -- sensor comm failed");
 
-  // ── STEP 6: Print to Serial ──
+  // ── STEP 5: Print to Serial ──
   Serial.printf("--- %d-PHASE PZEM Reading -------------------\n", phaseMode);
   if (phaseMode == 1) {
-      // 1-phase: show the selected source
       const PhaseReading* src = nullptr;
       const char* srcName = "";
       switch (sourceState.activeSource) {
-          case PZEM_SOURCE_A: src = &payloadA; srcName = "A"; break;
-          case PZEM_SOURCE_B: src = &payloadB; srcName = "B"; break;
-          case PZEM_SOURCE_C: src = &payloadC; srcName = "C"; break;
+          case PZEM_SOURCE_A: src = &rawA; srcName = "A"; break;
+          case PZEM_SOURCE_B: src = &rawB; srcName = "B"; break;
+          case PZEM_SOURCE_C: src = &rawC; srcName = "C"; break;
       }
       if (src) {
           Serial.printf("  Source %s (%s): %.1fV  %.3fA  %.1fW  %.4fkWh  PF:%.2f  %s\n",
@@ -258,63 +235,104 @@ void readAndUpload() {
                         src->voltage, src->current, src->power, src->energy, src->powerFactor,
                         src->offline ? "[OFFLINE]" : "");
       }
+      const char* tapNames[] = {"A", "B", "C"};
+      const PhaseReading* taps[] = {&rawA, &rawB, &rawC};
+      for (int i = 0; i < 3; i++) {
+          if (taps[i] != src) {
+              Serial.printf("    Tap %s: %.1fV  %.3fA  %.1fW  %s\n",
+                            tapNames[i], taps[i]->voltage, taps[i]->current, taps[i]->power,
+                            taps[i]->offline ? "[OFFLINE]" : "");
+          }
+      }
   } else {
-      // 3-phase: show all phases
-      if (payloadA.offline || hasValidReading(payloadA))
+      if (rawA.offline || hasValidReading(rawA))
           Serial.printf("  Phase A: %.1fV  %.3fA  %.1fW  %.4fkWh  PF:%.2f  %s\n",
-                        payloadA.voltage, payloadA.current, payloadA.power, payloadA.energy, payloadA.powerFactor,
-                        payloadA.offline ? "[OFFLINE]" : "");
-      if (payloadB.offline || hasValidReading(payloadB))
+                        rawA.voltage, rawA.current, rawA.power, rawA.energy, rawA.powerFactor,
+                        rawA.offline ? "[OFFLINE]" : "");
+      if (rawB.offline || hasValidReading(rawB))
           Serial.printf("  Phase B: %.1fV  %.3fA  %.1fW  %.4fkWh  PF:%.2f  %s\n",
-                        payloadB.voltage, payloadB.current, payloadB.power, payloadB.energy, payloadB.powerFactor,
-                        payloadB.offline ? "[OFFLINE]" : "");
-      if (payloadC.offline || hasValidReading(payloadC))
+                        rawB.voltage, rawB.current, rawB.power, rawB.energy, rawB.powerFactor,
+                        rawB.offline ? "[OFFLINE]" : "");
+      if (rawC.offline || hasValidReading(rawC))
           Serial.printf("  Phase C: %.1fV  %.3fA  %.1fW  %.4fkWh  PF:%.2f  %s\n",
-                        payloadC.voltage, payloadC.current, payloadC.power, payloadC.energy, payloadC.powerFactor,
-                        payloadC.offline ? "[OFFLINE]" : "");
+                        rawC.voltage, rawC.current, rawC.power, rawC.energy, rawC.powerFactor,
+                        rawC.offline ? "[OFFLINE]" : "");
   }
 
   float totalPower = 0;
   float totalEnergy = 0;
-  if (phaseMode >= 1 && !payloadA.offline) { totalPower += payloadA.power; totalEnergy += payloadA.energy; }
-  if (phaseMode >= 2 && !payloadB.offline) { totalPower += payloadB.power; totalEnergy += payloadB.energy; }
-  if (phaseMode >= 3 && !payloadC.offline) { totalPower += payloadC.power; totalEnergy += payloadC.energy; }
+  if (phaseMode == 1) {
+      switch (sourceState.activeSource) {
+          case PZEM_SOURCE_A: if (!rawA.offline) { totalPower += rawA.power; totalEnergy += rawA.energy; } break;
+          case PZEM_SOURCE_B: if (!rawB.offline) { totalPower += rawB.power; totalEnergy += rawB.energy; } break;
+          case PZEM_SOURCE_C: if (!rawC.offline) { totalPower += rawC.power; totalEnergy += rawC.energy; } break;
+      }
+  } else {
+      if (!rawA.offline) { totalPower += rawA.power; totalEnergy += rawA.energy; }
+      if (!rawB.offline) { totalPower += rawB.power; totalEnergy += rawB.energy; }
+      if (!rawC.offline) { totalPower += rawC.power; totalEnergy += rawC.energy; }
+  }
 
   Serial.printf("  TOTAL:   %.1fW  %.4fkWh  (active phases: %d)\n", totalPower, totalEnergy, activePhases);
   Serial.printf("  Timestamp: %s\n", getTimestamp().c_str());
   Serial.println("--------------------------------------------");
 
   // ── LOCAL HARDWARE SAFETY OVERRIDE ──
-  // Uses the payload readings (not raw) to match what's being reported.
+  // In 1-phase mode, only check the active source.
   bool localTrip = false;
   const char* localTripReason = nullptr;
   float tripVoltage = 0;
 
   if (localSafetyEnabled && !relayState) {
-    if (!payloadA.offline && payloadA.voltage > localOvervoltageThreshold) {
-      localTrip = true;
-      localTripReason = "LOCAL_OVERVOLTAGE_PHASE_A";
-      tripVoltage = payloadA.voltage;
-    } else if (!payloadB.offline && payloadB.voltage > localOvervoltageThreshold) {
-      localTrip = true;
-      localTripReason = "LOCAL_OVERVOLTAGE_PHASE_B";
-      tripVoltage = payloadB.voltage;
-    } else if (!payloadC.offline && payloadC.voltage > localOvervoltageThreshold) {
-      localTrip = true;
-      localTripReason = "LOCAL_OVERVOLTAGE_PHASE_C";
-      tripVoltage = payloadC.voltage;
-    } else if (!payloadA.offline && payloadA.voltage < localUndervoltageThreshold && payloadA.voltage > 0) {
-      localTrip = true;
-      localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_A";
-      tripVoltage = payloadA.voltage;
-    } else if (!payloadB.offline && payloadB.voltage < localUndervoltageThreshold && payloadB.voltage > 0) {
-      localTrip = true;
-      localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_B";
-      tripVoltage = payloadB.voltage;
-    } else if (!payloadC.offline && payloadC.voltage < localUndervoltageThreshold && payloadC.voltage > 0) {
-      localTrip = true;
-      localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_C";
-      tripVoltage = payloadC.voltage;
+    if (phaseMode == 1) {
+        const PhaseReading* src = nullptr;
+        const char* phaseLetter = nullptr;
+        switch (sourceState.activeSource) {
+            case PZEM_SOURCE_A: src = &rawA; phaseLetter = "A"; break;
+            case PZEM_SOURCE_B: src = &rawB; phaseLetter = "B"; break;
+            case PZEM_SOURCE_C: src = &rawC; phaseLetter = "C"; break;
+        }
+        if (src && !src->offline) {
+            if (src->voltage > localOvervoltageThreshold) {
+                localTrip = true;
+                localTripReason = "LOCAL_OVERVOLTAGE_PHASE_X";
+                tripVoltage = src->voltage;
+            } else if (src->voltage < localUndervoltageThreshold && src->voltage > 0) {
+                localTrip = true;
+                localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_X";
+                tripVoltage = src->voltage;
+            }
+            if (localTrip && phaseLetter) {
+                char* xPos = const_cast<char*>(strchr(localTripReason, 'X'));
+                if (xPos) *xPos = phaseLetter[0];
+            }
+        }
+    } else {
+        if (!rawA.offline && rawA.voltage > localOvervoltageThreshold) {
+            localTrip = true;
+            localTripReason = "LOCAL_OVERVOLTAGE_PHASE_A";
+            tripVoltage = rawA.voltage;
+        } else if (!rawB.offline && rawB.voltage > localOvervoltageThreshold) {
+            localTrip = true;
+            localTripReason = "LOCAL_OVERVOLTAGE_PHASE_B";
+            tripVoltage = rawB.voltage;
+        } else if (!rawC.offline && rawC.voltage > localOvervoltageThreshold) {
+            localTrip = true;
+            localTripReason = "LOCAL_OVERVOLTAGE_PHASE_C";
+            tripVoltage = rawC.voltage;
+        } else if (!rawA.offline && rawA.voltage < localUndervoltageThreshold && rawA.voltage > 0) {
+            localTrip = true;
+            localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_A";
+            tripVoltage = rawA.voltage;
+        } else if (!rawB.offline && rawB.voltage < localUndervoltageThreshold && rawB.voltage > 0) {
+            localTrip = true;
+            localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_B";
+            tripVoltage = rawB.voltage;
+        } else if (!rawC.offline && rawC.voltage < localUndervoltageThreshold && rawC.voltage > 0) {
+            localTrip = true;
+            localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_C";
+            tripVoltage = rawC.voltage;
+        }
     }
 
     if (localTrip) {
@@ -326,19 +344,20 @@ void readAndUpload() {
       relayState = true;
       digitalWrite(RELAY_PIN, LOW);
       saveRelayStateToNVS(true);
-      Serial.println("[RELAY] LOCAL TRIP EXECUTED — Power disconnected.");
+      Serial.println("[RELAY] LOCAL TRIP EXECUTED -- Power disconnected.");
     }
   }
 
   // ── BUILD JSON PAYLOAD ──
+  // Always report all three phases using raw readings.
   JsonDocument doc;
   doc["deviceId"] = deviceId;
   doc["phaseMode"] = phaseMode;
 
   JsonObject threePhase = doc["threePhase"].to<JsonObject>();
-  if (phaseMode >= 1) addPhaseJson(threePhase, "phase_a", payloadA);
-  if (phaseMode >= 2) addPhaseJson(threePhase, "phase_b", payloadB);
-  if (phaseMode >= 3) addPhaseJson(threePhase, "phase_c", payloadC);
+  addPhaseJson(threePhase, "phase_a", rawA);
+  addPhaseJson(threePhase, "phase_b", rawB);
+  addPhaseJson(threePhase, "phase_c", rawC);
 
   doc["timestamp"] = getTimestamp();
 
@@ -356,9 +375,9 @@ void readAndUpload() {
 
   // All phases at 0V means mains AC power is cut
   bool allZero = true;
-  if (phaseMode >= 1 && payloadA.voltage != 0.0) allZero = false;
-  if (phaseMode >= 2 && payloadB.voltage != 0.0) allZero = false;
-  if (phaseMode >= 3 && payloadC.voltage != 0.0) allZero = false;
+  if (rawA.voltage != 0.0) allZero = false;
+  if (rawB.voltage != 0.0) allZero = false;
+  if (rawC.voltage != 0.0) allZero = false;
 
   if (allZero && activePhases > 0) {
     doc["blackout"] = true;
