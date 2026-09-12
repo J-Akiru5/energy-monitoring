@@ -152,10 +152,14 @@ void setup() {
     // 5. Sync NTP
     syncNTP();
 
-    // 6. Fetch safety thresholds from cloud
-    fetchThresholdsFromCloud();
+  // 6. Fetch safety thresholds from cloud
+  fetchThresholdsFromCloud();
 
-    // 7. Test backend reachability
+  // 7. Fetch PZEM source configuration from cloud (AUTO/MANUAL, source selection)
+  initPzemHealth();
+  fetchPzemConfigFromCloud();
+
+  // 8. Test backend reachability
     backendReachable = testBackendReachable();
     if (backendReachable) {
       Serial.println("[BOOT] Backend: REACHABLE");
