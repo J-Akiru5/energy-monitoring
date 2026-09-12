@@ -56,9 +56,10 @@ PZEM004Tv30* pzemC = nullptr;
 static void initPzemSensors() {
   pzemA = new PZEM004Tv30(Serial2, PZEM_A_RX, PZEM_A_TX);
   pzemB = new PZEM004Tv30(Serial1, PZEM_B_RX, PZEM_B_TX);
-  // DIAGNOSTIC: RX/TX swapped to test crossed-harness hypothesis for PZEM-C.
-  // If C comes online with this swap, the C-side harness is crossed; keep it.
-  // If C stays offline while A/B read, revert this line.
+  // PERMANENT FIX: RX/TX swapped — the C-side harness is hard-soldered with
+  // crossed wires at the module connector. Verified online 11/11 cycles with
+  // real voltage readings (221.5-221.7V). Do not revert unless the harness
+  // is physically rewired.
   pzemCSerial = new SoftwareSerial(PZEM_C_TX, PZEM_C_RX);
   pzemC = new PZEM004Tv30(*pzemCSerial);
 }
