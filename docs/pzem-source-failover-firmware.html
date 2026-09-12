@@ -202,6 +202,25 @@
   </div>
 
   <div class="section">
+    <h2>Addendum: UB Fix — String-Literal Mutation in 1-Phase Safety Trip</h2>
+    <div class="callout danger">
+      <div class="callout-title">Bug</div>
+      <p style="margin-top:0">The 1-phase safety-trip path set <code>localTripReason = "LOCAL_OVERVOLTAGE_PHASE_X"</code> (string literal in <code>.rodata</code>), then used <code>const_cast&lt;char*&gt;(strchr(..., 'X'))</code> to mutate the <code>'X'</code> in-place to the active phase letter. On ESP32, <code>.rodata</code> is flash-mapped and <strong>read-only</strong>. Writing to it is undefined behavior — a <code>LoadStoreError</code> at the exact moment a real voltage fault has been detected.</p>
+    </div>
+    <h3>Fix</h3>
+    <p style="font-size:14px">Replaced with a stack-allocated buffer and <code>snprintf</code>:</p>
+    <pre>char localTripReasonBuf[40];
+snprintf(localTripReasonBuf, sizeof(localTripReasonBuf),
+         "LOCAL_OVERVOLTAGE_PHASE_%c", phaseLetter[0]);
+localTripReason = localTripReasonBuf;</pre>
+    <p style="font-size:14px"><strong>Commit:</strong> <code>8e2bd89</code> on <code>feature/pzem-source-failover</code></p>
+    <div class="callout warning">
+      <div class="callout-title">DEPLOYMENT-VERIFIED &ne; PHYSICALLY-VERIFIED</div>
+      <p style="margin-top:0">The <code>pio run</code> build is clean (RAM 15.1%, Flash 80.2%). However, <strong>the trip path itself cannot be verified without a physical overvoltage/undervoltage condition on the real hardware</strong>. The stack buffer + snprintf eliminates the UB, but confirming the relay still cuts correctly under a real fault requires bench testing or field verification.</p>
+    </div>
+  </div>
+
+  <div class="section">
     <h2>Build Metadata (Fix Build)</h2>
     <table>
       <tr><th>Field</th><th>Value</th></tr>
@@ -209,9 +228,9 @@
       <tr><td>Build target</td><td><code>pio run</code></td></tr>
       <tr><td>Platform</td><td>Espressif 32 v7.1.2</td></tr>
       <tr><td>RAM</td><td>15.1% (49,380 / 327,680 bytes)</td></tr>
-      <tr><td>Flash</td><td>80.2% (1,051,657 / 1,310,720 bytes)</td></tr>
-      <tr><td>Firmware size</td><td>1,058,256 bytes</td></tr>
-      <tr><td>SHA256</td><td><code>8AA40CBF2CB595D3B414429F517CFF7D3C68448DE76442268C7F1B35998C464E</code></td></tr>
+      <tr><td>Flash</td><td>80.2% (1,051,769 / 1,310,720 bytes)</td></tr>
+      <tr><td>Firmware size</td><td>1,058,352 bytes</td></tr>
+      <tr><td>SHA256</td><td><code>01422C518091E0729C39AE5795E93AD260B93663B454282FE76740526FAB1C40</code></td></tr>
     </table>
   </div>
 </div>
