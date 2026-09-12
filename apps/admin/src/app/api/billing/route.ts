@@ -1,10 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getBillingRate, updateBillingRate } from "@energy/database";
+import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    try {
+      await resolveAccess(user.id, "manage_billing");
+    } catch (err) {
+      if (err instanceof AccessDeniedError) {
+        return NextResponse.json({ error: err.message }, { status: 403 });
+      }
+      throw err;
+    }
+
     const row = await getBillingRate();
     const ratePhpPerKwh = Number(row?.rate_php_per_kwh ?? 0);
 
@@ -13,7 +31,6 @@ export async function GET() {
         id: row?.id ?? null,
         ratePhpPerKwh,
         updatedAt: row?.updated_at ?? null,
-        // Compatibility aliases for existing callers
         rate_php_per_kwh: ratePhpPerKwh,
       },
       {
@@ -24,7 +41,7 @@ export async function GET() {
     );
   } catch (err) {
     return NextResponse.json(
-      { error: (err as Error).message },
+      { error: "Failed to fetch billing rate" },
       { status: 500 }
     );
   }
@@ -32,6 +49,22 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   try {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    try {
+      await resolveAccess(user.id, "manage_billing");
+    } catch (err) {
+      if (err instanceof AccessDeniedError) {
+        return NextResponse.json({ error: err.message }, { status: 403 });
+      }
+      throw err;
+    }
+
     const { ratePerKwh } = await req.json();
 
     if (typeof ratePerKwh !== "number" || ratePerKwh <= 0) {
@@ -51,7 +84,7 @@ export async function PUT(req: NextRequest) {
     });
   } catch (err) {
     return NextResponse.json(
-      { error: (err as Error).message },
+      { error: "Failed to update billing rate" },
       { status: 500 }
     );
   }

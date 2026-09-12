@@ -68,6 +68,13 @@ export {
   getRelayLogs,
 } from "./queries/relay";
 
+// PZEM config queries
+export {
+  getPzemConfig,
+  updatePzemConfig,
+} from "./queries/pzemConfig";
+export type { PzemConfig } from "./queries/pzemConfig";
+
 // Blackout queries
 export {
   getDeviceBlackoutState,

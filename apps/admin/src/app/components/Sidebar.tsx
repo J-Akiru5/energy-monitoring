@@ -9,6 +9,7 @@ const NAV_GROUPS = [
     label: "Monitoring",
     items: [
       { href: "/", icon: "📊", label: "Overview" },
+      { href: "/pzem", icon: "📈", label: "PZEM Status" },
       { href: "/alerts", icon: "🔔", label: "Alerts" },
     ],
   },

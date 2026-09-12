@@ -1,14 +1,32 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getAlertThresholds, getSupabaseAdmin } from "@energy/database";
+import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
 
 export async function GET() {
   try {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    try {
+      await resolveAccess(user.id, "manage_devices");
+    } catch (err) {
+      if (err instanceof AccessDeniedError) {
+        return NextResponse.json({ error: err.message }, { status: 403 });
+      }
+      throw err;
+    }
+
     const thresholds = await getAlertThresholds();
     return NextResponse.json({ thresholds });
   } catch (err) {
     return NextResponse.json(
-      { error: (err as Error).message },
+      { error: "Failed to fetch thresholds" },
       { status: 500 }
     );
   }
@@ -16,12 +34,26 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   try {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    try {
+      await resolveAccess(user.id, "manage_devices");
+    } catch (err) {
+      if (err instanceof AccessDeniedError) {
+        return NextResponse.json({ error: err.message }, { status: 403 });
+      }
+      throw err;
+    }
+
     const updates = await req.json();
-    // updates: { overvoltage?: number, undervoltage?: number, overcurrent?: number, high_power?: number }
 
     const client = getSupabaseAdmin();
 
-    // Fetch the ID of the first (and only) threshold row
     const { data: existing, error: fetchError } = await client
       .from("alert_thresholds")
       .select("id")
@@ -46,7 +78,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ status: "updated" });
   } catch (err) {
     return NextResponse.json(
-      { error: (err as Error).message },
+      { error: "Failed to update thresholds" },
       { status: 500 }
     );
   }
