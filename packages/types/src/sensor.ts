@@ -49,6 +49,9 @@ export const TelemetryPayloadSchema = z
     localTrip: z.boolean().optional(), // ESP32 local safety override triggered
     localTripReason: z.string().optional(), // "LOCAL_OVERVOLTAGE" or "LOCAL_UNDERVOLTAGE"
     sensorOffline: z.boolean().optional(), // ESP32 alive but PZEM returns NaN
+    // ── PZEM source-failover fields (sent by firmware in 1-phase mode) ──
+    pzemSourceMode: z.enum(["AUTO", "MANUAL"]).optional(),
+    pzemActiveSource: z.enum(["A", "B", "C"]).optional(),
   })
   .refine(
     (data) =>
