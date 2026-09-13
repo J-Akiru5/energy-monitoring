@@ -61,6 +61,14 @@ constexpr uint32_t WS_RECONNECT_MAX_MS = 60000;
 constexpr uint32_t WS_DISCONNECT_WARN_MS = 60000;
 constexpr uint32_t WS_DISCONNECT_WARN_INTERVAL_MS = 30000;
 
+// Phoenix application-level heartbeat (Supabase Realtime).
+// Supabase closes idle Realtime sockets ~65s after the last application
+// heartbeat, regardless of transport-level WebSocket PING/PONG. The client
+// must send {"topic":"phoenix","event":"heartbeat"} periodically or the
+// subscription is dropped. Transport-level enableHeartbeat() remains active
+// and serves a different (link-layer) purpose.
+constexpr uint32_t PHOENIX_HEARTBEAT_INTERVAL_MS = 25000;
+
 // HTTP request timeout (allows for Vercel cold starts)
 constexpr uint32_t HTTP_TIMEOUT_MS = 8000;
 

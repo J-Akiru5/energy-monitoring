@@ -6,6 +6,10 @@
 // Initialize Supabase Realtime WebSocket for relay control.
 void initSupabaseRealtime();
 
+// Send the Phoenix application-level heartbeat while the Realtime socket is
+// connected (millis()-scheduled, non-blocking). Call every main-loop pass.
+void maintainRealtimeHeartbeat();
+
 // Manually trip the relay (disconnect power).
 void tripRelay(const char* reason);
 

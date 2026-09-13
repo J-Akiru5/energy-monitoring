@@ -40,6 +40,38 @@ void initSupabaseRealtime() {
   Serial.println("[WS] WebSocket initialized.");
 }
 
+// ──── PHOENIX APPLICATION-LEVEL HEARTBEAT ─────────────────
+// Supabase Realtime closes sockets that stop sending an application-level
+// heartbeat (~65s), even while transport-level WS PING/PONG keeps working.
+// This outgoing heartbeat is what keeps the relay_state subscription alive
+// (verified by controlled experiment: no heartbeat -> close at ~65s;
+// heartbeat every 25s -> session stable 180s+ with phx_reply ok).
+static unsigned long lastHeartbeatSentMs = 0;
+static unsigned long heartbeatSeq = 0;
+
+void maintainRealtimeHeartbeat() {
+  if (!wsConnected) return;
+
+  unsigned long now = millis();
+  if (now - lastHeartbeatSentMs < PHOENIX_HEARTBEAT_INTERVAL_MS) return;
+
+  lastHeartbeatSentMs = now;
+  heartbeatSeq += 1;
+
+  JsonDocument doc;
+  doc["topic"] = "phoenix";
+  doc["event"] = "heartbeat";
+  doc["payload"].to<JsonObject>();
+  String ref = String("hb-") + String(heartbeatSeq);
+  doc["ref"] = ref;
+
+  String message;
+  serializeJson(doc, message);
+  webSocket.sendTXT(message);
+
+  Serial.printf("[WS] Phoenix heartbeat sent (ref=%s)\n", ref.c_str());
+}
+
 // ──── WEBSOCKET EVENT HANDLER ─────────────────────────────
 static void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
   switch (type) {
@@ -51,6 +83,7 @@ static void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
     case WStype_CONNECTED:
       Serial.println("[WS] Connected to Supabase Realtime!");
       wsConnected = true;
+      lastHeartbeatSentMs = millis(); // heartbeat cadence restarts per connection
       subscribeToRelayState();
       break;
 
@@ -109,8 +142,13 @@ static void handleRealtimeMessage(char* payload) {
 
   if (strcmp(event, "phx_reply") == 0) {
     const char* status = doc["payload"]["status"];
+    const char* ref = doc["ref"] | "";
     if (status && strcmp(status, "ok") == 0) {
-      Serial.println("[WS] Subscription confirmed by Supabase");
+      if (strncmp(ref, "hb-", 3) == 0) {
+        Serial.println("[WS] Phoenix heartbeat acknowledged");
+      } else {
+        Serial.println("[WS] Subscription confirmed by Supabase");
+      }
     }
     return;
   }

@@ -244,6 +244,11 @@ void loop() {
   // Maintain WebSocket connection
   webSocket.loop();
 
+  // Send the Phoenix application-level heartbeat (~25s) while connected.
+  // Transport-level enableHeartbeat() alone does not keep Realtime alive;
+  // without this, Supabase closes the socket ~65s after each subscribe.
+  maintainRealtimeHeartbeat();
+
   // WebSocket: begin() exactly once; library retries on its own.
   // Repeated initSupabaseRealtime()/beginSSL() leaks the WiFiClientSecure
   // allocated by the library retry (WebSocketsClient.cpp:59-64 orphaning),
