@@ -28,6 +28,14 @@ constexpr uint8_t PZEM_C_TX = 19;
 // Relay
 constexpr uint8_t RELAY_PIN = 25;
 
+// Physical reset buttons (active-low momentary to GND, internal pull-ups).
+// GPIO32/33 are ordinary pins: not strapping, not flash/PSRAM, not
+// input-only, and unused by UART0/PZEM-A/PZEM-B/PZEM-C/RTC/relay.
+constexpr uint8_t WIFI_RESET_BUTTON_PIN    = 32;
+constexpr uint8_t FACTORY_RESET_BUTTON_PIN = 33;
+static_assert(WIFI_RESET_BUTTON_PIN != FACTORY_RESET_BUTTON_PIN,
+              "Reset buttons must use distinct GPIOs");
+
 // ──── TIMING CONSTANTS ────────────────────────────────────
 // Sensor read interval — must be > 1000ms due to API rate limit
 constexpr uint32_t SENSOR_INTERVAL_MS = 5000;
@@ -55,6 +63,12 @@ constexpr uint32_t WS_DISCONNECT_WARN_INTERVAL_MS = 30000;
 
 // HTTP request timeout (allows for Vercel cold starts)
 constexpr uint32_t HTTP_TIMEOUT_MS = 8000;
+
+// ──── PHYSICAL RESET BUTTONS ──────────────────────────────
+// Hold duration before a reset triggers (deliberate long-press), and a
+// minimum uptime before the buttons are accepted at all.
+constexpr uint32_t RESET_BUTTON_HOLD_MS          = 10000;
+constexpr uint32_t RESET_BUTTON_STARTUP_GRACE_MS = 5000;
 
 // ──── RETRY CONFIG ────────────────────────────────────────
 constexpr int MAX_RETRIES = 3;

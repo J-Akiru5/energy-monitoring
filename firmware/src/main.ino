@@ -34,6 +34,7 @@
 #include "network.h"
 #include "monitor.h"
 #include "relay.h"
+#include "reset_buttons.h"
 
 // ════════════════════════════════════════════════════════════
 // GLOBAL STATE
@@ -114,6 +115,9 @@ void setup() {
   Serial.println("[PZEM]   Phase A: UART2 (RX:16 TX:17)");
   Serial.println("[PZEM]   Phase B: UART1 (RX:5  TX:4)");
   Serial.println("[PZEM]   Phase C: SoftwareSerial (RX:18 TX:19)");
+
+  // Physical reset buttons (GPIO32/33, active-low) — see reset_buttons.cpp
+  initResetButtons();
 
   // 0. Check for serial commands during first 2 seconds
   unsigned long startupWindow = millis();
@@ -233,6 +237,9 @@ void loop() {
 
   // Handle serial commands
   handleSerialCommands();
+
+  // Physical reset buttons (long-press detection, non-blocking)
+  handleResetButtons();
 
   // Maintain WebSocket connection
   webSocket.loop();
