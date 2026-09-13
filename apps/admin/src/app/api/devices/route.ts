@@ -14,10 +14,9 @@ export async function GET() {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    let customerId: string;
+    let access: Awaited<ReturnType<typeof resolveAccess>>;
     try {
-      const access = await resolveAccess(user.id, "manage_devices");
-      customerId = access.customerId;
+      access = await resolveAccess(user.id, "manage_devices");
     } catch (err) {
       if (err instanceof AccessDeniedError) {
         return NextResponse.json({ error: err.message }, { status: 403 });
@@ -25,7 +24,12 @@ export async function GET() {
       throw err;
     }
 
-    const devices = await listDevices(customerId);
+    // Super Admins see all devices; everyone else is scoped to the customer
+    // their membership grants. The "*" sentinel is a signal, not a customer
+    // id — never pass it into the scoped query.
+    const devices = access.isSuperAdmin
+      ? await listDevices()
+      : await listDevices(access.customerId);
     return NextResponse.json({ devices });
   } catch (err) {
     return NextResponse.json(
@@ -44,10 +48,9 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    let customerId: string;
+    let access: Awaited<ReturnType<typeof resolveAccess>>;
     try {
-      const access = await resolveAccess(user.id, "manage_devices");
-      customerId = access.customerId;
+      access = await resolveAccess(user.id, "manage_devices");
     } catch (err) {
       if (err instanceof AccessDeniedError) {
         return NextResponse.json({ error: err.message }, { status: 403 });
@@ -58,12 +61,16 @@ export async function PATCH(req: NextRequest) {
     const { deviceId, action } = await req.json();
 
     if (action === "deactivate") {
-      const stamp = await lookupControllerByDevice(deviceId);
-      if (!stamp || stamp.customerId !== customerId) {
-        return NextResponse.json(
-          { error: "Device not found or access denied" },
-          { status: 403 }
-        );
+      // Super Admins may manage any device (no ownership check); ordinary
+      // users must own the device through their authorized customer.
+      if (!access.isSuperAdmin) {
+        const stamp = await lookupControllerByDevice(deviceId);
+        if (!stamp || stamp.customerId !== access.customerId) {
+          return NextResponse.json(
+            { error: "Device not found or access denied" },
+            { status: 403 }
+          );
+        }
       }
 
       await deactivateDevice(deviceId);
