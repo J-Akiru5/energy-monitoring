@@ -2,26 +2,14 @@
 
 import { useActionState, useId, useState } from "react";
 
-/**
- * Result returned by an app-provided login server action.
- * `void` covers actions that end in `redirect()` on success.
- */
 export type LoginActionResult = { error?: string } | void;
-
 export type LoginAction = (formData: FormData) => Promise<LoginActionResult>;
 
-/**
- * Shared enterprise login form.
- *
- * Calls the app's EXISTING authentication server action — this component
- * standardizes the visual/interaction layer only. It never touches auth
- * logic, sessions, or redirects itself.
- */
 export function LoginForm({
   action,
   heading = "Welcome back",
   subheading,
-  emailPlaceholder = "user@example.com",
+  emailPlaceholder = "you@example.com",
   submitLabel = "Sign in",
   pendingLabel = "Signing in…",
   supportingText,
@@ -53,12 +41,12 @@ export function LoginForm({
 
   return (
     <div>
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold tracking-tight text-[#F8FAFC]">
+      <div className="mb-8 text-center lg:text-left">
+        <h2 className="text-2xl font-bold tracking-tight text-[#F8FAFC]">
           {heading}
         </h2>
         {subheading ? (
-          <p className="mt-1 text-sm text-[#94A3B8]">{subheading}</p>
+          <p className="mt-2 text-[15px] text-[#94A3B8]/80">{subheading}</p>
         ) : null}
       </div>
 
@@ -66,7 +54,7 @@ export function LoginForm({
         <div>
           <label
             htmlFor={emailId}
-            className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#94A3B8]"
+            className="mb-2 block text-[13px] font-medium text-[#CBD5E1]"
           >
             Email
           </label>
@@ -79,22 +67,22 @@ export function LoginForm({
             placeholder={emailPlaceholder}
             aria-invalid={hasError || undefined}
             aria-describedby={hasError ? errorId : undefined}
-            className="w-full rounded-lg border border-[#475569]/60 bg-[#0F172A]/60 px-3.5 py-2.5 text-sm text-[#F8FAFC] placeholder:text-[#64748B] transition-colors focus:border-[#06B6D4] focus:outline-none focus:ring-2 focus:ring-[#06B6D4]/25"
+            className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-[15px] text-[#F8FAFC] placeholder:text-[#64748B] transition-all duration-200 focus:border-[#06B6D4]/50 focus:outline-none focus:ring-2 focus:ring-[#06B6D4]/20 focus:bg-white/[0.05] backdrop-blur-sm"
           />
         </div>
 
         <div>
-          <div className="mb-2 flex items-baseline justify-between">
+          <div className="mb-2 flex items-center justify-between">
             <label
               htmlFor={passwordId}
-              className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8]"
+              className="text-[13px] font-medium text-[#CBD5E1]"
             >
               Password
             </label>
             {forgotPasswordHref ? (
               <a
                 href={forgotPasswordHref}
-                className="text-xs text-[#94A3B8] transition-colors hover:text-[#06B6D4] focus:outline-none focus:ring-2 focus:ring-[#06B6D4]/40 rounded"
+                className="text-[13px] text-[#06B6D4] transition-colors hover:text-[#22D3EE] focus:outline-none focus:ring-2 focus:ring-[#06B6D4]/40 rounded"
               >
                 Forgot password?
               </a>
@@ -107,45 +95,27 @@ export function LoginForm({
               name="password"
               required
               autoComplete="current-password"
-              placeholder="••••••••"
+              placeholder="Enter your password"
               aria-invalid={hasError || undefined}
               aria-describedby={hasError ? errorId : undefined}
-              className="w-full rounded-lg border border-[#475569]/60 bg-[#0F172A]/60 px-3.5 py-2.5 pr-11 text-sm text-[#F8FAFC] placeholder:text-[#64748B] transition-colors focus:border-[#06B6D4] focus:outline-none focus:ring-2 focus:ring-[#06B6D4]/25"
+              className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 pr-12 text-[15px] text-[#F8FAFC] placeholder:text-[#64748B] transition-all duration-200 focus:border-[#06B6D4]/50 focus:outline-none focus:ring-2 focus:ring-[#06B6D4]/20 focus:bg-white/[0.05] backdrop-blur-sm"
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? "Hide password" : "Show password"}
               aria-pressed={showPassword}
-              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-[#64748B] transition-colors hover:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#06B6D4]/40 rounded-r-lg"
+              className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-[#64748B] transition-colors hover:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#06B6D4]/40 rounded-r-xl"
             >
               {showPassword ? (
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-4 w-4"
-                  aria-hidden="true"
-                >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]" aria-hidden="true">
                   <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
                   <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
                   <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
                   <line x1="2" y1="2" x2="22" y2="22" />
                 </svg>
               ) : (
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-4 w-4"
-                  aria-hidden="true"
-                >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]" aria-hidden="true">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                   <circle cx="12" cy="12" r="3" />
                 </svg>
@@ -158,7 +128,7 @@ export function LoginForm({
           <div
             id={errorId}
             role="alert"
-            className="rounded-lg border border-[#E11D48]/40 bg-[#E11D48]/10 p-3 text-center text-sm text-[#FDA4AF]"
+            className="rounded-xl border border-[#E11D48]/30 bg-[#E11D48]/[0.08] p-3.5 text-center text-sm text-[#FDA4AF]"
           >
             {state.error}
           </div>
@@ -168,41 +138,29 @@ export function LoginForm({
           type="submit"
           disabled={isPending}
           aria-busy={isPending}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#06B6D4] px-4 py-2.5 text-sm font-semibold text-[#0F172A] transition-colors hover:bg-[#22D3EE] focus:outline-none focus:ring-2 focus:ring-[#06B6D4]/50 focus:ring-offset-2 focus:ring-offset-[#1E293B] disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-[#06B6D4] to-[#0891B2] px-5 py-3.5 text-[15px] font-semibold text-[#0A0E1A] transition-all duration-200 hover:from-[#22D3EE] hover:to-[#06B6D4] focus:outline-none focus:ring-2 focus:ring-[#06B6D4]/50 focus:ring-offset-2 focus:ring-offset-[#0A0E1A] disabled:cursor-not-allowed disabled:opacity-60 shadow-[0_0_30px_rgba(6,182,212,0.2)]"
         >
           {isPending ? (
             <>
-              <svg
-                className="h-4 w-4 motion-safe:animate-spin"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden="true"
-              >
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  className="opacity-25"
-                />
-                <path
-                  d="M22 12a10 10 0 0 0-10-10"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                />
+              <svg className="h-4 w-4 motion-safe:animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
               </svg>
               {pendingLabel}
             </>
           ) : (
-            submitLabel
+            <>
+              {submitLabel}
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
+                <path fillRule="evenodd" d="M3 10a.75.75 0 0 1 .75-.75h10.638L11.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.04-1.08l3.158-2.96H3.75A.75.75 0 0 1 3 10Z" clipRule="evenodd" />
+              </svg>
+            </>
           )}
         </button>
       </form>
 
       {supportingText ? (
-        <p className="mt-6 text-center text-xs text-[#64748B]">
+        <p className="mt-8 text-center text-[12px] text-[#475569]">
           {supportingText}
         </p>
       ) : null}

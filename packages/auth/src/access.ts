@@ -57,13 +57,20 @@ export async function resolveAccess(
   const supabase = getSupabaseAdmin();
 
   // ── Super Admin bypass ──
-  // Check super_admins first; if the user is an active (non-revoked) Super
-  // Admin, grant access immediately — no membership required.  The sentinel
-  // customerId ("*") signals to callers that this is cross-customer access;
-  // callers that need customer-scoped data should branch on isSuperAdmin.
+  // Check super_admins first; if the user is an active (non-revoked,
+  // non-expired) Super Admin, grant access immediately — no membership
+  // required. The sentinel customerId ("*") signals to callers that this is
+  // cross-customer access; callers that need customer-scoped data should
+  // branch on isSuperAdmin.
+  //
+  // expires_at (migration 20260913000000, decision #9):
+  //   NULL     → permanent grant (never expires)
+  //   non-NULL → temporary/demo grant; fails closed once past
+  // An expired grant is treated exactly like no grant at all: we fall
+  // through to the standard membership resolution below.
   const { data: superAdmin, error: saError } = await supabase
     .from("super_admins")
-    .select("user_id")
+    .select("user_id, expires_at")
     .eq("user_id", userId)
     .is("revoked_at", null)
     .maybeSingle();
@@ -73,11 +80,35 @@ export async function resolveAccess(
   }
 
   if (superAdmin) {
-    return {
-      customerId: resourceId ?? SUPER_ADMIN_CUSTOMER_ID,
-      permissions: ALL_PERMISSIONS,
-      isSuperAdmin: true,
-    };
+    const expiresAtMs = superAdmin.expires_at
+      ? Date.parse(superAdmin.expires_at as string)
+      : null;
+    // Invalid date values fail closed too (cannot prove the grant is valid).
+    const isExpired = expiresAtMs !== null && (Number.isNaN(expiresAtMs) || expiresAtMs <= Date.now());
+
+    if (!isExpired) {
+      // Audit trail (decision #9): log temporary-grant resolutions only.
+      // Permanent grants are intentionally not logged. Audit failures must
+      // never block authorization.
+      if (expiresAtMs !== null) {
+        const { error: logError } = await supabase
+          .from("super_admin_access_log")
+          .insert({ user_id: userId, was_temporary_grant: true });
+        if (logError) {
+          console.warn(
+            `resolveAccess: super_admin_access_log insert failed: ${logError.message}`
+          );
+        }
+      }
+
+      return {
+        customerId: resourceId ?? SUPER_ADMIN_CUSTOMER_ID,
+        permissions: ALL_PERMISSIONS,
+        isSuperAdmin: true,
+      };
+    }
+
+    // Expired temporary grant: fall through to membership resolution.
   }
 
   // ── Standard membership check ──

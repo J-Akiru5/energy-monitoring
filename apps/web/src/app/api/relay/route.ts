@@ -7,8 +7,9 @@ import {
   logRelayAction,
   validateDeviceToken,
 } from "@energy/database";
-import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
+import { createClient, resolveAccess, AccessDeniedError, assertDeviceOwnership, DeviceAccessDeniedError } from "@energy/auth";
 import { RelayCommandSchema } from "@energy/types";
+import type { RelayCommand } from "@energy/types";
 
 export const dynamic = "force-dynamic";
 
@@ -54,8 +55,10 @@ export async function OPTIONS() {
  *           The device identity is resolved FROM THE TOKEN via
  *           validateDeviceToken() — the deviceId query param is ignored
  *           on this path so a token for device A can never read device B.
- *   Path B: Logged-in session with "view_energy" on the device's customer.
- *           resolveAccess() validates the caller is authorized.
+ *   Path B: Logged-in session with "view_energy" on some customer.
+ *           resolveAccess() resolves the caller's customer, then
+ *           assertDeviceOwnership() verifies the requested device belongs
+ *           to that customer (IDOR guard).
  *
  * relay_config and relay_state have no customer_id column (1:1 with devices),
  * so scoping is enforced at the auth layer, not at the query layer.
@@ -92,7 +95,7 @@ export async function GET(req: NextRequest) {
       return noStoreJson({ state });
     }
 
-    // ── Path B: Session (dashboard/user) — unchanged ────────────
+    // ── Path B: Session (dashboard/user) ────────────────────────
     const deviceId = req.nextUrl.searchParams.get("deviceId");
     if (!deviceId) {
       return noStoreJson({ error: "Missing deviceId" }, 400);
@@ -110,10 +113,21 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Resolve which customer this caller is authorized for ──
+    let access: Awaited<ReturnType<typeof resolveAccess>>;
     try {
-      await resolveAccess(user.id, "view_energy");
+      access = await resolveAccess(user.id, "view_energy");
     } catch (err) {
       if (err instanceof AccessDeniedError) {
+        return noStoreJson({ error: err.message }, 403);
+      }
+      throw err;
+    }
+
+    // ── Verify the device belongs to that customer (IDOR guard) ──
+    try {
+      await assertDeviceOwnership(access, deviceId);
+    } catch (err) {
+      if (err instanceof DeviceAccessDeniedError) {
         return noStoreJson({ error: err.message }, 403);
       }
       throw err;
@@ -142,7 +156,8 @@ export async function GET(req: NextRequest) {
  *
  * Path B is the permission-based mechanism from feature/phase3b3-rls-slice-one:
  * resolveAccess() checks that the user has a membership with control_relay
- * granted, and resolves which customer the device belongs to.
+ * granted, then assertDeviceOwnership() verifies command.deviceId belongs to
+ * that membership's customer before any relay action is executed.
  *
  * The two paths are deliberately not merged into a single check — they
  * serve different callers with different trust models. Path A trusts the
@@ -165,7 +180,9 @@ export async function POST(req: NextRequest) {
   if (relaySecret && providedSecret && providedSecret === relaySecret) {
     // Secret matches — bypass session auth entirely.
     // This is the admin proxy path (apps/admin/src/app/api/relay/route.ts).
-    return handleRelayCommand(req);
+    const parsed = await parseRelayCommand(req);
+    if (!parsed.ok) return parsed.response;
+    return executeRelayCommand(parsed.command);
   }
 
   // ── Path B: Session + resolveAccess (user-initiated) ────────
@@ -181,8 +198,9 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Resolve which customer this caller is authorized for ──
+    let access: Awaited<ReturnType<typeof resolveAccess>>;
     try {
-      await resolveAccess(user.id, "control_relay");
+      access = await resolveAccess(user.id, "control_relay");
     } catch (err) {
       if (err instanceof AccessDeniedError) {
         return noStoreJson({ error: err.message }, 403);
@@ -190,34 +208,71 @@ export async function POST(req: NextRequest) {
       throw err;
     }
 
-    return handleRelayCommand(req);
+    // Parse the command once, then verify device ownership BEFORE any relay
+    // action is taken (IDOR guard).
+    const parsed = await parseRelayCommand(req);
+    if (!parsed.ok) return parsed.response;
+
+    try {
+      await assertDeviceOwnership(access, parsed.command.deviceId);
+    } catch (err) {
+      if (err instanceof DeviceAccessDeniedError) {
+        return noStoreJson({ error: err.message }, 403);
+      }
+      throw err;
+    }
+
+    return executeRelayCommand(parsed.command);
   } catch (err) {
     console.error("[/api/relay] POST Error:", err);
     return noStoreJson({ error: "Internal server error" }, 500);
   }
 }
 
+type ParseRelayCommandResult =
+  | { ok: true; command: RelayCommand }
+  | { ok: false; response: NextResponse };
+
 /**
- * Shared relay command handler — called after authentication succeeds
- * via either Path A (secret) or Path B (session).
+ * Parse + validate a RelayCommand body.
  *
- * Separated into its own function so the dual-auth gateway above
- * stays clean and readable.  Does NOT perform any auth checks itself.
+ * Split out of the executor so the session path (Path B) can inspect
+ * command.deviceId and verify device ownership BEFORE any relay action,
+ * without reading the request body twice.
  */
-async function handleRelayCommand(req: NextRequest) {
+async function parseRelayCommand(req: NextRequest): Promise<ParseRelayCommandResult> {
   try {
     const body = await req.json();
     const parsed = RelayCommandSchema.safeParse(body);
 
     if (!parsed.success) {
-      return noStoreJson(
-        { error: "Invalid command", details: parsed.error.flatten() },
-        422
-      );
+      return {
+        ok: false,
+        response: noStoreJson(
+          { error: "Invalid command", details: parsed.error.flatten() },
+          422
+        ),
+      };
     }
 
-    const command = parsed.data;
+    return { ok: true, command: parsed.data };
+  } catch (err) {
+    console.error("[/api/relay] Command parse error:", err);
+    return {
+      ok: false,
+      response: noStoreJson({ error: "Internal server error" }, 500),
+    };
+  }
+}
 
+/**
+ * Shared relay command executor — called after authentication succeeds
+ * via either Path A (secret) or Path B (session + ownership check).
+ *
+ * Does NOT perform any auth checks itself.
+ */
+async function executeRelayCommand(command: RelayCommand) {
+  try {
     // Check relay config
     const config = await getRelayConfig(command.deviceId);
     if (!config || !config.relayEnabled) {
@@ -281,7 +336,7 @@ async function handleRelayCommand(req: NextRequest) {
     const newState = await getRelayState(command.deviceId);
     return noStoreJson({ status: "ok", state: newState });
   } catch (err) {
-    console.error("[/api/relay] handleRelayCommand Error:", err);
+    console.error("[/api/relay] executeRelayCommand Error:", err);
     return noStoreJson({ error: "Internal server error" }, 500);
   }
 }
