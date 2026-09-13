@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web Device-Ownership (IDOR) Fix — Release Note</title>
+<style>
+  :root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.65;padding:40px 20px}
+  .container{max-width:900px;margin:0 auto}
+  h1{font-size:24px;margin-bottom:6px}
+  h2{font-size:18px;margin-top:30px;margin-bottom:10px;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:6px}
+  .subtitle{color:var(--muted);font-size:14px;margin-bottom:28px}
+  code{font-family:Consolas,Menlo,monospace;font-size:12.5px;background:#21262d;border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+  pre{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:12.5px;font-family:Consolas,Menlo,monospace;margin:10px 0}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:12px 0}
+  th{background:var(--surface);border:1px solid var(--border);padding:8px 12px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  td{border:1px solid var(--border);padding:8px 12px;vertical-align:top}
+  .badge{display:inline-block;padding:1px 9px;border-radius:20px;font-size:11.5px;font-weight:600}
+  .badge.red{background:rgba(248,81,73,.15);color:var(--red);border:1px solid rgba(248,81,73,.4)}
+  .badge.green{background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.4)}
+  .badge.yellow{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid rgba(210,153,34,.4)}
+  .callout{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:6px;padding:12px 15px;margin:14px 0;font-size:13.5px}
+  .callout.red{border-left-color:var(--red)} .callout.yellow{border-left-color:var(--yellow)}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Web Device-Ownership (IDOR) Fix — Release Note</h1>
+  <div class="subtitle">Branch: <code>fix/web-relay-device-ownership</code> &middot; PR into <code>develop</code> &middot; 2026-09-13</div>
+
+  <h2>Vulnerability</h2>
+  <div class="callout red">
+    <strong>Insecure Direct Object Reference (IDOR) — cross-tenant device access.</strong>
+    Four session-authenticated call sites resolved the caller's customer via <code>resolveAccess()</code>
+    and then <em>discarded it</em>, acting on a <code>deviceId</code> taken directly from the query
+    string, request body, or URL path param with no ownership comparison.
+  </div>
+  <table>
+    <tr><th>Call site</th><th>Impact before fix</th></tr>
+    <tr><td><code>GET /api/relay?deviceId=…</code></td><td>Any member of any tenant with <code>view_energy</code> could read any tenant's relay state.</td></tr>
+    <tr><td><code>POST /api/relay</code> (session path)</td><td>Any member with <code>control_relay</code> could <strong>trip or reset any tenant's relay</strong> by substituting <code>deviceId</code> in the body.</td></tr>
+    <tr><td><code>GET /api/devices/[deviceId]/pzem-config</code> (session path)</td><td>Any member with <code>view_energy</code> could read any tenant's PZEM source config.</td></tr>
+    <tr><td><code>PUT /api/devices/[deviceId]/pzem-config</code> (session path)</td><td>Any member with <code>view_energy</code> could <strong>modify any tenant's PZEM source config</strong>.</td></tr>
+  </table>
+  <p style="font-size:13.5px">The machine-to-machine <code>X-Device-Token</code> path and the <code>X-Relay-Secret</code> path were unaffected (scoped by token/secret, not session).</p>
+
+  <h2>Fix</h2>
+  <p style="font-size:13.5px">New reusable guard <code>assertDeviceOwnership(access, deviceId)</code> in
+  <code>packages/auth/src/deviceOwnership.ts</code>, exported from the <code>@energy/auth</code> package:</p>
+  <pre>if (access.isSuperAdmin) return;                 // cross-customer by design
+const stamp = await lookupControllerByDevice(deviceId);
+if (!stamp || stamp.customerId !== access.customerId)
+  throw new DeviceAccessDeniedError();           // → HTTP 403</pre>
+  <p style="font-size:13.5px">Applied at all four call sites. The relay POST path now parses the command once, verifies
+  ownership, and only then executes the relay action — a cross-tenant request returns <code>403</code> before
+  <code>getRelayConfig</code>, <code>updateRelayState</code>, or <code>logRelayAction</code> ever run.
+  <code>resolveAccess()</code> itself was not modified.</p>
+
+  <h2>Verification</h2>
+  <table>
+    <tr><th>Suite</th><th>Result</th></tr>
+    <tr><td><code>packages/auth/src/deviceOwnership.test.mjs</code></td><td><span class="badge green">4/4</span></td></tr>
+    <tr><td><code>apps/web/src/app/api/relay/route.test.mjs</code></td><td><span class="badge green">11/11</span></td></tr>
+    <tr><td><code>apps/web/src/app/api/devices/[deviceId]/pzem-config/route.test.mjs</code></td><td><span class="badge green">11/11</span></td></tr>
+  </table>
+  <p style="font-size:13.5px">Each route suite covers same-customer (allowed), cross-customer substitution (403 + asserting the
+  underlying DB call never fires), unknown device (403), super-admin bypass, and unauthenticated (401).
+  Type-check and <code>next build</code> pass for web and auth; eslint reports no findings in any touched file.</p>
+
+  <h2>Known follow-up (not fixed here)</h2>
+  <div class="callout yellow">
+    <code>apps/web/src/app/api/relay/config/route.ts</code> (session GET/PUT) has the same
+    permission-gate-without-ownership pattern and was outside this fix's file scope — schedule the same
+    <code>assertDeviceOwnership()</code> treatment before the production release.
+  </div>
+</div>
+</body>
+</html>
