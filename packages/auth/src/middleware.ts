@@ -1,6 +1,19 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+/**
+ * API routes that authenticate themselves with a per-device X-Device-Token
+ * instead of a browser session. The session middleware must NOT redirect
+ * these to /login — the routes return their own 401 JSON when the token is
+ * missing or invalid. Keep this list in sync with device-facing endpoints.
+ */
+const DEVICE_API_PREFIXES = [
+  "/api/ingest",
+  "/api/heartbeat",
+  "/api/thresholds/esp32",
+  "/api/relay",
+];
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -33,22 +46,21 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // If there is no active user and the user is NOT on the login page -> Redirect
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith("/login") &&
-    // Optional: allow API routes to manage their own auth (e.g., ingest endpoints)
-    !request.nextUrl.pathname.startsWith("/api/ingest") &&
-    !request.nextUrl.pathname.startsWith("/api/heartbeat") &&
-    !request.nextUrl.pathname.startsWith("/api/thresholds/esp32")
-  ) {
+  const { pathname } = request.nextUrl;
+  const isDeviceApi = DEVICE_API_PREFIXES.some((prefix) =>
+    pathname.startsWith(prefix)
+  );
+
+  // If there is no active user and the user is NOT on the login page or a
+  // device API route -> Redirect
+  if (!user && !pathname.startsWith("/login") && !isDeviceApi) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
   // If user is already logged in and tries to hit /login -> Redirect to dashboard
-  if (user && request.nextUrl.pathname.startsWith("/login")) {
+  if (user && pathname.startsWith("/login")) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
