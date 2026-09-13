@@ -31,8 +31,8 @@ int8_t fetchRelayStateForPolling() { return -1; }
 bool relayState = false;
 
 static constexpr uint32_t SAFETY_DELAY_MS = 3000;
-static constexpr uint32_t HOLD_MS         = 3000;
-static constexpr uint8_t  TEST_CYCLES     = 10;
+static constexpr uint32_t HOLD_MS         = 5000;
+static constexpr uint8_t  TEST_CYCLES     = 30;
 
 static void printPinState(const char* tag) {
   int readback = digitalRead(RELAY_PIN);
@@ -67,12 +67,12 @@ void setup() {
   for (uint8_t i = 1; i <= TEST_CYCLES; i++) {
     Serial.printf("[RELAY-TEST] ---- cycle %u/%u ----\n", i, TEST_CYCLES);
 
-    Serial.printf("[RELAY-TEST] TRIP  t=%lu ms\n", (unsigned long)millis());
+    Serial.printf("[RELAY-TEST] TRIP \xE2\x80\x94 GPIO25 LOW  t=%lu ms\n", (unsigned long)millis());
     tripRelay("GPIO25 diagnostic");
     printPinState("TRIP");
     delay(HOLD_MS);
 
-    Serial.printf("[RELAY-TEST] RESET t=%lu ms\n", (unsigned long)millis());
+    Serial.printf("[RELAY-TEST] RESET \xE2\x80\x94 GPIO25 HIGH t=%lu ms\n", (unsigned long)millis());
     resetRelay();
     printPinState("RESET");
     delay(HOLD_MS);
