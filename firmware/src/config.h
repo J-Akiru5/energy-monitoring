@@ -52,7 +52,7 @@ constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 6UL * 60 * 60 * 1000; // 6 hours
 // Relay control polling interval (HTTPS).
 // Realtime/WebSocket was removed as the relay-command transport (it could not
 // be kept reliably connected on this device). The firmware now polls the
-// cloud relay state over the same authenticated HTTPS path used by telemetry.
+// relay_state row directly from Supabase REST with the compile-time anon key.
 // 2s keeps command latency low without flooding the backend.
 constexpr uint32_t RELAY_POLL_INTERVAL_MS = 2000;
 

@@ -211,6 +211,10 @@ void fetchThresholdsFromCloud() {
 }
 
 // ──── FETCH RELAY STATE FROM CLOUD (BOOT + POLLING) ───────
+// Queries the relay_state row directly from Supabase REST with the
+// compile-time anon key. The web app's /api/relay endpoint is NOT usable
+// from the device: the web middleware 307-redirects it to /login before the
+// route handler runs, so the device would receive HTML instead of JSON.
 // Shared implementation for boot reconciliation ([RELAY-BOOT] logs) and the
 // 2s HTTPS relay poll (quiet — pollRelayState() logs [RELAY-POLL] results).
 static int8_t fetchRelayStateCore(bool quiet) {
@@ -220,17 +224,14 @@ static int8_t fetchRelayStateCore(bool quiet) {
   }
 
   const String& deviceId = getConfigDeviceId();
-  const String& deviceToken = getConfigDeviceToken();
-  const String& apiEndpoint = getConfigApiEndpoint();
+  const String& supabaseHost = getConfigSupabaseHost();
+  const String& supabaseKey = getConfigSupabaseAnonKey();
 
-  if (!quiet) Serial.println("[RELAY-BOOT] Fetching current relay state from cloud...");
+  if (!quiet) Serial.println("[RELAY-BOOT] Fetching current relay state from Supabase...");
 
-  String baseUrl = apiEndpoint;
-  int apiPathIdx = baseUrl.indexOf("/api/ingest");
-  if (apiPathIdx > 0) {
-    baseUrl = baseUrl.substring(0, apiPathIdx);
-  }
-  String relayUrl = baseUrl + "/api/relay?deviceId=" + deviceId;
+  String relayUrl = String("https://") + supabaseHost
+    + "/rest/v1/relay_state?device_id=eq." + deviceId
+    + "&select=is_tripped&limit=1";
 
   WiFiClientSecure client;
   client.setInsecure();
@@ -239,7 +240,8 @@ static int8_t fetchRelayStateCore(bool quiet) {
   http.begin(client, relayUrl);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.setTimeout(5000);
-  http.addHeader("X-Device-Token", deviceToken);
+  http.addHeader("apikey", supabaseKey);
+  http.addHeader("Authorization", String("Bearer ") + supabaseKey);
 
   int httpCode = http.GET();
 
@@ -248,15 +250,18 @@ static int8_t fetchRelayStateCore(bool quiet) {
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, response);
 
-    if (!error && doc["state"].is<JsonObject>()) {
-      bool tripped = doc["state"]["isTripped"] | false;
-      if (!quiet) Serial.printf("[RELAY-BOOT] Cloud state: %s\n", tripped ? "TRIPPED" : "NORMAL");
-      http.end();
-      backendReachable = true;
-      return tripped ? 1 : 0;
+    if (!error && doc.is<JsonArray>()) {
+      if (doc.size() > 0) {
+        bool tripped = doc[0]["is_tripped"] | false;
+        if (!quiet) Serial.printf("[RELAY-BOOT] Cloud state: %s\n", tripped ? "TRIPPED" : "NORMAL");
+        http.end();
+        backendReachable = true;
+        return tripped ? 1 : 0;
+      }
+      if (!quiet) Serial.println("[RELAY-BOOT] No relay_state row for this device.");
+    } else {
+      if (!quiet) Serial.println("[RELAY-BOOT] Failed to parse cloud response.");
     }
-
-    if (!quiet) Serial.println("[RELAY-BOOT] Failed to parse cloud response.");
   } else {
     if (!quiet) Serial.printf("[RELAY-BOOT] HTTP %d — cloud unreachable.\n", httpCode);
   }

@@ -230,9 +230,9 @@ void loop() {
   handleResetButtons();
 
   // Relay control: poll the cloud relay state over HTTPS (~2s) and apply any
-  // change locally. Supabase Realtime/WebSocket was removed as the relay
-  // command transport after it proved unreliable on this device; this poll
-  // reuses the same authenticated HTTPS path as telemetry.
+  // change locally. The relay_state row is read directly from Supabase REST
+  // (anon key). Supabase Realtime/WebSocket was removed as the relay command
+  // transport after it proved unreliable on this device.
   if (now - lastRelayPollTime >= RELAY_POLL_INTERVAL_MS) {
     lastRelayPollTime = now;
     pollRelayState();

@@ -7,12 +7,15 @@
 extern bool relayState;
 
 // ──── CLOUD RELAY-STATE POLLING (HTTPS) ───────────────────
-// Relay commands travel over the same authenticated HTTPS path as telemetry
-// (/api/relay GET with X-Device-Token). The Supabase Realtime WebSocket was
-// removed: it could not be kept reliably connected on this ESP32, making
-// relay-command latency unacceptable. The cloud row is the source of truth;
-// the local NVS state is retained whenever the cloud is unreachable, and a
-// failed or malformed response is never interpreted as a command.
+// Relay commands travel over authenticated HTTPS: the firmware reads the
+// relay_state row directly from Supabase REST using the compile-time anon
+// key (the web app's /api/relay is unusable from the device — its
+// middleware redirects unauthenticated requests to /login). The Supabase
+// Realtime WebSocket was removed: it could not be kept reliably connected
+// on this ESP32, making relay-command latency unacceptable. The cloud row
+// is the source of truth; the local NVS state is retained whenever the
+// cloud is unreachable, and a failed or malformed response is never
+// interpreted as a command.
 void pollRelayState() {
   int8_t cloudState = fetchRelayStateForPolling();
 
