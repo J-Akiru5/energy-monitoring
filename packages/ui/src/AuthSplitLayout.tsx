@@ -26,6 +26,7 @@ export function AuthSplitLayout({
   productName,
   tagline,
   headline = "Energy monitoring,\nunder control.",
+  platformName = "Syntaxure Labs",
   institution,
   features,
   footer,
@@ -34,6 +35,7 @@ export function AuthSplitLayout({
   productName: string;
   tagline: string;
   headline?: string;
+  platformName?: string;
   institution?: AuthInstitution;
   features?: AuthFeature[];
   footer?: string;
@@ -93,7 +95,7 @@ export function AuthSplitLayout({
             </span>
             <span className="flex flex-col">
               <span className="text-[13px] font-semibold tracking-tight text-[#F8FAFC]">
-                {institution ? institution.name : "Energy Monitoring System"}
+                {institution ? institution.name : platformName}
               </span>
               <span className="text-[11px] font-medium uppercase tracking-[0.15em] text-[#06B6D4] lg:hidden">
                 {productName}
@@ -106,12 +108,18 @@ export function AuthSplitLayout({
             <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-[#06B6D4]/80 mb-5">
               {productName}
             </p>
-            <h1 className="text-[2.5rem] font-bold tracking-[-0.02em] leading-[1.1] mb-4 whitespace-pre-line">
-              <span className="text-[#F8FAFC]">Powering</span>
-              <br />
-              <span className="bg-gradient-to-r from-[#22D3EE] via-[#06B6D4] to-[#0891B2] bg-clip-text text-transparent">
-                Smarter Campuses
-              </span>
+            <h1 className="text-[2.5rem] font-bold tracking-[-0.02em] leading-[1.1] mb-4">
+              {headline.split("\n").map((line, index) => (
+                <span key={index} className="block">
+                  {index === 0 ? (
+                    <span className="text-[#F8FAFC]">{line}</span>
+                  ) : (
+                    <span className="bg-gradient-to-r from-[#22D3EE] via-[#06B6D4] to-[#0891B2] bg-clip-text text-transparent">
+                      {line}
+                    </span>
+                  )}
+                </span>
+              ))}
             </h1>
             <p className="max-w-md text-[15px] leading-relaxed text-[#94A3B8]/90">
               {tagline}

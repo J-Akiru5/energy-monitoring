@@ -28,7 +28,7 @@ export default function LoginPage() {
   return (
     <AuthSplitLayout
       productName="Energy Monitoring"
-      headline="Powering\nSmarter Campuses"
+      headline={"Powering\nSmarter Campuses"}
       tagline="Real-time energy monitoring, actionable insights, and a more sustainable future for educational institutions."
       institution={{
         name: "Western Visayas State University",
