@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "prebuild": "npx @tailwindcss/cli -i apps/super-admin/src/app/globals.css -o apps/super-admin/src/app/globals-compiled.css --minify --cwd ../..",
+    "predev": "npx @tailwindcss/cli -i apps/super-admin/src/app/globals.css -o apps/super-admin/src/app/globals-compiled.css --cwd ../..",
     "dev": "next dev --port 3002",
     "build": "next build",
     "start": "next start",
