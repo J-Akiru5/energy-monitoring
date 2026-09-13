@@ -210,10 +210,17 @@ void fetchThresholdsFromCloud() {
   http.end();
 }
 
-// ──── FETCH RELAY STATE FROM CLOUD (BOOT) ─────────────────
-int8_t fetchRelayStateFromCloud() {
+// ──── FETCH RELAY STATE FROM CLOUD (BOOT + POLLING) ───────
+// Calls the web app's /api/relay with the device's X-Device-Token. The route
+// validates the token (validateDeviceToken) and returns ONLY this device's
+// state — the device never touches Supabase REST directly and carries no
+// database credentials. Device requests are allowed through the session
+// middleware via the allowlist in packages/auth/src/middleware.ts.
+// Shared implementation for boot reconciliation ([RELAY-BOOT] logs) and the
+// 2s HTTPS relay poll (quiet — pollRelayState() logs [RELAY-POLL] results).
+static int8_t fetchRelayStateCore(bool quiet) {
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[RELAY-BOOT] WiFi not connected, cannot fetch cloud state.");
+    if (!quiet) Serial.println("[RELAY-BOOT] WiFi not connected, cannot fetch cloud state.");
     return -1;
   }
 
@@ -221,7 +228,7 @@ int8_t fetchRelayStateFromCloud() {
   const String& deviceToken = getConfigDeviceToken();
   const String& apiEndpoint = getConfigApiEndpoint();
 
-  Serial.println("[RELAY-BOOT] Fetching current relay state from cloud...");
+  if (!quiet) Serial.println("[RELAY-BOOT] Fetching current relay state from cloud...");
 
   String baseUrl = apiEndpoint;
   int apiPathIdx = baseUrl.indexOf("/api/ingest");
@@ -248,19 +255,27 @@ int8_t fetchRelayStateFromCloud() {
 
     if (!error && doc["state"].is<JsonObject>()) {
       bool tripped = doc["state"]["isTripped"] | false;
-      Serial.printf("[RELAY-BOOT] Cloud state: %s\n", tripped ? "TRIPPED" : "NORMAL");
+      if (!quiet) Serial.printf("[RELAY-BOOT] Cloud state: %s\n", tripped ? "TRIPPED" : "NORMAL");
       http.end();
       backendReachable = true;
       return tripped ? 1 : 0;
     }
 
-    Serial.println("[RELAY-BOOT] Failed to parse cloud response.");
+    if (!quiet) Serial.println("[RELAY-BOOT] Failed to parse cloud response.");
   } else {
-    Serial.printf("[RELAY-BOOT] HTTP %d — cloud unreachable.\n", httpCode);
+    if (!quiet) Serial.printf("[RELAY-BOOT] HTTP %d — cloud unreachable.\n", httpCode);
   }
 
   http.end();
   return -1;
+}
+
+int8_t fetchRelayStateFromCloud() {
+  return fetchRelayStateCore(false);
+}
+
+int8_t fetchRelayStateForPolling() {
+  return fetchRelayStateCore(true);
 }
 
 // ──── TEST BACKEND REACHABILITY ───────────────────────────

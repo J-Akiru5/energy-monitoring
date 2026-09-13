@@ -25,7 +25,6 @@
 #include <Wire.h>
 #include <PZEM004Tv30.h>
 #include <RTClib.h>
-#include <WebSocketsClient.h>
 #include <SoftwareSerial.h>
 
 #include "config.h"
@@ -73,6 +72,7 @@ bool rtcNeedSync = false;
 // ── Timing ──
 unsigned long lastReadTime = 0;
 unsigned long lastNtpSyncTime = 0;
+unsigned long lastRelayPollTime = 0;
 
 // ── WiFi ──
 int wifiRetryCount = 0;
@@ -87,14 +87,6 @@ bool localSafetyEnabled = true;
 
 // ── Backend reachability ──
 bool backendReachable = false;
-
-// ── WebSocket (Supabase Realtime) ──
-WebSocketsClient webSocket;
-bool wsConnected = false;
-unsigned long lastReconnectAttempt = 0;
-unsigned long wsDisconnectTime = 0;
-bool wsInitialized = false;
-unsigned long wsReconnectIntervalMs = WS_RECONNECT_INTERVAL_MS;
 
 // ════════════════════════════════════════════════════════════
 // SETUP
@@ -213,11 +205,7 @@ void setup() {
   if (bootTripped) setBootState(BOOT_PROTECTIVE_TRIP);
   Serial.printf("[RELAY] Relay: %s\n", relayState ? "TRIPPED (power OFF)" : "NORMAL (power ON)");
 
-  // 9. Initialize Supabase Realtime WebSocket for relay control
-  initSupabaseRealtime();
-  wsInitialized = (WiFi.status() == WL_CONNECTED);
-
-  // 10. Final state
+  // 9. Final state
   if (!relayState && getBootState() != BOOT_PROTECTIVE_TRIP) {
     if (WiFi.status() == WL_CONNECTED && backendReachable) {
       setBootState(BOOT_NORMAL_OPERATION);
@@ -241,47 +229,13 @@ void loop() {
   // Physical reset buttons (long-press detection, non-blocking)
   handleResetButtons();
 
-  // Maintain WebSocket connection
-  webSocket.loop();
-
-  // Send the Phoenix application-level heartbeat (~25s) while connected.
-  // Transport-level enableHeartbeat() alone does not keep Realtime alive;
-  // without this, Supabase closes the socket ~65s after each subscribe.
-  maintainRealtimeHeartbeat();
-
-  // WebSocket: begin() exactly once; library retries on its own.
-  // Repeated initSupabaseRealtime()/beginSSL() leaks the WiFiClientSecure
-  // allocated by the library retry (WebSocketsClient.cpp:59-64 orphaning),
-  // exhausting heap in ~40-70s (2026-09-12 crash-loop root cause).
-  if (!wsInitialized && WiFi.status() == WL_CONNECTED) {
-    wsInitialized = true;
-    initSupabaseRealtime();
-  }
-  if (!wsConnected && (now - lastReconnectAttempt > wsReconnectIntervalMs)) {
-    lastReconnectAttempt = now;
-    if (wsReconnectIntervalMs < WS_RECONNECT_MAX_MS) {
-      wsReconnectIntervalMs = min(wsReconnectIntervalMs * 2, (unsigned long)WS_RECONNECT_MAX_MS);
-      webSocket.setReconnectInterval(wsReconnectIntervalMs);
-    }
-    Serial.printf("[WS] Disconnected — library retry interval now %lus\n", wsReconnectIntervalMs / 1000);
-  }
-  if (wsConnected && wsReconnectIntervalMs != WS_RECONNECT_INTERVAL_MS) {
-    wsReconnectIntervalMs = WS_RECONNECT_INTERVAL_MS;
-    webSocket.setReconnectInterval(WS_RECONNECT_INTERVAL_MS);
-  }
-
-  // Track WebSocket disconnect duration and warn periodically
-  if (!wsConnected) {
-    if (wsDisconnectTime == 0) wsDisconnectTime = now;
-    if (now - wsDisconnectTime > WS_DISCONNECT_WARN_MS) {
-      static unsigned long lastWarnTime = 0;
-      if (now - lastWarnTime > WS_DISCONNECT_WARN_INTERVAL_MS) {
-        Serial.println("[RELAY] WARNING: WebSocket disconnected >60s, maintaining last relay state.");
-        lastWarnTime = now;
-      }
-    }
-  } else {
-    wsDisconnectTime = 0;
+  // Relay control: poll the cloud relay state over HTTPS (~2s) and apply any
+  // change locally via GET /api/relay with X-Device-Token (the
+  // device-authenticated API path). Supabase Realtime/WebSocket was removed
+  // as the relay command transport after it proved unreliable on this device.
+  if (now - lastRelayPollTime >= RELAY_POLL_INTERVAL_MS) {
+    lastRelayPollTime = now;
+    pollRelayState();
   }
 
   // Reconnect WiFi if lost

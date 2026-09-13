@@ -3,12 +3,11 @@
 
 #include <cstdint>
 
-// Initialize Supabase Realtime WebSocket for relay control.
-void initSupabaseRealtime();
-
-// Send the Phoenix application-level heartbeat while the Realtime socket is
-// connected (millis()-scheduled, non-blocking). Call every main-loop pass.
-void maintainRealtimeHeartbeat();
+// Poll the cloud relay state over HTTPS and apply any change locally.
+// Called from the main loop every RELAY_POLL_INTERVAL_MS. The cloud row is
+// the source of truth; local NVS state is retained on HTTP failure, and a
+// failed request is never interpreted as a command.
+void pollRelayState();
 
 // Manually trip the relay (disconnect power).
 void tripRelay(const char* reason);

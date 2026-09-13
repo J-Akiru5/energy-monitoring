@@ -49,25 +49,13 @@ constexpr uint32_t WIFI_RETRY_MAX_BACKOFF_MS = 60000;
 // NTP resync interval
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 6UL * 60 * 60 * 1000; // 6 hours
 
-// WebSocket reconnection interval
-constexpr uint32_t WS_RECONNECT_INTERVAL_MS = 5000;
-
-// WebSocket reconnect backoff cap — while disconnected, the library retry
-// interval doubles from WS_RECONNECT_INTERVAL_MS up to this, then resets
-// on recovery.
-constexpr uint32_t WS_RECONNECT_MAX_MS = 60000;
-
-// WebSocket disconnect warning thresholds
-constexpr uint32_t WS_DISCONNECT_WARN_MS = 60000;
-constexpr uint32_t WS_DISCONNECT_WARN_INTERVAL_MS = 30000;
-
-// Phoenix application-level heartbeat (Supabase Realtime).
-// Supabase closes idle Realtime sockets ~65s after the last application
-// heartbeat, regardless of transport-level WebSocket PING/PONG. The client
-// must send {"topic":"phoenix","event":"heartbeat"} periodically or the
-// subscription is dropped. Transport-level enableHeartbeat() remains active
-// and serves a different (link-layer) purpose.
-constexpr uint32_t PHOENIX_HEARTBEAT_INTERVAL_MS = 25000;
+// Relay control polling interval (HTTPS).
+// Realtime/WebSocket was removed as the relay-command transport (it could not
+// be kept reliably connected on this device). The firmware now polls
+// GET /api/relay?deviceId=<own id> with X-Device-Token — the
+// device-authenticated API path; no direct database access.
+// 2s keeps command latency low without flooding the backend.
+constexpr uint32_t RELAY_POLL_INTERVAL_MS = 2000;
 
 // HTTP request timeout (allows for Vercel cold starts)
 constexpr uint32_t HTTP_TIMEOUT_MS = 8000;
