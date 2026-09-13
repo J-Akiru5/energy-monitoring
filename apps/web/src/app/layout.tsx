@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { AppShell } from "@/components/AppShell";
-import "./globals.css";
+import "./globals-compiled.css";
 
 export const viewport: Viewport = {
   themeColor: "#0F172A",

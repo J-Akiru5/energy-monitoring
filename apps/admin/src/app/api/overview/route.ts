@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { getSupabaseAdmin, getUnreadAlerts } from "@energy/database";
+import { getSupabaseAdmin, getUnreadAlerts, listDevices } from "@energy/database";
 import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
 
 export async function GET() {
@@ -27,20 +27,26 @@ export async function GET() {
 
     const client = getSupabaseAdmin();
 
-    // Parallel fetch: device count, recent alerts, total readings
-    // Super Admins see cross-customer data; normal users are scoped to their customer.
+    // Scoping model (consistent with /api/devices):
+    //   Super Admin   → global metrics
+    //   everyone else → customer-scoped metrics
+    // The "*" sentinel is a signal, never a customer id.
+    const readingsQuery = isSuperAdmin
+      ? client.from("power_readings").select("*", { count: "exact", head: true })
+      : client.from("power_readings").select("*", { count: "exact", head: true }).eq("customer_id", customerId);
+
     const alertsQuery = isSuperAdmin
       ? client.from("alerts").select("*").eq("is_read", false).order("created_at", { ascending: false }).limit(50)
       : null;
 
     const [
-      { count: deviceCount },
+      devices,
       { count: readingCount },
       scopedAlerts,
       superAlerts,
     ] = await Promise.all([
-      client.from("devices").select("*", { count: "exact", head: true }).eq("is_active", true),
-      client.from("power_readings").select("*", { count: "exact", head: true }),
+      isSuperAdmin ? listDevices() : listDevices(customerId),
+      readingsQuery,
       isSuperAdmin ? Promise.resolve(null) : getUnreadAlerts(customerId),
       isSuperAdmin ? alertsQuery! : Promise.resolve(null),
     ]);
@@ -48,7 +54,7 @@ export async function GET() {
     const alertRows = isSuperAdmin ? superAlerts?.data : scopedAlerts;
 
     return NextResponse.json({
-      activeDevices: deviceCount ?? 0,
+      activeDevices: devices.length,
       totalReadings: readingCount ?? 0,
       unreadAlerts: alertRows?.length ?? 0,
     });

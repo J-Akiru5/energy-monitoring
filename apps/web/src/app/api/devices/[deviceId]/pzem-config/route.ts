@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getPzemConfig, updatePzemConfig, getAlertState } from "@energy/database";
-import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
+import { createClient, resolveAccess, AccessDeniedError, assertDeviceOwnership, DeviceAccessDeniedError } from "@energy/auth";
 import { validateDeviceToken } from "@energy/database";
 
 export const dynamic = "force-dynamic";
@@ -39,10 +39,21 @@ export async function GET(
       return noStoreJson({ error: "Not authenticated" }, 401);
     }
 
+    let access: Awaited<ReturnType<typeof resolveAccess>>;
     try {
-      await resolveAccess(user.id, "view_energy");
+      access = await resolveAccess(user.id, "view_energy");
     } catch (err) {
       if (err instanceof AccessDeniedError) {
+        return noStoreJson({ error: err.message }, 403);
+      }
+      throw err;
+    }
+
+    // IDOR guard: the URL deviceId must belong to the caller's customer.
+    try {
+      await assertDeviceOwnership(access, deviceId);
+    } catch (err) {
+      if (err instanceof DeviceAccessDeniedError) {
         return noStoreJson({ error: err.message }, 403);
       }
       throw err;
@@ -77,10 +88,21 @@ export async function PUT(
     return noStoreJson({ error: "Not authenticated" }, 401);
   }
 
+  let access: Awaited<ReturnType<typeof resolveAccess>>;
   try {
-    await resolveAccess(user.id, "view_energy");
+    access = await resolveAccess(user.id, "view_energy");
   } catch (err) {
     if (err instanceof AccessDeniedError) {
+      return noStoreJson({ error: err.message }, 403);
+    }
+    throw err;
+  }
+
+  // IDOR guard: the URL deviceId must belong to the caller's customer.
+  try {
+    await assertDeviceOwnership(access, deviceId);
+  } catch (err) {
+    if (err instanceof DeviceAccessDeniedError) {
       return noStoreJson({ error: err.message }, 403);
     }
     throw err;
