@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { createInitialLoad, createPollTick, createPostSaveReload } from "./pollingSchedule";
 
 interface RelayConfig {
   deviceId: string;
@@ -65,23 +66,44 @@ export default function RelayPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Fetch relay config, state, and logs when device changes
-  const fetchRelayData = useCallback(async () => {
+  // Load relay configuration for the selected device.
+  //
+  // Deliberately NOT part of the 5-second poll below: config is a form the
+  // user edits in place, and unconditionally overwriting it from the server
+  // on every poll tick silently reverts unsaved edits — or even a just-saved
+  // edit, if a poll that was already in flight resolves after the save. This
+  // is called only on device selection and after a successful save
+  // (handleSaveConfig), never on a timer.
+  const loadRelayConfig = useCallback(async () => {
     if (!selectedDevice) return;
 
     try {
-      const [configRes, stateRes, logsRes] = await Promise.all([
-        fetch(`/api/relay/config?deviceId=${selectedDevice}`),
-        fetch(`/api/relay?deviceId=${selectedDevice}`),
-        fetch(`/api/relay/logs?deviceId=${selectedDevice}`),
-      ]);
-
-      if (configRes.ok) {
-        const configData = await configRes.json();
-        setConfig(configData.config || createDefaultConfig(selectedDevice));
+      const res = await fetch(`/api/relay/config?deviceId=${selectedDevice}`);
+      if (res.ok) {
+        const data = await res.json();
+        setConfig(data.config || createDefaultConfig(selectedDevice));
       } else {
         setConfig(createDefaultConfig(selectedDevice));
       }
+    } catch (err) {
+      console.error("Failed to load relay config:", err);
+      setConfig(createDefaultConfig(selectedDevice));
+    }
+  }, [selectedDevice]);
+
+  // Fetch relay state and recent logs. Unlike config, these are never
+  // user-edited in place — the user only ever triggers an action (trip/
+  // reset) and observes the result — so unconditionally overwriting them
+  // from the server on every poll tick is exactly the live-update behavior
+  // wanted here, with no race to guard against.
+  const fetchRelayState = useCallback(async () => {
+    if (!selectedDevice) return;
+
+    try {
+      const [stateRes, logsRes] = await Promise.all([
+        fetch(`/api/relay?deviceId=${selectedDevice}`),
+        fetch(`/api/relay/logs?deviceId=${selectedDevice}`),
+      ]);
 
       if (stateRes.ok) {
         const stateData = await stateRes.json();
@@ -93,21 +115,33 @@ export default function RelayPage() {
         setLogs(logsData.logs || []);
       }
     } catch (err) {
-      console.error("Failed to fetch relay data:", err);
-      setConfig(createDefaultConfig(selectedDevice));
+      console.error("Failed to fetch relay state:", err);
     }
   }, [selectedDevice]);
 
-  useEffect(() => {
-    fetchRelayData();
-  }, [fetchRelayData]);
+  // The three scheduling functions below are thin, memoized wrappers over
+  // pollingSchedule.ts, which is what's actually under test — see that
+  // file's comment for why config is never allowed on the poll path.
+  const scheduleActions = useMemo(
+    () => ({ loadConfig: loadRelayConfig, fetchState: fetchRelayState }),
+    [loadRelayConfig, fetchRelayState]
+  );
+  const initialLoad = useMemo(() => createInitialLoad(scheduleActions), [scheduleActions]);
+  const pollTick = useMemo(() => createPollTick(scheduleActions), [scheduleActions]);
+  const postSaveReload = useMemo(() => createPostSaveReload(scheduleActions), [scheduleActions]);
 
-  // Poll for state updates every 5 seconds
+  // Initial load for the newly selected device: config once, state once.
+  useEffect(() => {
+    initialLoad();
+  }, [initialLoad]);
+
+  // Poll for state/log updates every 5 seconds via pollTick, which is
+  // provably scoped to fetchState only — config is deliberately excluded.
   useEffect(() => {
     if (!selectedDevice) return;
-    const interval = setInterval(fetchRelayData, 5000);
+    const interval = setInterval(pollTick, 5000);
     return () => clearInterval(interval);
-  }, [selectedDevice, fetchRelayData]);
+  }, [selectedDevice, pollTick]);
 
   const createDefaultConfig = (deviceId: string): RelayConfig => ({
     deviceId,
@@ -136,6 +170,10 @@ export default function RelayPage() {
 
       if (res.ok) {
         setSaveMsg("✓ Configuration saved successfully.");
+        // Reload from the server so the displayed config reflects exactly
+        // what was persisted (including any server-side normalization),
+        // rather than assuming the just-sent local state is authoritative.
+        await postSaveReload();
       } else {
         const data = await res.json();
         setSaveMsg(`✗ Error: ${data.error}`);
@@ -169,7 +207,7 @@ export default function RelayPage() {
         const data = await res.json();
         setState(data.state);
         setSaveMsg(`✓ Relay ${action === "MANUAL_TRIP" ? "tripped" : "reset"} successfully.`);
-        fetchRelayData(); // Refresh logs
+        fetchRelayState(); // Refresh state + logs (config untouched by relay actions)
       } else {
         const data = await res.json();
         setSaveMsg(`✗ Error: ${data.error}`);
