@@ -52,6 +52,7 @@ const STALE_THRESHOLD_MS = 30_000; // 30 seconds
 export function usePolling(deviceId: string | null) {
   const [latestReading, setLatestReading] = useState<PollingReading | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [ageMs, setAgeMs] = useState<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -92,6 +93,7 @@ export function usePolling(deviceId: string | null) {
               );
             }
             setIsConnected(!isStale);
+            setAgeMs(age_ms);
           } else {
             // Fallback: parse the recorded_at manually (less reliable)
             const recordedStr = readings[0].recorded_at;
@@ -101,9 +103,11 @@ export function usePolling(deviceId: string | null) {
             const dateString = hasTimezone ? recordedStr : `${recordedStr}Z`;
             const fallbackAge = Date.now() - new Date(dateString).getTime();
             setIsConnected(fallbackAge <= STALE_THRESHOLD_MS);
+            setAgeMs(fallbackAge);
           }
         } else if (isMounted) {
           setIsConnected(false);
+          setAgeMs(null);
           console.warn(
             `[usePolling] No readings found for deviceId="${deviceId}". ` +
             `Verify the device has sent at least one record to /api/ingest.`
@@ -126,5 +130,5 @@ export function usePolling(deviceId: string | null) {
     };
   }, [deviceId]);
 
-  return { latestReading, isConnected };
+  return { latestReading, isConnected, ageMs };
 }
