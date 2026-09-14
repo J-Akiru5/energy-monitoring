@@ -75,7 +75,7 @@ const PHASE_COLORS = { A: "#fb7185", B: "#F59E0B", C: "#06B6D4" } as const;
 
 export default function SensorsPage() {
   const [deviceId, setDeviceId] = useState<string | null>(null);
-  const { latestReading, isConnected } = usePolling(deviceId);
+  const { latestReading, isConnected, ageMs } = usePolling(deviceId);
   const [chartData, setChartData] = useState<Reading[]>([]);
   const [activeChart, setActiveChart] = useState<"voltage" | "power" | "current">("power");
   const prevRef = useRef<Record<string, number>>({});
@@ -137,6 +137,21 @@ export default function SensorsPage() {
     return "online";
   };
 
+  const effectiveStatus = (
+    valueStatus: "online" | "offline" | "zero"
+  ): "online" | "offline" | "zero" | "stale" => {
+    if (!isConnected && valueStatus === "online") return "stale";
+    return valueStatus;
+  };
+
+  const formatAge = (ms: number | null): string => {
+    if (ms == null) return "";
+    const secs = Math.floor(ms / 1000);
+    if (secs < 60) return `${secs}s ago`;
+    const mins = Math.floor(secs / 60);
+    return `${mins}m ${secs % 60}s ago`;
+  };
+
   if (!r) {
     return (
       <div className="page-shell">
@@ -167,7 +182,7 @@ export default function SensorsPage() {
       flashV: flashKeys["voltage_a"],
       flashP: flashKeys["power_a"],
       flashA: flashKeys["current_a"],
-      status: is3Phase ? phaseStatus(r.voltage_a) : (r.voltage > 0 ? "online" : "zero"),
+      status: effectiveStatus(is3Phase ? phaseStatus(r.voltage_a) : (r.voltage > 0 ? "online" : "zero")),
     },
     {
       id: "B",
@@ -183,7 +198,7 @@ export default function SensorsPage() {
       flashV: flashKeys["voltage_b"],
       flashP: flashKeys["power_b"],
       flashA: flashKeys["current_b"],
-      status: is3Phase ? phaseStatus(r.voltage_b) : "offline",
+      status: effectiveStatus(is3Phase ? phaseStatus(r.voltage_b) : "offline"),
     },
     {
       id: "C",
@@ -199,7 +214,7 @@ export default function SensorsPage() {
       flashV: flashKeys["voltage_c"],
       flashP: flashKeys["power_c"],
       flashA: flashKeys["current_c"],
-      status: is3Phase ? phaseStatus(r.voltage_c) : "offline",
+      status: effectiveStatus(is3Phase ? phaseStatus(r.voltage_c) : "offline"),
     },
   ];
 
@@ -283,7 +298,12 @@ export default function SensorsPage() {
         }}
       >
         {phases.map((phase) => (
-          <SensorCard key={phase.id} phase={phase} flashKeys={flashKeys} />
+          <SensorCard
+            key={phase.id}
+            phase={phase}
+            flashKeys={flashKeys}
+            staleLabel={!isConnected ? formatAge(ageMs) : undefined}
+          />
         ))}
       </div>
 
@@ -482,6 +502,7 @@ function TotalCard({
 function SensorCard({
   phase,
   flashKeys,
+  staleLabel,
 }: {
   phase: {
     id: string;
@@ -494,17 +515,19 @@ function SensorCard({
     energy: number;
     frequency: number;
     pf: number;
-    status: "online" | "offline" | "zero";
+    status: "online" | "offline" | "zero" | "stale";
     flashV?: number;
     flashP?: number;
     flashA?: number;
   };
   flashKeys: Record<string, number>;
+  staleLabel?: string;
 }) {
   const statusColors = {
     online: { bg: "rgba(34,197,94,0.1)", text: "#22c55e", label: "Online" },
     zero: { bg: "rgba(245,158,11,0.1)", text: "#F59E0B", label: "Blackout / 0V" },
     offline: { bg: "rgba(100,116,139,0.1)", text: "#64748b", label: "No Data" },
+    stale: { bg: "rgba(245,158,11,0.1)", text: "#F59E0B", label: "Stale" },
   };
   const sc = statusColors[phase.status];
 
@@ -521,6 +544,8 @@ function SensorCard({
         borderWidth: 1.5,
         position: "relative",
         overflow: "hidden",
+        opacity: phase.status === "stale" ? 0.6 : 1,
+        transition: "opacity 0.3s ease",
       }}
     >
       {/* Subtle accent bar at top */}
@@ -574,6 +599,9 @@ function SensorCard({
             }}
           />
           {sc.label}
+          {phase.status === "stale" && staleLabel && (
+            <span style={{ opacity: 0.7, marginLeft: 2 }}>&middot; {staleLabel}</span>
+          )}
         </span>
       </div>
 
