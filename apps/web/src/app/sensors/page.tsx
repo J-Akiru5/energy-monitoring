@@ -167,18 +167,20 @@ export default function SensorsPage() {
     );
   }
 
+  const stale = !isConnected;
+
   const phases = [
     {
       id: "A",
       label: "PZEM Sensor A",
       desc: "Hardware Serial2 · GPIO17/16",
       color: PHASE_COLORS.A,
-      voltage: r.voltage_a ?? r.voltage,
-      current: r.current_a ?? r.current_amp,
-      power: r.power_a ?? 0,
-      energy: r.energy_a ?? 0,
-      frequency: r.frequency_a ?? r.frequency,
-      pf: r.power_factor_a ?? r.power_factor,
+      voltage: stale ? 0 : (r.voltage_a ?? r.voltage),
+      current: stale ? 0 : (r.current_a ?? r.current_amp),
+      power: stale ? 0 : (r.power_a ?? 0),
+      energy: stale ? 0 : (r.energy_a ?? 0),
+      frequency: stale ? 0 : (r.frequency_a ?? r.frequency),
+      pf: stale ? 0 : (r.power_factor_a ?? r.power_factor),
       flashV: flashKeys["voltage_a"],
       flashP: flashKeys["power_a"],
       flashA: flashKeys["current_a"],
@@ -189,12 +191,12 @@ export default function SensorsPage() {
       label: "PZEM Sensor B",
       desc: "Hardware Serial1 · GPIO5/4",
       color: PHASE_COLORS.B,
-      voltage: r.voltage_b ?? 0,
-      current: r.current_b ?? 0,
-      power: r.power_b ?? 0,
-      energy: r.energy_b ?? 0,
-      frequency: r.frequency_b ?? r.frequency,
-      pf: r.power_factor_b ?? r.power_factor,
+      voltage: stale ? 0 : (r.voltage_b ?? 0),
+      current: stale ? 0 : (r.current_b ?? 0),
+      power: stale ? 0 : (r.power_b ?? 0),
+      energy: stale ? 0 : (r.energy_b ?? 0),
+      frequency: stale ? 0 : (r.frequency_b ?? r.frequency),
+      pf: stale ? 0 : (r.power_factor_b ?? r.power_factor),
       flashV: flashKeys["voltage_b"],
       flashP: flashKeys["power_b"],
       flashA: flashKeys["current_b"],
@@ -205,12 +207,12 @@ export default function SensorsPage() {
       label: "PZEM Sensor C",
       desc: "Hardware Serial · GPIO19/18",
       color: PHASE_COLORS.C,
-      voltage: r.voltage_c ?? 0,
-      current: r.current_c ?? 0,
-      power: r.power_c ?? 0,
-      energy: r.energy_c ?? 0,
-      frequency: r.frequency_c ?? r.frequency,
-      pf: r.power_factor_c ?? r.power_factor,
+      voltage: stale ? 0 : (r.voltage_c ?? 0),
+      current: stale ? 0 : (r.current_c ?? 0),
+      power: stale ? 0 : (r.power_c ?? 0),
+      energy: stale ? 0 : (r.energy_c ?? 0),
+      frequency: stale ? 0 : (r.frequency_c ?? r.frequency),
+      pf: stale ? 0 : (r.power_factor_c ?? r.power_factor),
       flashV: flashKeys["voltage_c"],
       flashP: flashKeys["power_c"],
       flashA: flashKeys["current_c"],
@@ -218,8 +220,8 @@ export default function SensorsPage() {
     },
   ];
 
-  const totalPower = r.total_power ?? (phases.reduce((s, p) => s + p.power, 0));
-  const totalEnergy = r.total_energy ?? (phases.reduce((s, p) => s + p.energy, 0));
+  const totalPower = stale ? 0 : (r.total_power ?? (phases.reduce((s, p) => s + p.power, 0)));
+  const totalEnergy = stale ? 0 : (r.total_energy ?? (phases.reduce((s, p) => s + p.energy, 0)));
 
   const chartKeys = {
     voltage: [
@@ -284,7 +286,7 @@ export default function SensorsPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
         <TotalCard label="Total Power" value={totalPower.toFixed(1)} unit="W" accent="var(--accent-cyan)" />
         <TotalCard label="Total Energy" value={totalEnergy.toFixed(4)} unit="kWh" />
-        <TotalCard label="Avg Frequency" value={r.frequency.toFixed(1)} unit="Hz" />
+        <TotalCard label="Avg Frequency" value={(stale ? 0 : r.frequency).toFixed(1)} unit="Hz" />
         <TotalCard label="Online Sensors" value={phases.filter((p) => p.status === "online").length.toString()} unit={`/ ${phases.length}`} accent={phases.filter((p) => p.status === "online").length === phases.length ? "#22c55e" : "#F59E0B"} />
       </div>
 
