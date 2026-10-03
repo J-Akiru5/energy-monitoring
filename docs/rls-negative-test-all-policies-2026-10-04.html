@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Monitoring — RLS Negative-Test Evidence: All 12 Policies (RM-03)</title>
+<style>
+:root{
+  --bg:#050505; --text:#ededed; --text2:#B7BFCB; --muted:#8A93A0;
+  --line:rgba(255,255,255,.10);
+  --panel:rgba(255,255,255,.045);
+  --field:rgba(255,255,255,.06);
+  --accent:#22D3EE; --accent-2:#A855F7;
+  --grad:linear-gradient(135deg,#22D3EE,#A855F7);
+  --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --r-sm:6px; --r-lg:16px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,h4,p,dl,dd,figure,blockquote{margin:0}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.14;font-weight:800;letter-spacing:-.025em}
+h2{font-size:clamp(20px,2.6vw,27px);line-height:1.22;font-weight:700;letter-spacing:-.015em;margin-bottom:12px}
+h3{font-size:17px;font-weight:700;margin-bottom:8px}
+h4{font-size:15px;font-weight:700}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:var(--mono)}
+code{font-size:.88em;background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:var(--r-sm)}
+pre{margin:14px 0 0;background:#0a0c10;border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--text2)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;height:64px;
+  padding:0 clamp(16px,3vw,40px);background:rgba(5,5,5,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.wordmark b{color:var(--accent)}
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;text-transform:uppercase;
+  color:var(--accent);display:inline-block;white-space:nowrap;line-height:1.6}
+.chip.d{color:var(--ok)} .chip.u{color:var(--warn)} .chip.c{color:var(--danger)} .chip.i{color:var(--accent-2)}
+.shell{display:grid;grid-template-columns:220px minmax(0,1fr) 280px;gap:clamp(20px,2.6vw,36px);
+  padding:28px clamp(16px,3vw,40px) 90px;max-width:1720px;margin:0 auto;align-items:start}
+.sidebar,.rail{position:sticky;top:84px;max-height:calc(100vh - 108px);overflow-y:auto}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar a{display:block;padding:9px 10px;min-height:40px;border-radius:var(--r-sm);color:var(--text2);font-size:13.5px;border-left:2px solid transparent}
+.sidebar a:hover{color:var(--text);text-decoration:none;background:var(--panel)}
+.sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel)}
+.rail .panel{margin-bottom:14px}
+.rail .facts dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;margin:0}
+.rail .facts dt{color:var(--muted)}
+.rail .facts dd{margin:0;text-align:right;min-width:0}
+.rail .quote{font-style:italic;font-size:13.5px;color:var(--text2)}
+main{min-width:0}
+.section{padding:8px 0 46px;scroll-margin-top:88px}
+.section+.section{border-top:1px solid var(--line);padding-top:38px}
+.section p{max-width:78ch;color:var(--text2)}
+.section p+p{margin-top:12px}
+.section p strong,.section li strong{color:var(--text)}
+.lede{font-size:17.5px;color:var(--text2);max-width:78ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:20px 22px}
+.callout{position:relative;padding:18px 22px 18px 26px;border-radius:var(--r-lg);margin:20px 0;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.callout::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.callout.danger::before{background:var(--danger)}
+.callout.warn::before{background:var(--warn)}
+.callout.ok::before{background:var(--ok)}
+.callout h3{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+.callout .tag{float:right;margin-left:12px}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 18px;min-width:132px;flex:1 1 132px}
+.stat b{display:block;font-size:clamp(22px,2.6vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat.c b{background:none;color:var(--danger);-webkit-text-fill-color:var(--danger)}
+.stat span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-top:16px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.mono{font-family:var(--mono);font-size:.92em}
+.ok{color:var(--ok);font-weight:600}
+.bad{color:var(--danger);font-weight:600}
+.ul-tight{padding-left:20px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+.ul-tight li{margin:7px 0}
+.diagram{margin:24px 0 8px;padding:18px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);overflow-x:auto}
+.diagram svg{display:block;min-width:720px;max-width:100%;height:auto;margin:0 auto}
+.diagram figcaption{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center}
+.cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:18px 20px}
+.card h4{margin-bottom:6px}
+.card p{font-size:14px;max-width:none}
+.card .chip{margin-bottom:10px}
+.footnote{font-size:13px;color:var(--muted);max-width:80ch;margin-top:12px}
+.footer{border-top:1px solid var(--line);margin-top:10px;padding:22px clamp(16px,3vw,40px) 40px;color:var(--muted);font-size:13px;max-width:1720px;margin-left:auto;margin-right:auto}
+@media (max-width:1280px){ .shell{grid-template-columns:220px minmax(0,1fr)} .rail{display:none} }
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:18px}
+  .sidebar{position:static;max-height:none;overflow:visible}
+  .sidebar nav{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .sidebar a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .sidebar a.active{border-left:0;border-bottom-color:var(--accent)}
+  table{min-width:560px}
+}
+@media print{
+  .topbar,.sidebar,.rail{display:none}
+  body{background:#fff;color:#000}
+  .shell{display:block;padding:0}
+  .panel,.callout,.card,.tablewrap,.diagram{background:#fff;border-color:#999;backdrop-filter:none}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark"><b>Syntaxure</b> / EMS RLS Negative Tests · RM-03</div>
+  <div class="top-meta">
+    <span class="chip">2026-10-04</span>
+    <span class="chip d">12 / 12 policies verified</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav aria-label="Sections">
+      <a href="#s-tldr" class="active">TL;DR</a>
+      <a href="#s-why">Why this test exists</a>
+      <a href="#s-method">Method</a>
+      <a href="#s-results">Results — per-table matrix</a>
+      <a href="#s-findings">Findings beyond the test</a>
+      <a href="#s-reproduce">Reproduce &amp; evidence</a>
+      <a href="#s-next">What's next</a>
+    </nav>
+  </aside>
+
+  <main>
+
+    <article class="section" id="s-tldr">
+      <h1>RLS Negative-Test Evidence: All 12 Policies</h1>
+      <p class="lede"><strong>RM-03.</strong> Every one of the 12 membership-scoped RLS SELECT policies was exercised with <strong>real signed-in user clients</strong> (anon key + JWT, RLS applied) against the live database — not the service role. <strong>12 / 12 isolate in both directions</strong>: each user sees their own tenant's fixture row and zero rows belonging to the other tenant, on every table. The suite is re-runnable (<code>scripts/negative-test-rls-all-policies.ts</code>), and its execution surfaced two things worth your attention: the previous "negative test" never actually exercised RLS at all, and four telemetry write paths don't tenant-stamp their rows.</p>
+
+      <div class="stat-row">
+        <div class="stat"><b>12/12</b><span>policies isolate both directions</span></div>
+        <div class="stat"><b>48</b><span>user-context assertions (12 tables × 4 checks)</span></div>
+        <div class="stat"><b>0</b><span>cross-tenant rows visible</span></div>
+        <div class="stat"><b>24</b><span>service-role sanity checks (no vacuous negatives)</span></div>
+        <div class="stat c"><b>428</b><span>telemetry rows unstamped (separate finding)</span></div>
+      </div>
+
+      <div class="callout ok">
+        <span class="tag chip d">Verified</span>
+        <h3>The RLS backstop holds on all 12 tables</h3>
+        <p>For every table: A sees A (200 / 1 row), A sees B (<strong>200 / 0 rows</strong>), B sees B (200 / 1), B sees A (<strong>200 / 0</strong>). A 200-with-zero-rows response is the correct isolation outcome — not an error, not the other tenant's data. Run on 2026-10-04 against project <code>fweqqfpaifmkrnmsx</code>; exit code 0.</p>
+      </div>
+    </article>
+
+    <article class="section" id="s-why">
+      <h2>Why this test exists</h2>
+      <p>RM-03 asked for a negative test per RLS policy and a pass/fail result per table — not a summary claim. Recon for this item found the prior evidence didn't meet that bar:</p>
+      <ul class="ul-tight">
+        <li><strong>The existing <code>negative-test-devices-rls.ts</code> never exercised RLS.</strong> It runs entirely through <code>getSupabaseAdmin()</code> (service role, which bypasses RLS by design) and then <em>simulates</em> the policy logic by querying with explicit customer IDs. Its own step 5 says so: "Since we can't easily get a JWT here, we'll verify the SQL logic…". It proves the query logic works — it does not prove the database isolates tenants.</li>
+        <li><strong>The slice-one "negative test" was API-layer, not RLS-layer.</strong> The 2026-09-10 report tested <code>/api/readings</code> through a running web server, which exercises <code>resolveAccess()</code> + explicit application scoping. That's the app's primary isolation boundary — but again not the RLS policies themselves.</li>
+        <li><strong>So real per-policy RLS evidence was ~0 of 12</strong>, not 2 of 12 as the roadmap's first pass estimated. This suite closes that gap at the database layer.</li>
+      </ul>
+      <p>All 12 policies are SELECT-only (<code>"members read own customer"</code>) and were applied by migrations <code>20260910220000_phase3b3_rls_core_tables.sql</code> (7 tables) and <code>20260910230000_phase3b3_rls_telemetry_tables.sql</code> (5 tables). Write policies are explicitly out of scope in those migrations and remain a follow-up.</p>
+    </article>
+
+    <article class="section" id="s-method">
+      <h2>Method</h2>
+      <p>Two disposable test users — one per tenant — sign in through the real auth endpoint and query PostgREST with their own JWTs. The database applies the RLS policy exactly as it would for a browser session. A service-role sanity check confirms the other tenant's row genuinely exists, so a "0 rows" result can never pass vacuously.</p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 860 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram: user A and user B sign in and query PostgREST; RLS policies filter rows by auth.uid() memberships; service role sanity-checks existence">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#22D3EE"/></marker>
+            <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#A855F7"/></marker>
+          </defs>
+
+          <rect x="20" y="40" width="180" height="60" rx="8" fill="rgba(34,211,238,.08)" stroke="rgba(34,211,238,.45)"/>
+          <text x="110" y="66" fill="#ededed" font-family="Inter, sans-serif" font-size="13" font-weight="600" text-anchor="middle">User A client</text>
+          <text x="110" y="84" fill="#8A93A0" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">anon key + A's JWT</text>
+
+          <rect x="20" y="180" width="180" height="60" rx="8" fill="rgba(168,85,247,.08)" stroke="rgba(168,85,247,.45)"/>
+          <text x="110" y="206" fill="#ededed" font-family="Inter, sans-serif" font-size="13" font-weight="600" text-anchor="middle">User B client</text>
+          <text x="110" y="224" fill="#8A93A0" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">anon key + B's JWT</text>
+
+          <path d="M204 70 C280 70 300 128 352 138" stroke="#22D3EE" stroke-width="2.5" fill="none" marker-end="url(#ar)"/>
+          <path d="M204 210 C280 210 300 158 352 150" stroke="#A855F7" stroke-width="2.5" fill="none" marker-end="url(#ar2)"/>
+
+          <rect x="356" y="110" width="170" height="70" rx="8" fill="#0a0c10" stroke="rgba(255,255,255,.16)"/>
+          <text x="441" y="138" fill="#ededed" font-family="Inter, sans-serif" font-size="13" font-weight="600" text-anchor="middle">PostgREST</text>
+          <text x="441" y="156" fill="#8A93A0" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">select id, id=eq.&lt;row&gt;</text>
+
+          <path d="M530 145 L608 145" stroke="#22D3EE" stroke-width="2.5" fill="none" marker-end="url(#ar)"/>
+
+          <rect x="612" y="96" width="228" height="98" rx="8" fill="rgba(74,222,128,.06)" stroke="rgba(74,222,128,.45)"/>
+          <text x="726" y="122" fill="#ededed" font-family="Inter, sans-serif" font-size="13" font-weight="600" text-anchor="middle">RLS policy</text>
+          <text x="726" y="142" fill="#8A93A0" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">row IN (memberships</text>
+          <text x="726" y="158" fill="#8A93A0" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">WHERE user_id = auth.uid())</text>
+          <text x="726" y="180" fill="#4ade80" font-family="Inter, sans-serif" font-size="12" text-anchor="middle">own row → 1 · other tenant → 0</text>
+
+          <text x="430" y="262" fill="#8A93A0" font-family="Inter, sans-serif" font-size="12" text-anchor="middle">Service-role sanity check (outside the policy path) confirms the other tenant's fixture row exists — negatives cannot pass vacuously.</text>
+        </svg>
+        <figcaption>Fig. 1 — assertions run through the real auth + RLS path; existence is verified separately via service role.</figcaption>
+      </figure>
+
+      <p>For each of the 12 tables the suite records four booleans — A→A, A→B, B→B, B→A — plus a service-role existence check for both fixture rows. The table passes only if all six conditions hold. The suite defaults to a read-only <strong>dry run</strong>; <code>--execute</code> is required before it creates missing fixtures or rotates the disposable test users' passwords.</p>
+    </article>
+
+    <article class="section" id="s-results">
+      <h2>Results — per-table matrix</h2>
+      <p>Executed 2026-10-04 against the live project. Every row: own-tenant fixture visible (1 row), other-tenant fixture invisible (0 rows), in both directions.</p>
+
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Table</th><th>A sees A</th><th>A sees B</th><th>B sees B</th><th>B sees A</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">customers</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">PASS</td></tr>
+            <tr><td class="mono">sites</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">PASS</td></tr>
+            <tr><td class="mono">buildings</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">PASS</td></tr>
+            <tr><td class="mono">emus</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">PASS</td></tr>
+            <tr><td class="mono">controllers</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">PASS</td></tr>
+            <tr><td class="mono">emu_installations</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">PASS</td></tr>
+            <tr><td class="mono">power_readings</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">PASS</td></tr>
+            <tr><td class="mono">alerts</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">PASS</td></tr>
+            <tr><td class="mono">relay_logs</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">PASS</td></tr>
+            <tr><td class="mono">blackout_events</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">PASS</td></tr>
+            <tr><td class="mono">device_alert_state</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">PASS</td></tr>
+            <tr><td class="mono">devices</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">200 / 1</td><td class="ok">200 / 0</td><td class="ok">PASS</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">"200 / 0" is the correct isolated outcome: the request succeeds, the policy filters every row belonging to the other tenant. A 401/403 would indicate a broken grant or session; a non-empty result would be a leak. Neither occurred on any table.</p>
+
+      <div class="callout">
+        <span class="tag chip">Scope note</span>
+        <h3>What this proves — and what it doesn't</h3>
+        <p>This proves the SELECT policies isolate reads for authenticated members. It does not test write policies (none exist yet — out of scope by the migrations' own design), nor service-role paths (which bypass RLS by definition and rely on application-layer scoping). The policies tested are the DB-level backstop.</p>
+      </div>
+    </article>
+
+    <article class="section" id="s-findings">
+      <h2>Findings beyond the test</h2>
+
+      <div class="callout warn">
+        <span class="tag chip u">New finding</span>
+        <h3>Four telemetry write paths never tenant-stamp their rows</h3>
+        <p>RLS is fail-closed for rows with <code>customer_id = NULL</code> — they're invisible to every non-service-role caller. That's safe, but a read-only scan of live data shows the app's own writers leave rows unstamped, which also hides them from the app's customer-scoped queries (e.g., <code>getUnreadAlerts()</code> and <code>getRelayLogs()</code> both filter by <code>customer_id</code>):</p>
+        <ul class="ul-tight">
+          <li><code>relay_logs</code> — <strong>168 of 181 rows</strong> have NULL <code>customer_id</code> (<code>logRelayAction()</code> never sets it)</li>
+          <li><code>alerts</code> — <strong>246 of 13,032</strong> NULL (<code>createAlert()</code> never sets it)</li>
+          <li><code>blackout_events</code> — 9 of 23 NULL (<code>startBlackoutEvent()</code>)</li>
+          <li><code>device_alert_state</code> — 5 of 12 NULL (<code>startAlertIncident()</code>)</li>
+          <li><code>power_readings</code> — 4 of 96,286 NULL (ingest stamps via the controller lookup; residual edge cases)</li>
+        </ul>
+        <p>Net effect: no cross-tenant leak (RLS hides them), but customer-facing alert/relay-log views can be missing recent rows. Fix belongs in a separate item — either stamp at write time (the ingest route's <code>lookupControllerByDevice()</code> pattern) or via DB triggers. Flagged, not fixed here.</p>
+      </div>
+
+      <div class="callout danger">
+        <span class="tag chip c">Evidence correction</span>
+        <h3>The old "negative test" was a simulation</h3>
+        <p><code>scripts/negative-test-devices-rls.ts</code> runs through the service-role client for every query and reconstructs the policy predicate in application code. It never sends a user JWT to PostgREST, so it cannot detect a missing or broken policy. It should not be cited as RLS evidence; this suite supersedes it at the policy level (the old script still has value as an application-scoping check, if re-labeled).</p>
+      </div>
+    </article>
+
+    <article class="section" id="s-reproduce">
+      <h2>Reproduce &amp; evidence</h2>
+      <p>The suite is committed at <code>scripts/negative-test-rls-all-policies.ts</code>. Dry run first (read-only), then execute (creates missing TEST fixtures and rotates the two disposable <code>@example.invalid</code> test-user passwords; no production rows touched, nothing torn down):</p>
+
+      <div class="panel" style="margin-top:16px">
+        <pre><code># read-only inventory — no writes
+node scripts/negative-test-rls-all-policies.ts
+
+# full run — creates missing TEST fixtures, signs in, asserts all 12 policies
+node scripts/negative-test-rls-all-policies.ts --execute
+
+# expected tail:
+#   ══ 12/12 policies isolate in both directions ══
+#   exit code 0</code></pre>
+      </div>
+
+      <ul class="ul-tight">
+        <li><strong>Fixtures:</strong> customers <code>TEST — RLS Verification</code> (A) and <code>TEST-B — RLS Negative Test</code> (B), each with a full site → building → EMU → controller → device → installation chain plus one stamped row in every policy table. Safe to delete; not torn down per existing practice.</li>
+        <li><strong>Test users:</strong> <code>test-rls-verification@example.invalid</code> (A) and <code>test-rls-negative-b@example.invalid</code> (B) — disposable, no external impact.</li>
+        <li><strong>Environment:</strong> repo root, <code>apps/web/.env</code> credentials; live project <code>fweqqfpaifmkrnmsx</code>.</li>
+        <li><strong>No CI:</strong> the repo has no workflow runner, so this remains a manual command — same constraint RM-03 flagged.</li>
+      </ul>
+    </article>
+
+    <article class="section" id="s-next">
+      <h2>What's next</h2>
+      <div class="cardgrid">
+        <div class="card">
+          <span class="chip d">RM-03 — done at policy level</span>
+          <h4>Pass/fail per table exists</h4>
+          <p>All 12 policies have re-runnable, database-level negative-test evidence. Re-run before each promotion that touches RLS or write paths.</p>
+        </div>
+        <div class="card">
+          <span class="chip u">New item</span>
+          <h4>Fix tenant stamping on telemetry writes</h4>
+          <p>Stamp <code>alerts</code>, <code>relay_logs</code>, <code>blackout_events</code>, <code>device_alert_state</code> at write time (or via trigger), then re-run this suite plus a NULL-count check. Separate backlog item.</p>
+        </div>
+        <div class="card">
+          <span class="chip u">Optional</span>
+          <h4>Write-denial checks</h4>
+          <p>Once write policies are designed, extend the suite with INSERT/UPDATE/DELETE denial assertions per role. Not applicable while only SELECT policies exist.</p>
+        </div>
+        <div class="card">
+          <span class="chip i">Process</span>
+          <h4>Re-label the old script</h4>
+          <p><code>negative-test-devices-rls.ts</code> is an application-scoping check, not an RLS test — worth a header rename so it isn't cited as policy evidence again.</p>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <aside class="rail">
+    <div class="panel facts">
+      <h3>Key facts</h3>
+      <dl>
+        <dt>Policies tested</dt><dd>12 / 12</dd>
+        <dt>Result</dt><dd class="ok">all PASS</dd>
+        <dt>Leaks found</dt><dd>0</dd>
+        <dt>Method</dt><dd>user JWT + RLS</dd>
+        <dt>Project</dt><dd class="mono">fweqqfpaifmkrnmsx</dd>
+        <dt>Run date</dt><dd>2026-10-04</dd>
+        <dt>Exit code</dt><dd>0</dd>
+        <dt>Unstamped rows</dt><dd class="bad">428</dd>
+      </dl>
+    </div>
+    <div class="panel">
+      <h3>Status</h3>
+      <p style="font-size:13.5px;color:var(--text2)">RM-03 policy-level evidence complete. Script committed on this branch; new stamping finding flagged for a separate item. Fixtures left in place by design.</p>
+    </div>
+    <blockquote class="panel quote">A negative test that never sends a user JWT is a simulation. Isolation is only proven when the database is the thing saying no.</blockquote>
+  </aside>
+</div>
+
+<div class="footer">
+  Energy Monitoring · RM-03 RLS negative-test evidence · 2026-10-04 · 12/12 policies isolate in both directions · Live project fweqqfpaifmkrnmsx · Fixtures: TEST — safe to delete
+</div>
+
+</body>
+</html>
