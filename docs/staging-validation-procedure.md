@@ -261,7 +261,7 @@ Session auth only (`view_energy` permission). Returns relay state for a device.
 
 ```
 ESP32 → POST /api/ingest
-  → X-Device-Token header validated against devices.api_key_hash
+  → X-Device-Token header SHA-256-hashed and validated against controllers.token_hash (ACTIVE controllers only)
   → Payload validated against TelemetryPayloadSchema
   → Rate limited: 1 req/sec per device
   → Written to power_readings

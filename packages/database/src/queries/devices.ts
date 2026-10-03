@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from "../client";
 import type { DeviceCreate } from "@energy/types";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 
 /**
  * Register a new ESP32 device. Returns the raw API key (show once!).
@@ -36,23 +36,38 @@ export async function registerDevice(input: DeviceCreate) {
 /**
  * Validate a device API key. Returns the device if valid.
  *
+ * The presented token is SHA-256 hashed (hex) and matched against
+ * controllers.token_hash — the hash populated at provisioning and by the
+ * Phase 3a backfill. The controller must be ACTIVE (REVOKED / REPLACED
+ * controllers fail closed), and its bridged legacy device row must still
+ * be active. The plaintext devices.api_key_hash column is never read.
+ *
  * NOTE: This is called by the ESP32 heartbeat/ingest path (device-auth,
  * not user-auth). No customer scoping needed here — the device is
  * authenticating itself, not a user accessing customer data.
  */
 export async function validateDeviceToken(token: string) {
   const supabase = getSupabaseAdmin();
+  const tokenHash = createHash("sha256").update(token).digest("hex");
 
-  // TODO: In production, hash the incoming token and compare
-  const { data, error } = await supabase
+  const { data: controller, error } = await supabase
+    .from("controllers")
+    .select("id, legacy_device_id, status")
+    .eq("token_hash", tokenHash)
+    .eq("status", "ACTIVE")
+    .maybeSingle();
+
+  if (error || !controller || !controller.legacy_device_id) return null;
+
+  const { data: device, error: deviceError } = await supabase
     .from("devices")
     .select("*")
-    .eq("api_key_hash", token)
+    .eq("id", controller.legacy_device_id)
     .eq("is_active", true)
-    .single();
+    .maybeSingle();
 
-  if (error || !data) return null;
-  return data;
+  if (deviceError || !device) return null;
+  return device;
 }
 
 /**
