@@ -40,6 +40,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Missing deviceId" }, { status: 400 });
     }
 
+    // SECURITY: identity comes from the token row, never the query string —
+    // a valid token for device A must never read device B's config.
+    if (device.id !== deviceId) {
+      return NextResponse.json({ error: "Invalid device token" }, { status: 401 });
+    }
+
     // Fetch global thresholds
     const thresholds = await getAlertThresholds();
 
