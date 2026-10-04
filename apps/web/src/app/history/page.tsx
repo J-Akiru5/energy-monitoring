@@ -11,6 +11,11 @@ import {
   YAxis,
 } from "recharts";
 import { usePrimaryDevice } from "@/hooks/usePrimaryDevice";
+import {
+  formatPhWindowLabel,
+  phWindowSpansMonths,
+  phMonthFullName,
+} from "@/lib/phTime";
 
 type HistoryPeriod = "day" | "week" | "month";
 type HistoryMetric = "energy_kwh" | "power_w" | "current_amp" | "voltage";
@@ -18,6 +23,8 @@ type HistoryMetric = "energy_kwh" | "power_w" | "current_amp" | "voltage";
 type HistoryResponse = {
   period: HistoryPeriod;
   date: string;
+  rangeStart: string;
+  rangeEnd: string;
   chartMetric: HistoryMetric;
   chartPoints: Array<{
     label: string;
@@ -317,6 +324,17 @@ export default function HistoryPage() {
               <div className="summary-value">{history.summary.maxVoltage.toFixed(1)} V</div>
             </article>
           </section>
+
+          {history.rangeStart && history.rangeEnd && (
+            <div className="panel-copy" style={{ marginTop: 10 }}>
+              Window: {formatPhWindowLabel(history.rangeStart, history.rangeEnd)}
+              {period === "week" && phWindowSpansMonths(history.rangeStart, history.rangeEnd) && (
+                <span style={{ color: "var(--accent-amber)", marginLeft: 6 }}>
+                  · includes days from {phMonthFullName(history.rangeStart)}
+                </span>
+              )}
+            </div>
+          )}
 
           <section className="history-layout">
             <article className="history-panel history-panel-wide">

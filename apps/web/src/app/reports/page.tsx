@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePrimaryDevice } from "@/hooks/usePrimaryDevice";
+import { getPresetRange, phDateRangeIso, type ReportPreset } from "@/lib/phTime";
 
 type ReportSummary = {
   current: {
@@ -33,35 +34,9 @@ type ReportSummary = {
   }>;
 };
 
-type Preset = "today" | "7d" | "30d" | "current_month" | "custom";
+type Preset = ReportPreset;
 type Phase = "a" | "b" | "c" | "total";
 type Metric = "kwh" | "cost" | "power";
-
-function toDateInputUtc(value: Date): string {
-  return value.toISOString().slice(0, 10);
-}
-
-function getPresetRange(preset: Preset): { from: string; to: string } {
-  const now = new Date();
-  const to = toDateInputUtc(now);
-
-  if (preset === "today") {
-    return { from: to, to };
-  }
-
-  if (preset === "7d") {
-    const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    return { from: toDateInputUtc(start), to };
-  }
-
-  if (preset === "30d") {
-    const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    return { from: toDateInputUtc(start), to };
-  }
-
-  const firstOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  return { from: toDateInputUtc(firstOfMonth), to };
-}
 
 function formatMetric(value: number, metric: Metric): string {
   if (metric === "cost") {
@@ -71,12 +46,6 @@ function formatMetric(value: number, metric: Metric): string {
     return `${value.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} W`;
   }
   return `${value.toLocaleString("en-PH", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kWh`;
-}
-
-function toIsoRange(fromDate: string, toDate: string): { fromIso: string; toIso: string } {
-  const fromIso = `${fromDate}T00:00:00.000Z`;
-  const toIso = `${toDate}T23:59:59.999Z`;
-  return { fromIso, toIso };
 }
 
 export default function ReportsPage() {
@@ -97,7 +66,7 @@ export default function ReportsPage() {
     if (!deviceId) return;
 
     let isMounted = true;
-    const { fromIso, toIso } = toIsoRange(fromDate, toDate);
+    const { fromIso, toIso } = phDateRangeIso(fromDate, toDate);
 
     const loadSummary = async () => {
       try {
@@ -143,7 +112,7 @@ export default function ReportsPage() {
 
     setIsDownloading(true);
     try {
-      const { fromIso, toIso } = toIsoRange(fromDate, toDate);
+      const { fromIso, toIso } = phDateRangeIso(fromDate, toDate);
       const params = new URLSearchParams({
         deviceId,
         preset,
@@ -305,7 +274,7 @@ export default function ReportsPage() {
             <article className="summary-card">
               <div className="summary-label">Average / Day</div>
                 <div className="summary-value">{formatMetric(metricCards.day, metric)}</div>
-                <div className="summary-note">Current rate · month-to-date ÷ days elapsed</div>
+                <div className="summary-note">Current rate · month-to-date ÷ days in range</div>
             </article>
             <article className="summary-card">
               <div className="summary-label">Average / Week</div>

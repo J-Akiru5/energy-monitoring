@@ -114,7 +114,7 @@ mock.module("@energy/database", {
   },
 });
 
-const { buildConsumptionSummary } = await import("./_lib.ts");
+const { buildConsumptionSummary, parseReportFilters } = await import("./_lib.ts");
 
 const FROM = "2026-10-01T00:00:00.000Z";
 const TO = "2026-10-01T10:00:00.000Z";
@@ -321,4 +321,131 @@ test("month total equals the sum of positive deltas across a counter reset", asy
     Math.abs(summary.current.monthKwh - 22) < 0.001,
     `expected 22 kWh across the reset, got ${summary.current.monthKwh}`
   );
+});
+
+// ── PH (UTC+8) report windows ──────────────────────────────────────────
+//
+// Reports dates are PH calendar dates. Before the fix, "current_month"
+// started at Date.UTC(y, m, 1) — 08:00 PH on the 1st — so every reading
+// from 00:00 to 08:00 PH on the first day was silently excluded.
+
+const PH_NOW = new Date("2026-10-04T09:00:00.000Z"); // PH Oct 4, 17:00
+
+test("PH preset: current_month starts at the PH month start (Oct 2026)", () => {
+  const f = parseReportFilters(new URLSearchParams({ preset: "current_month" }), PH_NOW);
+  assert.equal(f.fromIso, "2026-09-30T16:00:00.000Z");
+  assert.equal(f.toIso, PH_NOW.toISOString());
+});
+
+test("PH preset: today covers the PH calendar day, not the UTC day", () => {
+  const f = parseReportFilters(new URLSearchParams({ preset: "today" }), PH_NOW);
+  assert.equal(f.fromIso, "2026-10-03T16:00:00.000Z");
+  assert.equal(f.toIso, "2026-10-04T15:59:59.999Z");
+});
+
+test("PH preset: custom +08:00 date inputs parse to the PH instants", () => {
+  const f = parseReportFilters(
+    new URLSearchParams({
+      preset: "custom",
+      from: "2026-10-01T00:00:00.000+08:00",
+      to: "2026-10-01T23:59:59.999+08:00",
+    }),
+    PH_NOW
+  );
+  assert.equal(f.fromIso, "2026-09-30T16:00:00.000Z");
+  assert.equal(f.toIso, "2026-10-01T15:59:59.999Z");
+});
+
+/**
+ * Fixture: a monotonic counter from PH Oct 1 00:00 to PH Oct 4 17:00.
+ * The first 8 PH hours (00:00-08:00 on the 1st) add 6.186 kWh; the rest
+ * adds 40.496 kWh. True month-to-date = 46.682 kWh. Pre-fix, the UTC
+ * month start (Oct 1 08:00 PH) drops the 6.186.
+ */
+function makePhOctoberFixture() {
+  const rows = [];
+  const startMs = Date.parse("2026-09-30T16:00:00.000Z"); // PH Oct 1 00:00
+  const splitMs = Date.parse("2026-10-01T00:00:00.000Z"); // PH Oct 1 08:00
+  const endMs = Date.parse("2026-10-04T09:00:00.000Z"); // PH Oct 4 17:00
+  const stepMs = 30 * 60 * 1000;
+
+  let id = 1;
+  // Segment 1: 100 → 106.186 (16 steps of 30 min = 8h).
+  const seg1Steps = (splitMs - startMs) / stepMs;
+  for (let i = 0; i <= seg1Steps; i++) {
+    const energy = Number((100 + (6.186 * i) / seg1Steps).toFixed(6));
+    rows.push(makeRowAt(new Date(startMs + i * stepMs).toISOString(), energy, id++));
+  }
+  // Segment 2: 106.186 → 146.682 (40.496 over the remaining 81h).
+  const seg2Steps = (endMs - splitMs) / stepMs;
+  for (let i = 1; i <= seg2Steps; i++) {
+    const energy = Number((106.186 + (40.496 * i) / seg2Steps).toFixed(6));
+    rows.push(makeRowAt(new Date(splitMs + i * stepMs).toISOString(), energy, id++));
+  }
+  return rows;
+}
+
+test("PH window keeps the 00:00-08:00 PH readings on the 1st (46.682 fixture)", async () => {
+  const rows = makePhOctoberFixture();
+  fake = makeFakeDatabase({ power_readings: rows });
+
+  const f = parseReportFilters(new URLSearchParams({ preset: "current_month" }), PH_NOW);
+  const summary = await buildConsumptionSummary("dev-1", "cust-1", f);
+
+  assert.ok(
+    Math.abs(summary.current.monthKwh - 46.682) < 0.001,
+    `PH month-to-date should be 46.682 kWh (40.496 without the first 8 PH hours), got ${summary.current.monthKwh}`
+  );
+});
+
+test("default range: week total never exceeds the month total", async () => {
+  // 20 PH days of readings at hourly cadence, +1 kWh/day.
+  const rows = [];
+  const startMs = Date.parse("2026-09-30T16:00:00.000Z");
+  let energy = 100;
+  for (let i = 0; i <= 20 * 24; i++) {
+    rows.push(makeRowAt(new Date(startMs + i * 3600e3).toISOString(), Number(energy.toFixed(6)), i + 1));
+    energy += 1 / 24;
+  }
+  fake = makeFakeDatabase({ power_readings: rows });
+
+  const f = parseReportFilters(
+    new URLSearchParams({ preset: "current_month" }),
+    new Date("2026-10-20T09:00:00.000Z")
+  );
+  const summary = await buildConsumptionSummary("dev-1", "cust-1", f);
+
+  assert.ok(
+    summary.current.weekKwh <= summary.current.monthKwh + 1e-9,
+    `week (${summary.current.weekKwh}) must not exceed month (${summary.current.monthKwh}) on the default range`
+  );
+});
+
+test("Option B: avg/day divides by PH days from the range start, not the full day-of-month", async () => {
+  const rows = [
+    makeRowAt("2026-09-30T16:00:00.000Z", 100, 1), // PH Oct 1
+    makeRowAt("2026-10-01T16:00:00.000Z", 110, 2), // PH Oct 2
+    makeRowAt("2026-10-02T16:00:00.000Z", 180, 3), // PH Oct 3
+    makeRowAt("2026-10-10T04:00:00.000Z", 222.4, 4), // PH Oct 10 12:00
+  ];
+  fake = makeFakeDatabase({ power_readings: rows });
+
+  const f = parseReportFilters(
+    new URLSearchParams({
+      preset: "custom",
+      from: "2026-10-03T00:00:00.000+08:00",
+      to: "2026-10-10T23:59:59.999+08:00",
+    }),
+    new Date("2026-10-10T04:00:00.000Z")
+  );
+  const summary = await buildConsumptionSummary("dev-1", "cust-1", f);
+
+  // 42.4 kWh over 8 PH calendar days (Oct 3-10 inclusive), not 10
+  // (the full day-of-month — the pre-fix divisor gave 4.24).
+  assert.ok(
+    Math.abs(summary.averages.dayKwh - 5.3) < 0.001,
+    `avg/day should be 5.3 (42.4 / 8 days), got ${summary.averages.dayKwh}`
+  );
+  assert.ok(Math.abs(summary.averages.weekKwh - 37.1) < 0.001);
+  assert.ok(Math.abs(summary.averages.monthKwh - 159) < 0.001);
 });

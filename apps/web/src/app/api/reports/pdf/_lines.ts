@@ -118,7 +118,7 @@ export function buildReportLines(summary: ConsumptionSummary): ReportLine[] {
     push(`Current point: ${peso(summary.current.monthEstimatedPhp)}`, 11, false, BODY);
   } else {
     push(`Day (last 24h): ${kwh(summary.current.dayKwh)}  |  ${peso(summary.current.dayEstimatedPhp)}`, 11, false, BODY);
-    push(`Week (calendar week): ${kwh(summary.current.weekKwh)}  |  ${peso(summary.current.weekEstimatedPhp)}`, 11, false, BODY);
+    push(`Week (last 7 days): ${kwh(summary.current.weekKwh)}  |  ${peso(summary.current.weekEstimatedPhp)}`, 11, false, BODY);
     push(
       `Month (${summary.current.monthLabel}): ${kwh(summary.current.monthKwh)}  |  ${peso(summary.current.monthEstimatedPhp)}`,
       11,
