@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Monitoring — RM-04 Automated UI/UX Review (WCAG 2.2 AA)</title>
+<style>
+:root{
+  --bg:#050505; --text:#ededed; --text2:#B7BFCB; --muted:#8A93A0;
+  --line:rgba(255,255,255,.10);
+  --panel:rgba(255,255,255,.045);
+  --field:rgba(255,255,255,.06);
+  --accent:#22D3EE; --accent-2:#A855F7;
+  --grad:linear-gradient(135deg,#22D3EE,#A855F7);
+  --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --r-sm:6px; --r-lg:16px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,h4,p,dl,dd,figure,blockquote{margin:0}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.14;font-weight:800;letter-spacing:-.025em}
+h2{font-size:clamp(20px,2.6vw,27px);line-height:1.22;font-weight:700;letter-spacing:-.015em;margin-bottom:12px}
+h3{font-size:17px;font-weight:700;margin:22px 0 8px}
+h4{font-size:15px;font-weight:700}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:var(--mono)}
+code{font-size:.88em;background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:var(--r-sm)}
+pre{margin:14px 0 0;background:#0a0c10;border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--text2)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;height:64px;
+  padding:0 clamp(16px,3vw,40px);background:rgba(5,5,5,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.wordmark b{color:var(--accent)}
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;text-transform:uppercase;
+  color:var(--accent);display:inline-block;white-space:nowrap;line-height:1.6}
+.chip.d{color:var(--ok)} .chip.u{color:var(--warn)} .chip.c{color:var(--danger)} .chip.i{color:var(--accent-2)}
+.shell{display:grid;grid-template-columns:230px minmax(0,1fr) 280px;gap:clamp(20px,2.6vw,36px);
+  padding:28px clamp(16px,3vw,40px) 90px;max-width:1720px;margin:0 auto;align-items:start}
+.sidebar,.rail{position:sticky;top:84px;max-height:calc(100vh - 108px);overflow-y:auto}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar a{display:block;padding:9px 10px;min-height:40px;border-radius:var(--r-sm);color:var(--text2);font-size:13.5px;border-left:2px solid transparent}
+.sidebar a:hover{color:var(--text);text-decoration:none;background:var(--panel)}
+.sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel)}
+.rail .panel{margin-bottom:14px}
+.rail .facts dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;margin:0}
+.rail .facts dt{color:var(--muted)}
+.rail .facts dd{margin:0;text-align:right;min-width:0}
+.rail .quote{font-style:italic;font-size:13.5px;color:var(--text2)}
+main{min-width:0}
+.section{padding:8px 0 46px;scroll-margin-top:88px}
+.section+.section{border-top:1px solid var(--line);padding-top:38px}
+.section p{max-width:78ch;color:var(--text2)}
+.section p+p{margin-top:12px}
+.section p strong,.section li strong{color:var(--text)}
+.lede{font-size:17.5px;color:var(--text2);max-width:78ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:20px 22px}
+.callout{position:relative;padding:18px 22px 18px 26px;border-radius:var(--r-lg);margin:20px 0;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.callout::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.callout.danger::before{background:var(--danger)}
+.callout.warn::before{background:var(--warn)}
+.callout.ok::before{background:var(--ok)}
+.callout h3{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+.callout .tag{float:right;margin-left:12px}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 18px;min-width:132px;flex:1 1 132px}
+.stat b{display:block;font-size:clamp(22px,2.6vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat.c b{background:none;color:var(--danger);-webkit-text-fill-color:var(--danger)}
+.stat span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-top:16px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.mono{font-family:var(--mono);font-size:.92em}
+.ok{color:var(--ok);font-weight:600}
+.bad{color:var(--danger);font-weight:600}
+.warn{color:var(--warn);font-weight:600}
+.ul-tight{padding-left:20px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+.ul-tight li{margin:7px 0}
+.footnote{font-size:13px;color:var(--muted);max-width:80ch;margin-top:12px}
+.footer{border-top:1px solid var(--line);margin-top:10px;padding:22px clamp(16px,3vw,40px) 40px;color:var(--muted);font-size:13px;max-width:1720px;margin-left:auto;margin-right:auto}
+@media (max-width:1280px){ .shell{grid-template-columns:230px minmax(0,1fr)} .rail{display:none} }
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:18px}
+  .sidebar{position:static;max-height:none;overflow:visible}
+  .sidebar nav{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .sidebar a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .sidebar a.active{border-left:0;border-bottom-color:var(--accent)}
+  table{min-width:520px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark"><b>Syntaxure</b> / EMS UI/UX Review · RM-04</div>
+  <div class="top-meta">
+    <span class="chip">2026-10-04</span>
+    <span class="chip d">automated pass green</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav aria-label="Sections">
+      <a href="#s-tldr" class="active">TL;DR</a>
+      <a href="#s-method">Method</a>
+      <a href="#s-results">Before / after results</a>
+      <a href="#s-findings">Findings &amp; fixes</a>
+      <a href="#s-production">Production verification</a>
+      <a href="#s-pipeline">Pipeline notes</a>
+      <a href="#s-workbench">Workbench status</a>
+    </nav>
+  </aside>
+
+  <main>
+
+    <article class="section" id="s-tldr">
+      <h1>RM-04 — Automated UI/UX Review (WCAG 2.2 AA)</h1>
+      <p class="lede"><strong>RM-04 advanced to its automatable limit.</strong> A real browser (system Chrome, driven by Playwright) walked the staging deployments: all three apps' login pages, the web dashboard, and the logout flow — both themes, with axe-core running the WCAG 2.2 A/AA rule set. The pass found <strong>two serious violation types</strong> (a 2.54:1 contrast failure and invalid <code>&lt;dl&gt;</code> semantics) plus <strong>one target-size flag</strong>; all three are fixed, re-verified at <strong>0 violations</strong> on staging, and live in production. The human workbench verdict still needs the super-admin landing page and a manual keyboard/screen-reader walk.</p>
+
+      <div class="stat-row">
+        <div class="stat"><b>9</b><span>screens reviewed (3 apps × 2 themes + dashboard + logout)</span></div>
+        <div class="stat"><b>3</b><span>findings: 2 serious + 1 target size — all fixed</span></div>
+        <div class="stat"><b>0</b><span>axe violations after the fixes, light and dark</span></div>
+        <div class="stat"><b>1</b><span>screen still needing a human: super-admin landing</span></div>
+      </div>
+    </article>
+
+    <article class="section" id="s-method">
+      <h2>Method</h2>
+      <ul class="ul-tight">
+        <li><strong>Browser:</strong> installed Chrome via Playwright's <code>channel: "chrome"</code> (the Chromium download was blocked; the system browser avoids it).</li>
+        <li><strong>Rules:</strong> axe-core with the <code>wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa</code> tag set, injected into each page.</li>
+        <li><strong>Environment:</strong> the staging deployments behind Vercel Authentication, reached with per-project automation bypass secrets; authenticated screens used a real SSR session cookie for the disposable fixture user.</li>
+        <li><strong>Beyond axe:</strong> keyboard focus walk (first 8 stops, computed focus indicator), pointer-target sizes (in-viewport, &lt; 24 CSS px), and 320 px reflow (no horizontal overflow).</li>
+        <li><strong>Coverage limits:</strong> automated tooling cannot judge screen-reader phrasing, motion comfort, or visual intent; the super-admin landing page needs a super-admin session (no fixture exists, and creating one is a live DB mutation outside this task's scope).</li>
+      </ul>
+    </article>
+
+    <article class="section" id="s-results">
+      <h2>Before / after results</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Screen</th><th>Theme</th><th>Before (b47a381)</th><th>After (cfba894)</th></tr></thead>
+          <tbody>
+            <tr><td>web /login</td><td>light</td><td class="bad">3 violations</td><td class="ok">0</td></tr>
+            <tr><td>web /login</td><td>dark</td><td class="bad">3 violations</td><td class="ok">0</td></tr>
+            <tr><td>admin /login</td><td>light</td><td class="bad">1 violation</td><td class="ok">0</td></tr>
+            <tr><td>admin /login</td><td>dark</td><td class="bad">1 violation</td><td class="ok">0</td></tr>
+            <tr><td>super-admin /login</td><td>light</td><td class="bad">1 violation</td><td class="ok">0</td></tr>
+            <tr><td>super-admin /login</td><td>dark</td><td class="bad">1 violation</td><td class="ok">0</td></tr>
+            <tr><td>web /dashboard</td><td>light</td><td class="ok">0</td><td class="ok">0</td></tr>
+            <tr><td>web /dashboard</td><td>dark</td><td class="ok">0</td><td class="ok">0</td></tr>
+            <tr><td>web logout</td><td>—</td><td>redirected, session cleared</td><td class="ok">redirects to /login, session cleared</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">Target sizes: one in-viewport element under 24 px before (dashboard ALERTS header link, 347×18) — none after. Reflow at 320 px: no horizontal overflow. Keyboard focus walk: every stop showed a visible indicator (outline or box-shadow).</p>
+    </article>
+
+    <article class="section" id="s-findings">
+      <h2>Findings &amp; fixes</h2>
+
+      <div class="callout danger">
+        <span class="tag chip c">S2 — serious</span>
+        <h3>Login supporting text at 2.54:1 (WCAG 1.4.3)</h3>
+        <p><code>#475569</code> on <code>#0A0E1A</code> at 12 px, on every app's login page. Fixed to <code>#94A3B8</code> (<strong>7.5:1</strong>) in <code>packages/ui/src/LoginForm.tsx</code>; the same color on the <code>AuthSplitLayout</code> footer was fixed for consistency.</p>
+      </div>
+
+      <div class="callout danger">
+        <span class="tag chip c">S2 — serious</span>
+        <h3>Invalid definition-list semantics (WCAG 1.3.1)</h3>
+        <p>The login feature list wrapped each <code>&lt;dt&gt;</code> in an inner div, so axe reported <code>definition-list</code> + 4× <code>dlitem</code> — screen readers could not announce the pairs as a list. Restructured in <code>packages/ui/src/AuthSplitLayout.tsx</code> so each card div directly contains its <code>&lt;dt&gt;</code> (icon + title in one flex dt) and <code>&lt;dd&gt;</code>.</p>
+      </div>
+
+      <div class="callout warn">
+        <span class="tag chip u">S3 — minor</span>
+        <h3>Dashboard ALERTS header link: 347×18 target (WCAG 2.5.8)</h3>
+        <p>The panel header "Alerts" is a link to <code>/alerts</code> styled as a 12 px label with no padding. Added <code>minHeight: 24</code> + 3 px vertical padding in <code>apps/web/src/app/dashboard/page.tsx</code>. The spacing exception likely applied before, but the explicit target size removes the judgment call.</p>
+      </div>
+
+      <p class="footnote">Fix commit: <code>3166400</code> (PR #35 → develop → staging → main). Verified locally with the same axe rule set before deploying, then on staging after.</p>
+    </article>
+
+    <article class="section" id="s-production">
+      <h2>Production verification</h2>
+      <p>All three production login pages were checked after promotion:</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Production URL</th><th>Fixed supporting text</th><th>Old color gone</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">energy-monitoring-web.vercel.app/login</td><td class="ok">#94A3B8 ✓ (valid &lt;dl&gt;)</td><td class="ok">✓</td></tr>
+            <tr><td class="mono">energy-monitoring-admin.vercel.app/login</td><td class="ok">#94A3B8 ✓</td><td class="ok">✓</td></tr>
+            <tr><td class="mono">energy-monitoring-super-admin.vercel.app/login</td><td class="ok">#94A3B8 ✓</td><td class="ok">✓</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="section" id="s-pipeline">
+      <h2>Pipeline notes (found while promoting)</h2>
+      <div class="callout warn">
+        <span class="tag chip u">Operational</span>
+        <h3>Rapid same-SHA pushes can skip a staging deployment</h3>
+        <p>Promoting by pushing the identical merge SHA to <code>develop</code> then immediately to <code>staging</code>/<code>main</code> hit Vercel's duplicate-commit handling: <code>cfba894</code> produced only a <code>develop</code> deployment, so the staging aliases kept serving the previous build until they were repointed to the identical-SHA deployment. The admin project built a normal main deployment; web and super-admin needed alias repoints. <strong>Fix for next time:</strong> after each promotion, verify a deployment exists for the target ref (Vercel API) rather than assuming the push deployed — or space the pushes out.</p>
+      </div>
+      <div class="callout warn">
+        <span class="tag chip u">Operational</span>
+        <h3>Free-tier API deployment limit reached</h3>
+        <p><code>vercel promote</code> and API deployment creation both returned 402 (<code>api-deployments-free-per-day</code>, 100/day) — alias assignment still works, which is how the staging/production aliases were corrected. Worth knowing before relying on promote/redeploy during a release day.</p>
+      </div>
+    </article>
+
+    <article class="section" id="s-workbench">
+      <h2>Workbench status</h2>
+      <p><strong>Automated evidence: complete and green.</strong> The workbench's own rules make an overall verdict "Incomplete" until every check is reviewed, so the suggested verdict for the covered surfaces is <strong>Approve</strong> (0 violations in both themes) with these still open:</p>
+      <ul class="ul-tight">
+        <li><strong>Super-admin landing page</strong> — requires a super-admin session (needs Jeff or a temporary grant; both themes).</li>
+        <li><strong>Manual functional walk</strong> — keyboard-only completion of login and logout (focus order beyond 8 stops, Esc behavior), and one screen-reader pass.</li>
+        <li><strong>Visual judgment items</strong> — practice checks (hierarchy, spacing consistency, empty states) that automated tooling can't score.</li>
+      </ul>
+      <p class="footnote">Screenshots from every reviewed screen (before and after) are retained locally in the review workspace; they are not committed to the repo.</p>
+    </article>
+
+  </main>
+
+  <aside class="rail">
+    <div class="panel facts">
+      <h3>Key facts</h3>
+      <dl>
+        <dt>Reviewed</dt><dd>9 screens, 2 themes</dd>
+        <dt>Tooling</dt><dd>Playwright + axe-core</dd>
+        <dt>Findings</dt><dd class="bad">2 serious, 1 minor</dd>
+        <dt>After fixes</dt><dd class="ok">0 violations</dd>
+        <dt>Fix commit</dt><dd class="mono">3166400</dd>
+        <dt>Live on</dt><dd>staging + production</dd>
+      </dl>
+    </div>
+    <div class="panel">
+      <h3>Status</h3>
+      <p style="font-size:13.5px;color:var(--text2)">Automated pass green and deployed. Human workbench verdict pending: super-admin landing page + manual keyboard/screen-reader walk.</p>
+    </div>
+    <blockquote class="panel quote">Automation can prove the contrast is 7.5:1. It cannot tell you the login feels trustworthy.</blockquote>
+  </aside>
+</div>
+
+<div class="footer">
+  Energy Monitoring · RM-04 automated UI/UX review · 2026-10-04 · 9 screens · 3 findings fixed · 0 violations after · manual workbench verdict pending
+</div>
+
+</body>
+</html>
