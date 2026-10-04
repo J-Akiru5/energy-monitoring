@@ -189,6 +189,90 @@ test("includes rows beyond 5000 (newest data not dropped)", async () => {
   );
 });
 
+function makeRowAt(ts, energy, id) {
+  return { ...makeRow(0, energy), id, recorded_at: ts };
+}
+
+test("invariant: averages are ordered day <= week <= month (kWh and cost)", async () => {
+  const rows = [
+    makeRowAt("2026-09-30T16:00:00.000Z", 100, 1), // PH Oct 1 00:00
+    makeRowAt("2026-09-30T22:00:00.000Z", 102, 2), // PH Oct 1 06:00
+    makeRowAt("2026-10-01T16:00:00.000Z", 105, 3), // PH Oct 2 00:00
+    makeRowAt("2026-10-02T04:00:00.000Z", 107, 4), // PH Oct 2 12:00
+    makeRowAt("2026-10-02T16:00:00.000Z", 110, 5), // PH Oct 3 00:00
+  ];
+  fake = makeFakeDatabase({ power_readings: rows });
+
+  const summary = await buildConsumptionSummary("dev-1", "cust-1", {
+    ...filters,
+    fromIso: "2026-09-30T16:00:00.000Z",
+    toIso: "2026-10-03T16:00:00.000Z",
+  });
+
+  assert.ok(
+    summary.averages.dayKwh <= summary.averages.weekKwh &&
+      summary.averages.weekKwh <= summary.averages.monthKwh,
+    `kWh ordering broken: ${summary.averages.dayKwh}/${summary.averages.weekKwh}/${summary.averages.monthKwh}`
+  );
+  assert.ok(
+    summary.averages.dayEstimatedPhp <= summary.averages.weekEstimatedPhp &&
+      summary.averages.weekEstimatedPhp <= summary.averages.monthEstimatedPhp,
+    `cost ordering broken: ${summary.averages.dayEstimatedPhp}/${summary.averages.weekEstimatedPhp}/${summary.averages.monthEstimatedPhp}`
+  );
+});
+
+test("invariant: month total equals the sum of its PH days", async () => {
+  // Per-day deltas (with boundary carry): 2 + 5 + 3 = 10.
+  const rows = [
+    makeRowAt("2026-09-30T16:00:00.000Z", 100, 1),
+    makeRowAt("2026-09-30T22:00:00.000Z", 102, 2),
+    makeRowAt("2026-10-01T16:00:00.000Z", 105, 3),
+    makeRowAt("2026-10-02T04:00:00.000Z", 107, 4),
+    makeRowAt("2026-10-02T16:00:00.000Z", 110, 5),
+  ];
+  fake = makeFakeDatabase({ power_readings: rows });
+
+  const summary = await buildConsumptionSummary("dev-1", "cust-1", {
+    ...filters,
+    fromIso: "2026-09-30T16:00:00.000Z",
+    toIso: "2026-10-03T16:00:00.000Z",
+  });
+
+  assert.ok(
+    Math.abs(summary.current.monthKwh - 10) < 0.001,
+    `month total should be 10 kWh, got ${summary.current.monthKwh}`
+  );
+  // day 1: 2, day 2: 105→107 = 2 plus carry 105-102 = 3 → 5, day 3: 110-107 = 3
+  assert.ok(Math.abs(summary.averages.dayKwh - 10 / 3) < 0.001);
+});
+
+test("invariant: a 1.38h burst must NOT yield ~322 kWh/day", async () => {
+  const rows = [];
+  let energy = 100;
+  const n = 828; // 828 * 6s = 1.38h
+  const inc = 18.557 / n;
+  for (let i = 0; i < n; i++) {
+    energy = Number((energy + inc).toFixed(6));
+    rows.push(makeRowAt(new Date(Date.parse("2026-09-30T16:00:00.000Z") + i * 6000).toISOString(), energy, i + 1));
+  }
+  fake = makeFakeDatabase({ power_readings: rows });
+
+  const summary = await buildConsumptionSummary("dev-1", "cust-1", {
+    ...filters,
+    fromIso: "2026-09-30T16:00:00.000Z",
+    toIso: "2026-10-01T16:00:00.000Z",
+  });
+
+  assert.ok(
+    summary.averages.dayKwh < 100,
+    `burst must not inflate the daily average (got ${summary.averages.dayKwh})`
+  );
+  // Latest is PH Oct 1 → exactly one elapsed day, so day = month-to-date.
+  assert.ok(Math.abs(summary.averages.dayKwh - summary.current.monthKwh) < 0.01);
+  assert.ok(Math.abs(summary.averages.weekKwh - summary.averages.dayKwh * 7) < 0.01);
+  assert.ok(Math.abs(summary.averages.monthKwh - summary.averages.dayKwh * 30) < 0.01);
+});
+
 test("end-to-end: real summary -> real lines -> a real PDF", async () => {
   const rows = [];
   let energy = 100;

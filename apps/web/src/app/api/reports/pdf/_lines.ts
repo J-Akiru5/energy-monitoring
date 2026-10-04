@@ -139,18 +139,18 @@ export function buildReportLines(summary: ConsumptionSummary): ReportLine[] {
     push(`Average per week: ${watts(summary.powerStats.weekAvgW)}`, 11, false, BODY);
     push(`Average per month: ${watts(summary.powerStats.monthAvgW)}`, 11, false, BODY);
   } else if (summary.filters.metric === "cost") {
-    push(`Average per day: ${peso(summary.averages.dayEstimatedPhp)}`, 11, false, BODY);
-    push(`Average per week: ${peso(summary.averages.weekEstimatedPhp)}`, 11, false, BODY);
-    push(`Average per month: ${peso(summary.averages.monthEstimatedPhp)}`, 11, false, BODY);
+    push(`Average per day (current rate): ${peso(summary.averages.dayEstimatedPhp)}`, 11, false, BODY);
+    push(`Average per week (day x 7): ${peso(summary.averages.weekEstimatedPhp)}`, 11, false, BODY);
+    push(`Average per month (day x 30): ${peso(summary.averages.monthEstimatedPhp)}`, 11, false, BODY);
   } else {
-    push(`Average per day: ${kwh(summary.averages.dayKwh)}  |  ${peso(summary.averages.dayEstimatedPhp)}`, 11, false, BODY);
+    push(`Average per day (current rate): ${kwh(summary.averages.dayKwh)}  |  ${peso(summary.averages.dayEstimatedPhp)}`, 11, false, BODY);
     push(
-      `Average per week (rolling): ${kwh(summary.averages.weekKwh)}  |  ${peso(summary.averages.weekEstimatedPhp)}`,
+      `Average per week (day x 7): ${kwh(summary.averages.weekKwh)}  |  ${peso(summary.averages.weekEstimatedPhp)}`,
       11,
       false,
       BODY
     );
-    push(`Average per month: ${kwh(summary.averages.monthKwh)}  |  ${peso(summary.averages.monthEstimatedPhp)}`, 11, false, BODY);
+    push(`Average per month (day x 30): ${kwh(summary.averages.monthKwh)}  |  ${peso(summary.averages.monthEstimatedPhp)}`, 11, false, BODY);
   }
 
   push("Monthly History (filtered window)", 14, true, SLATE, 8);

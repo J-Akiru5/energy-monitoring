@@ -108,7 +108,7 @@ td strong{color:var(--text)}
   <div class="wordmark"><b>Syntaxure</b> / EMS Student Report Fixes</div>
   <div class="top-meta">
     <span class="chip">2026-10-04</span>
-    <span class="chip u">averages decision pending</span>
+    <span class="chip d">all three defects fixed</span>
   </div>
 </header>
 
@@ -121,7 +121,7 @@ td strong{color:var(--text)}
       <a href="#s-fixes">Fixes</a>
       <a href="#s-tests">Test results</a>
       <a href="#s-ordering">Cost-ordering reproduction</a>
-      <a href="#s-pending">Pending decision — averages</a>
+      <a href="#s-pending">Averages — approved</a>
     </nav>
   </aside>
 
@@ -129,13 +129,13 @@ td strong{color:var(--text)}
 
     <article class="section" id="s-tldr">
       <h1>Student Report Defects — Diagnosis &amp; Fixes</h1>
-      <p class="lede"><strong>WVSU student reports, three defects.</strong> All three were reproduced with tests before any code changed, and the two mechanical ones are fixed: <strong>PDF generation</strong> (a single U+2192 arrow made pdf-lib throw on every request) and <strong>row truncation</strong> (Reports dropped the newest rows past 5000; History was silently capped at 1000, oldest-first). One shared energy-delta method now serves Reports, PDF, and History. The <strong>averages definition</strong> is deliberately <strong>not changed yet</strong> — that changes what a reported number means and needs your approval; the proposal is at the bottom with the exact reproduction of 322.711/day.</p>
+      <p class="lede"><strong>WVSU student reports, three defects — all fixed.</strong> Each was reproduced with tests before any code changed: <strong>PDF generation</strong> (a single U+2192 arrow made pdf-lib throw on every request), <strong>row truncation</strong> (Reports dropped the newest rows past 5000; History was silently capped at 1000, oldest-first), and the <strong>averages explosion</strong> (18.557 kWh over 1.38 h displayed as 322.711/day). One shared energy-delta method now serves Reports, PDF, and History, and the averages use the approved Option B definition (current rate, scaled) with invariant tests for ordering and month-sum.</p>
 
       <div class="stat-row">
-        <div class="stat"><b>3/3</b><span>defects reproduced with tests</span></div>
-        <div class="stat"><b>31</b><span>new/updated tests, all passing</span></div>
+        <div class="stat"><b>3/3</b><span>defects reproduced with tests, then fixed</span></div>
+        <div class="stat"><b>34</b><span>new/updated tests, all passing</span></div>
         <div class="stat"><b>0</b><span>row caps left in Reports/History paths</span></div>
-        <div class="stat c"><b>1</b><span>decision pending: averages definition</span></div>
+        <div class="stat"><b>42</b><span>existing web tests still passing</span></div>
       </div>
     </article>
 
@@ -156,7 +156,7 @@ td strong{color:var(--text)}
       <div class="callout danger">
         <span class="tag chip c">Defect 2 — averages</span>
         <h3>18.557 kWh over 1.38 h → 322.711 kWh/day</h3>
-        <p><code>averageDayKwh = totalDelta ÷ span</code> between the first and latest reading in the filtered window; week and month are then <code>day × 7</code> and <code>day × 30</code>. A short burst makes the span tiny, so the "daily average" explodes. <strong>Reproduction:</strong> a temporary unit test fed a 1.38 h / ~18.56 kWh burst through <code>buildConsumptionSummary</code> and printed <code>avgDay=322.73, avgWeek=2259.13, avgMonth=9681.98</code> — the students' 322.711 / 2,258.976 / 9,681.327 exactly. <span class="warn">Not changed yet — see the pending decision.</span></p>
+        <p><code>averageDayKwh = totalDelta ÷ span</code> between the first and latest reading in the filtered window; week and month are then <code>day × 7</code> and <code>day × 30</code>. A short burst makes the span tiny, so the "daily average" explodes. <strong>Reproduction:</strong> a temporary unit test fed a 1.38 h / ~18.56 kWh burst through <code>buildConsumptionSummary</code> and printed <code>avgDay=322.73, avgWeek=2259.13, avgMonth=9681.98</code> — the students' 322.711 / 2,258.976 / 9,681.327 exactly. <strong>Fixed</strong> with the approved definition (Option B): avg/day = month-to-date ÷ elapsed PH calendar days (min 1), week = day × 7, month = day × 30 — the same burst now reads ≈ 18.56 kWh/day, with ordering guaranteed.</p>
       </div>
 
       <div class="callout danger">
@@ -184,7 +184,7 @@ td strong{color:var(--text)}
           <thead><tr><th>Suite</th><th>What it covers</th><th>Result</th></tr></thead>
           <tbody>
             <tr><td class="mono">reports/pdf/route.test.mjs</td><td>PDF for all 12 metric×phase combos · 401 unauthenticated</td><td class="ok">13 / 13</td></tr>
-            <tr><td class="mono">reports/_lib.test.mjs</td><td>newest rows beyond 5000 included · reset delta · end-to-end real summary → real PDF</td><td class="ok">3 / 3</td></tr>
+            <tr><td class="mono">reports/_lib.test.mjs</td><td>newest rows beyond 5000 · reset delta · ordering + month-sum + burst invariants · end-to-end real summary → real PDF</td><td class="ok">6 / 6</td></tr>
             <tr><td class="mono">history/route.test.mjs</td><td>1500-row month fully read · bucket deltas sum to total · reset delta</td><td class="ok">2 / 2</td></tr>
             <tr><td class="mono">lib/energy.test.mjs</td><td>delta math · pagination merge order · cap drops oldest · error context</td><td class="ok">7 / 7</td></tr>
             <tr><td class="mono">reports/pdf/_lines.test.mjs</td><td>WinAnsi sanitizer · Current point for every metric · no arrow</td><td class="ok">6 / 6</td></tr>
@@ -213,20 +213,19 @@ td strong{color:var(--text)}
     </article>
 
     <article class="section" id="s-pending">
-      <h2>Pending decision — averages definition</h2>
-      <div class="callout warn">
-        <span class="tag chip u">Awaiting approval</span>
-        <h3>Proposed averages (not yet implemented)</h3>
+      <h2>Averages — approved &amp; implemented (Option B)</h2>
+      <div class="callout ok">
+        <span class="tag chip d">Approved &amp; implemented</span>
+        <h3>All three averages are the current rate, scaled</h3>
         <ul class="ul-tight">
-          <li><strong>avg/day</strong> = month-to-date kWh ÷ calendar days elapsed this month (PH time, minimum 1 day)</li>
+          <li><strong>avg/day</strong> = month-to-date kWh ÷ elapsed PH calendar days this month (minimum 1 day)</li>
           <li><strong>avg/week</strong> = avg/day × 7</li>
-          <li><strong>avg/month</strong> = mean of completed months, falling back to month-to-date when there are none</li>
-          <li><strong>Current month total</strong> shown separately (it already is, as "Month")</li>
+          <li><strong>avg/month</strong> = avg/day × 30</li>
+          <li><strong>Current month total</strong> stays a separate figure ("Month" / "Current point"); historical monthlies remain visible in the Monthly History list</li>
         </ul>
-        <p>With this definition the burst example gives ≈ 18.557 ÷ 4 days ≈ <strong>4.64 kWh/day</strong> instead of 322.7, and day ≤ week holds by construction (week is a scaled day rate). <strong>The month guarantee is subtler:</strong> avg/month as the mean of completed months is an independent historical figure, so a hot current month can push week above month. Options to settle with the approval: <strong>(A)</strong> keep the proposal and scope the ordering invariant to period totals (which are correctly ordered once truncation is fixed); <strong>(B)</strong> month = day × 30 (projected current rate — trivially ordered, not historical); <strong>(C)</strong> month = max(historical mean, week) (ordered, preserves the historical figure).</p>
+        <p>Option B was chosen over the historical-mean variant so that <strong>day ≤ week ≤ month holds by construction</strong> — the property students asked for. The burst example now reads ≈ 18.56 kWh/day instead of 322.7.</p>
       </div>
-      <p>The dashboard label currently claims <em>"day (last 30d), week (last 8 full calendar weeks), month (last 6 complete months)"</em> — the code does none of that. Once the definition is approved, the label is corrected to match, and the invariant tests are added: <strong>day ≤ week ≤ month</strong> (kWh and cost), <strong>month total = sum of its days</strong>, and the <strong>1.38 h burst must not yield ~322 kWh/day</strong>. The reports page "Average / Day | Week | Month" cards and the PDF averages section will then display the approved numbers.</p>
-      <p class="footnote">Until then the existing averages formula is untouched on this branch — the only pending change is the semantics, not the data plumbing.</p>
+      <p><strong>Invariant tests added and passing:</strong> day ≤ week ≤ month in both kWh and cost; the month total equals the sum of its PH days (2 + 5 + 3 = 10 fixture); and a 1.38 h / 18.557 kWh burst yields &lt; 100 kWh/day (it reads exactly month-to-date ÷ 1 elapsed day). Labels updated to match: the dashboard subtitle now says "current rate — day (month-to-date ÷ days elapsed), week (day × 7), month (day × 30)"; the reports cards note "Current rate · day × 7 / day × 30"; and the PDF averages section is labeled "(current rate)" / "(day x 7)" / "(day x 30)".</p>
     </article>
 
   </main>
@@ -237,22 +236,22 @@ td strong{color:var(--text)}
       <dl>
         <dt>Branch</dt><dd class="mono">fix/students-report-defects</dd>
         <dt>Base</dt><dd class="mono">develop @ 8b6713d</dd>
-        <dt>Defects fixed</dt><dd>PDF · truncation</dd>
-        <dt>Decision pending</dt><dd class="warn">averages</dd>
-        <dt>New tests</dt><dd>31 passing</dd>
-        <dt>Pushed</dt><dd>not yet</dd>
+        <dt>Defects fixed</dt><dd>all 3</dd>
+        <dt>Averages</dt><dd class="ok">Option B</dd>
+        <dt>New tests</dt><dd>34 passing</dd>
+        <dt>Landing</dt><dd>PR → develop</dd>
       </dl>
     </div>
     <div class="panel">
       <h3>Status</h3>
-      <p style="font-size:13.5px;color:var(--text2)">Mechanical fixes complete and verified on the dedicated branch. Averaging semantics held for Jeff's approval before any code changes what a reported number means.</p>
+      <p style="font-size:13.5px;color:var(--text2)">All three defects fixed and verified on the dedicated branch; averages approved (Option B) and covered by invariant tests. Landing as a PR to develop, no auto-merge.</p>
     </div>
     <blockquote class="panel quote">A truncated read is not an error — it is a wrong number that looks right.</blockquote>
   </aside>
 </div>
 
 <div class="footer">
-  Energy Monitoring · student report defects (apps/web) · 2026-10-04 · PDF + truncation fixed · averages pending approval · branch not pushed
+  Energy Monitoring · student report defects (apps/web) · 2026-10-04 · all 3 defects fixed · averages Option B approved &amp; implemented · PR to develop, no auto-merge
 </div>
 
 </body>

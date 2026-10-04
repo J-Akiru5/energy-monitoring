@@ -305,17 +305,17 @@ export default function ReportsPage() {
             <article className="summary-card">
               <div className="summary-label">Average / Day</div>
                 <div className="summary-value">{formatMetric(metricCards.day, metric)}</div>
-                <div className="summary-note">Auto-updates with filter changes</div>
+                <div className="summary-note">Current rate · month-to-date ÷ days elapsed</div>
             </article>
             <article className="summary-card">
               <div className="summary-label">Average / Week</div>
                 <div className="summary-value">{formatMetric(metricCards.week, metric)}</div>
-                <div className="summary-note">Phase: {phase.toUpperCase()}</div>
+                <div className="summary-note">Current rate · day × 7</div>
             </article>
             <article className="summary-card">
               <div className="summary-label">Average / Month</div>
                 <div className="summary-value">{formatMetric(metricCards.month, metric)}</div>
-                <div className="summary-note">Preset: {preset.replace("_", " ")}</div>
+                <div className="summary-note">Current rate · day × 30</div>
             </article>
             <article className="summary-card">
                 <div className="summary-label">Current Point</div>
