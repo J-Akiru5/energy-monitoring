@@ -580,7 +580,14 @@ export default function DashboardPage() {
           <Link
             href="/alerts"
             className="tile-label"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              flexShrink: 0,
+              minHeight: 24,
+              padding: "3px 2px",
+            }}
           >
             Alerts
             {alerts.length > 0 && (

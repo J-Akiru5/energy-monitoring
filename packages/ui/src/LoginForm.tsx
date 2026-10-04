@@ -160,7 +160,7 @@ export function LoginForm({
       </form>
 
       {supportingText ? (
-        <p className="mt-8 text-center text-[12px] text-[#475569]">
+        <p className="mt-8 text-center text-[12px] text-[#94A3B8]">
           {supportingText}
         </p>
       ) : null}
