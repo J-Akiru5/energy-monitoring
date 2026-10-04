@@ -326,6 +326,11 @@ a {
   color: #fb7185;
 }
 
+.status-badge.offline {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
