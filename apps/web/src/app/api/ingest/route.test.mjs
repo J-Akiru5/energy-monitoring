@@ -104,3 +104,46 @@ test("bare { sensorOffline: true, phaseMode: 1 } fires PZEM_OFFLINE alerts for a
     "all three phases must be reported, not just Phase A"
   );
 });
+
+test("malformed JSON body → 400 (not 500)", async () => {
+  const res = await POST(
+    new Request("http://localhost:3000/api/ingest", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-device-token": "test-token",
+      },
+      body: "{not-json",
+    })
+  );
+  assert.equal(res.status, 400);
+  const json = await res.json();
+  assert.equal(json.error, "Invalid JSON body");
+});
+
+test("payload deviceId that does not match the token's device → 401", async () => {
+  const res = await POST(
+    new Request("http://localhost:3000/api/ingest", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-device-token": "test-token",
+      },
+      body: JSON.stringify({
+        deviceId: "some-other-device",
+        timestamp: new Date().toISOString(),
+        reading: {
+          voltage: 220,
+          current: 1,
+          power: 220,
+          energy: 0.1,
+          frequency: 60,
+          powerFactor: 0.95,
+        },
+      }),
+    })
+  );
+  assert.equal(res.status, 401);
+  const json = await res.json();
+  assert.match(json.error, /does not match/);
+});

@@ -82,7 +82,13 @@ export async function POST(req: NextRequest) {
 
     const tenantStamp = await lookupControllerByDevice(device.id);
 
-    const body = await req.json();
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
     const parsed = TelemetryPayloadSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -93,6 +99,17 @@ export async function POST(req: NextRequest) {
     }
 
     const payload = parsed.data;
+
+    // SECURITY: the token's device is the identity. A valid token for
+    // device A must never write telemetry attributed to device B — the
+    // body's deviceId is trusted only when it matches the authenticated
+    // device (same binding the thresholds and pzem-config routes enforce).
+    if (payload.deviceId !== device.id) {
+      return NextResponse.json(
+        { error: "Device token does not match payload deviceId" },
+        { status: 401 }
+      );
+    }
 
     const now = Date.now();
     const lastTime = lastPostTime.get(payload.deviceId) || 0;

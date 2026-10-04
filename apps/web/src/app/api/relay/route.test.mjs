@@ -294,3 +294,19 @@ test("POST invalid command (missing deviceId) → 422, ownership check not reach
   assert.deepEqual(lookupCalls, []);
   assert.deepEqual(updateCalls, []);
 });
+
+test("POST malformed JSON → 400 (not 500)", async () => {
+  reset();
+  currentAccess = { isSuperAdmin: false, customerId: CUSTOMER_A, permissions: [] };
+  const res = await POST(
+    new NextRequest("http://localhost/api/relay", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{not-json",
+    })
+  );
+  assert.equal(res.status, 400);
+  const json = await res.json();
+  assert.equal(json.error, "Invalid request body");
+  assert.deepEqual(updateCalls, []);
+});

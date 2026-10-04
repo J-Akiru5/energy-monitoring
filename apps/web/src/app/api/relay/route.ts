@@ -260,7 +260,7 @@ async function parseRelayCommand(req: NextRequest): Promise<ParseRelayCommandRes
     console.error("[/api/relay] Command parse error:", err);
     return {
       ok: false,
-      response: noStoreJson({ error: "Internal server error" }, 500),
+      response: noStoreJson({ error: "Invalid request body" }, 400),
     };
   }
 }
