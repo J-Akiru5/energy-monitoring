@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Monitoring — RM-08: Provider Ownership (ownership_party) · 2026-10-05</title>
+<style>
+:root{
+  --bg:#050505; --text:#ededed; --text2:#B7BFCB; --muted:#8A93A0;
+  --line:rgba(255,255,255,.10);
+  --panel:rgba(255,255,255,.045);
+  --field:rgba(255,255,255,.06);
+  --accent:#22D3EE; --accent-2:#A855F7;
+  --grad:linear-gradient(135deg,#22D3EE,#A855F7);
+  --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --r-sm:6px; --r-lg:16px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,h4,p,dl,dd,figure,blockquote{margin:0}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.14;font-weight:800;letter-spacing:-.025em}
+h2{font-size:clamp(20px,2.6vw,27px);line-height:1.22;font-weight:700;letter-spacing:-.015em;margin-bottom:12px}
+h3{font-size:17px;font-weight:700;margin:22px 0 8px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:var(--mono)}
+code{font-size:.88em;background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:var(--r-sm)}
+pre{margin:14px 0 0;background:#0a0c10;border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--text2)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;height:64px;
+  padding:0 clamp(16px,3vw,40px);background:rgba(5,5,5,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.wordmark b{color:var(--accent)}
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;text-transform:uppercase;
+  color:var(--accent);display:inline-block;white-space:nowrap;line-height:1.6}
+.chip.d{color:var(--ok)} .chip.u{color:var(--warn)} .chip.c{color:var(--danger)} .chip.i{color:var(--accent-2)}
+.shell{display:grid;grid-template-columns:230px minmax(0,1fr) 280px;gap:clamp(20px,2.6vw,36px);
+  padding:28px clamp(16px,3vw,40px) 90px;max-width:1720px;margin:0 auto;align-items:start}
+.sidebar,.rail{position:sticky;top:84px;max-height:calc(100vh - 108px);overflow-y:auto}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar a{display:block;padding:9px 10px;min-height:40px;border-radius:var(--r-sm);color:var(--text2);font-size:13.5px;border-left:2px solid transparent}
+.sidebar a:hover{color:var(--text);text-decoration:none;background:var(--panel)}
+.sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel)}
+.rail .panel{margin-bottom:14px}
+.rail .facts dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;margin:0}
+.rail .facts dt{color:var(--muted)}
+.rail .facts dd{margin:0;text-align:right;min-width:0}
+.rail .quote{font-style:italic;font-size:13.5px;color:var(--text2)}
+main{min-width:0}
+.section{padding:8px 0 46px;scroll-margin-top:88px}
+.section+.section{border-top:1px solid var(--line);padding-top:38px}
+.section p{max-width:78ch;color:var(--text2)}
+.section p+p{margin-top:12px}
+.section p strong,.section li strong{color:var(--text)}
+.lede{font-size:17.5px;color:var(--text2);max-width:78ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:20px 22px}
+.callout{position:relative;padding:18px 22px 18px 26px;border-radius:var(--r-lg);margin:20px 0;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.callout::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.callout.danger::before{background:var(--danger)}
+.callout.warn::before{background:var(--warn)}
+.callout.ok::before{background:var(--ok)}
+.callout h3{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+.callout .tag{float:right;margin-left:12px}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 18px;min-width:132px;flex:1 1 132px}
+.stat b{display:block;font-size:clamp(22px,2.6vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-top:16px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.mono{font-family:var(--mono);font-size:.92em}
+.ok{color:var(--ok);font-weight:600}
+.bad{color:var(--danger);font-weight:600}
+.warn{color:var(--warn);font-weight:600}
+.ul-tight{padding-left:20px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+.ul-tight li{margin:7px 0}
+.footnote{font-size:13px;color:var(--muted);max-width:80ch;margin-top:12px}
+.footer{border-top:1px solid var(--line);margin-top:10px;padding:22px clamp(16px,3vw,40px) 40px;color:var(--muted);font-size:13px;max-width:1720px;margin-left:auto;margin-right:auto}
+@media (max-width:1280px){ .shell{grid-template-columns:230px minmax(0,1fr)} .rail{display:none} }
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:18px}
+  .sidebar{position:static;max-height:none;overflow:visible}
+  .sidebar nav{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .sidebar a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .sidebar a.active{border-left:0;border-bottom-color:var(--accent)}
+  table{min-width:520px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark"><b>Syntaxure</b> / EMS Ownership · RM-08</div>
+  <div class="top-meta">
+    <span class="chip">2026-10-05</span>
+    <span class="chip d">applied + verified 3/3</span>
+    <span class="chip i">OD-1..4 resolved</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav aria-label="Sections">
+      <a href="#s-tldr" class="active">TL;DR</a>
+      <a href="#s-decisions">Decision record (OD-1..4)</a>
+      <a href="#s-gap">The gap RM-08 closes</a>
+      <a href="#s-migration">Migration &amp; safety</a>
+      <a href="#s-verification">Verification</a>
+      <a href="#s-next">What this unblocks</a>
+    </nav>
+  </aside>
+
+  <main>
+
+    <article class="section" id="s-tldr">
+      <h1>RM-08 — Provider Ownership (<code>ownership_party</code>)</h1>
+      <p class="lede"><strong>Applied and verified.</strong> The four blocking decisions (OD-1..OD-4) are resolved — recorded below — and the first work item off them is done: an additive <code>emus.ownership_party</code> column ('CUSTOMER' | 'PROVIDER') expressing who owns the physical unit, orthogonal to <code>owner_type</code> (assignment granularity). The migration dry-ran against live inside <code>BEGIN</code>/<code>ROLLBACK</code>, was applied with Jeff's confirmation, and the live verification passes <strong>3/3</strong> (3 EMU rows, 0 NULLs, all values valid).</p>
+
+      <div class="stat-row">
+        <div class="stat"><b>4/4</b><span>blocking decisions resolved (OD-1..OD-4)</span></div>
+        <div class="stat"><b>1</b><span>additive column — owner_type untouched</span></div>
+        <div class="stat"><b>3/3</b><span>live verification checks passed</span></div>
+        <div class="stat"><b>0</b><span>application readers of owner_type affected</span></div>
+      </div>
+    </article>
+
+    <article class="section" id="s-decisions">
+      <h2>Decision record — OD-1..OD-4 (resolved 2026-10-05)</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>#</th><th>Question</th><th>Decision</th><th>Unblocks</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">OD-1</td><td>Provider-vs-customer ownership in schema</td><td class="ok"><strong>Additive column</strong> — <code>ownership_party</code>; <code>owner_type</code> keeps its assignment-granularity meaning</td><td>RM-08, RM-09</td></tr>
+            <tr><td class="mono">OD-2</td><td>Retention rule for provider-owned telemetry</td><td class="ok"><strong>Retain indefinitely for now</strong> — access revocation only (ADR-08 model); revisit before commercial launch</td><td>RM-10 (now a policy doc + deletion guard)</td></tr>
+            <tr><td class="mono">OD-3</td><td>External-delegate <code>control_relay</code> timing</td><td class="ok"><strong>Defer with explicit trigger</strong> — build when the first real external delegate is requested (or before commercial launch)</td><td>RM-11 (parked, with a trigger — not indefinite)</td></tr>
+            <tr><td class="mono">OD-4</td><td>Action-level scoping for temporary Super Admin grants</td><td class="ok"><strong>Accept time-box + audit for now</strong> — revisit when cross-customer Super Admin features exist</td><td>RM-12 (closed as-is for now)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">OD-5 (<code>customers.type: DEPARTMENT</code> vs deferred org subtrees) remains informational — not blocking anything, worth closing before a real customer makes it urgent.</p>
+    </article>
+
+    <article class="section" id="s-gap">
+      <h2>The gap RM-08 closes</h2>
+      <p>Decisions #1–#3 assume a checkable fact about hardware: <em>does Syntaxure or the customer own this unit?</em> The schema could not express it. <code>emus.owner_type</code> holds <code>'CUSTOMER' | 'SITE' | 'BUILDING'</code> — which level of the org tree an assignment targets. Redefining that column was rejected (OD-1) because anything reading it as assignment granularity would break silently.</p>
+      <p>Repo check before the change: no application code reads <code>owner_type</code> at all — only the schema, the phase-3a backfill, and RLS test fixtures reference it. The additive column is therefore zero-risk to existing readers, and <code>ownership_party</code> is now the one place ownership lives.</p>
+    </article>
+
+    <article class="section" id="s-migration">
+      <h2>Migration &amp; safety</h2>
+      <p><code>supabase/migrations/20261005000000_rm08_ownership_party.sql</code> — the safe additive pattern:</p>
+      <pre><code>ALTER TABLE emus ADD COLUMN IF NOT EXISTS ownership_party TEXT;
+UPDATE emus SET ownership_party = 'CUSTOMER' WHERE ownership_party IS NULL;
+ALTER TABLE emus ALTER COLUMN ownership_party SET DEFAULT 'CUSTOMER';
+ALTER TABLE emus ALTER COLUMN ownership_party SET NOT NULL;
+COMMENT ON COLUMN emus.ownership_party IS '...';</code></pre>
+      <ul class="ul-tight">
+        <li><strong>Nullable add → backfill → NOT NULL</strong> — no table rewrite, and existing rows are provably populated before the constraint lands.</li>
+        <li><strong>Idempotent</strong> — <code>IF NOT EXISTS</code>, <code>WHERE ... IS NULL</code>, and re-runnable <code>SET DEFAULT</code>/<code>SET NOT NULL</code>.</li>
+        <li><strong>Backfill = 'CUSTOMER'</strong> — every EMU that exists predates provider-owned hardware (the WVSU pilot and all test fixtures were provisioned for their customer).</li>
+        <li><strong>No CHECK constraint</strong> — matches house style (value domains documented in comments; see <code>owner_type</code>, <code>status</code>, <code>phase_mode</code>).</li>
+      </ul>
+      <p class="footnote">No app code, types, or queries changed: <code>packages/types</code> has no EMU type, and nothing reads the column yet. RM-09 is its first consumer.</p>
+    </article>
+
+    <article class="section" id="s-verification">
+      <h2>Verification</h2>
+      <div class="callout">
+        <span class="tag chip">DRY RUN</span>
+        <h3>Executed against live, then rolled back</h3>
+        <p><code>DRY RUN OK — transaction rolled back, nothing applied.</code> DDL is transactional in Postgres, so the exact migration ran against the real project before anything was committed.</p>
+      </div>
+      <div class="callout ok">
+        <span class="tag chip d">APPLIED + VERIFIED</span>
+        <h3>Live verification — 3/3 after apply</h3>
+        <pre><code>PASS ownership_party column exists and is readable: read 3 EMU row(s)
+PASS every EMU is backfilled (no NULL ownership_party): 0 row(s) with NULL
+PASS ownership_party values are within {CUSTOMER, PROVIDER}: all 3 row(s) valid
+3/3 checks passed — RM-08 verification passed</code></pre>
+        <p>Pre-apply, the same script failed with <code>column emus.ownership_party does not exist</code> — failing-first evidence, then green.</p>
+      </div>
+      <p class="footnote">Script: <code>scripts/test-ownership-party.ts</code> (read-only, service-role client, follows the <code>test-emu-lifecycle.ts</code> convention). Apply used a temp <code>pg</code> client against <code>DATABASE_URL</code>, wrapped in a single transaction with Jeff's explicit confirmation per the live-migration rule.</p>
+    </article>
+
+    <article class="section" id="s-next">
+      <h2>What this unblocks</h2>
+      <ul class="ul-tight">
+        <li><strong>RM-09 (next):</strong> the operational-vs-commercial reassignment split — a Customer Admin can reassign within their own tenancy; cross-customer reassignment is Super Admin only. The existing <code>redeploy_emu()</code> deliberately rejects cross-customer targets today; RM-09 lifts that with the permission and ownership-party rules applied.</li>
+        <li><strong>RM-10 (light):</strong> with "retain indefinitely" decided, this is a policy statement plus a guard that customer deletion never cascades into telemetry deletion — no pruning job.</li>
+        <li><strong>RM-11:</strong> parked with an explicit trigger — first real external-delegate request, or commercial launch, whichever comes first.</li>
+        <li><strong>RM-12:</strong> closed as-is for now — time-boxing + audit accepted; revisit when cross-customer Super Admin features exist.</li>
+      </ul>
+      <p class="footnote">Still open elsewhere: RM-01 (WVSU physical results), RM-04 manual a11y walk (delegating to WVSU).</p>
+    </article>
+
+  </main>
+
+  <aside class="rail">
+    <div class="panel facts">
+      <h3>Key facts</h3>
+      <dl>
+        <dt>Migration</dt><dd class="mono">20261005000000_rm08</dd>
+        <dt>Column</dt><dd class="mono">emus.ownership_party</dd>
+        <dt>Values</dt><dd>CUSTOMER | PROVIDER</dd>
+        <dt>Applied</dt><dd class="ok">yes (confirmed)</dd>
+        <dt>Verified</dt><dd class="ok">3/3 live</dd>
+        <dt>Next</dt><dd>RM-09 reassignment split</dd>
+      </dl>
+    </div>
+    <div class="panel">
+      <h3>Decision log</h3>
+      <p style="font-size:13.5px;color:var(--text2)">OD-1..4 all resolved 2026-10-05 with Jeff: additive ownership column; retain telemetry indefinitely for now; defer delegate relay with a trigger; accept time-box + audit for temporary Super Admin.</p>
+    </div>
+    <blockquote class="panel quote">Ownership is a fact about hardware. Assignment is a fact about the org tree. One column should not have to mean both.</blockquote>
+  </aside>
+</div>
+
+<div class="footer">
+  Energy Monitoring · RM-08 provider ownership · 2026-10-05 · additive ownership_party · applied + verified 3/3 · OD-1..4 resolved · next: RM-09
+</div>
+
+</body>
+</html>
