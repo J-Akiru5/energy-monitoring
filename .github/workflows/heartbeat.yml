@@ -1,0 +1,34 @@
+name: Device offline heartbeat
+
+# Dead-man's switch for device telemetry: calls the web app's heartbeat
+# endpoint, which raises a DEVICE_OFFLINE alert for any active device whose
+# newest reading is older than the alerting threshold (device_offline_seconds
+# in alert_thresholds).
+#
+# GitHub Actions cron can be delayed several minutes under load — acceptable
+# for offline alerts. This is a public repo, so Actions minutes are free.
+#
+# Note: GitHub disables scheduled workflows after 60 days without repository
+# activity; re-enable from the Actions tab if that ever happens.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: device-heartbeat
+  cancel-in-progress: false
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call the heartbeat endpoint
+        run: |
+          curl --fail --silent --show-error \
+            --retry 2 --retry-delay 10 --max-time 30 \
+            https://energy-monitoring-web.vercel.app/api/heartbeat
