@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "../client";
+import { lookupControllerByDevice } from "./tenant";
 import type { AlertType } from "@energy/types";
 
 /**
@@ -7,10 +8,11 @@ import type { AlertType } from "@energy/types";
  *
  * customerId is intentionally NOT a required parameter here: this function
  * is called by system-internal callers (heartbeat cron, ingest route) that
- * resolve the tenant stamp via lookupControllerByDevice(), not via
- * resolveAccess(). Those callers set customer_id through the TenantStamp
- * already stamped on the insert. User-facing read paths that call
- * getUnreadAlerts() do go through resolveAccess() and pass customerId.
+ * have no user session. The tenant stamp is resolved here via
+ * lookupControllerByDevice() and written onto the row (customer_id, emu_id)
+ * so the alert is visible to the owning customer under RLS and to
+ * customer-scoped read paths. If the device has no controller bridge the
+ * stamp stays NULL — fail-closed, matching ingest's graceful degradation.
  */
 export async function createAlert(data: {
   deviceId: string;
@@ -24,6 +26,7 @@ export async function createAlert(data: {
   isIncident?: boolean;
 }) {
   const supabase = getSupabaseAdmin();
+  const stamp = await lookupControllerByDevice(data.deviceId);
 
   const { data: alert, error } = await supabase
     .from("alerts")
@@ -35,6 +38,8 @@ export async function createAlert(data: {
       message:     data.message,
       phase:       data.phase ?? null,
       is_incident: data.isIncident ?? false,
+      customer_id: stamp?.customerId ?? null,
+      emu_id:      stamp?.emuId ?? null,
     })
     .select()
     .single();

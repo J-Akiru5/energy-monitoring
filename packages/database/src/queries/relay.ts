@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "../client";
+import { lookupControllerByDevice } from "./tenant";
 import type { RelayConfig, RelayState, RelayLog } from "@energy/types";
 
 // ──── Get Relay Configuration ────
@@ -155,6 +156,8 @@ export async function logRelayAction(
   notes?: string
 ): Promise<boolean> {
   const supabase = getSupabaseAdmin();
+  const stamp = await lookupControllerByDevice(deviceId);
+
   const { error } = await supabase.from("relay_logs").insert({
     device_id: deviceId,
     action,
@@ -165,6 +168,8 @@ export async function logRelayAction(
     initiated_by: initiatedBy,
     notes,
     created_at: new Date().toISOString(),
+    customer_id: stamp?.customerId ?? null,
+    emu_id: stamp?.emuId ?? null,
   });
 
   if (error) {

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Monitoring — Telemetry Tenant Stamping Fix (RM-03 finding)</title>
+<style>
+:root{
+  --bg:#050505; --text:#ededed; --text2:#B7BFCB; --muted:#8A93A0;
+  --line:rgba(255,255,255,.10);
+  --panel:rgba(255,255,255,.045);
+  --field:rgba(255,255,255,.06);
+  --accent:#22D3EE; --accent-2:#A855F7;
+  --grad:linear-gradient(135deg,#22D3EE,#A855F7);
+  --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --r-sm:6px; --r-lg:16px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,h4,p,dl,dd,figure,blockquote{margin:0}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.14;font-weight:800;letter-spacing:-.025em}
+h2{font-size:clamp(20px,2.6vw,27px);line-height:1.22;font-weight:700;letter-spacing:-.015em;margin-bottom:12px}
+h3{font-size:17px;font-weight:700;margin-bottom:8px}
+h4{font-size:15px;font-weight:700}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:var(--mono)}
+code{font-size:.88em;background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:var(--r-sm)}
+pre{margin:14px 0 0;background:#0a0c10;border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--text2)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;height:64px;
+  padding:0 clamp(16px,3vw,40px);background:rgba(5,5,5,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.wordmark b{color:var(--accent)}
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;text-transform:uppercase;
+  color:var(--accent);display:inline-block;white-space:nowrap;line-height:1.6}
+.chip.d{color:var(--ok)} .chip.u{color:var(--warn)} .chip.c{color:var(--danger)} .chip.i{color:var(--accent-2)}
+.shell{display:grid;grid-template-columns:220px minmax(0,1fr) 280px;gap:clamp(20px,2.6vw,36px);
+  padding:28px clamp(16px,3vw,40px) 90px;max-width:1720px;margin:0 auto;align-items:start}
+.sidebar,.rail{position:sticky;top:84px;max-height:calc(100vh - 108px);overflow-y:auto}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar a{display:block;padding:9px 10px;min-height:40px;border-radius:var(--r-sm);color:var(--text2);font-size:13.5px;border-left:2px solid transparent}
+.sidebar a:hover{color:var(--text);text-decoration:none;background:var(--panel)}
+.sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel)}
+.rail .panel{margin-bottom:14px}
+.rail .facts dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;margin:0}
+.rail .facts dt{color:var(--muted)}
+.rail .facts dd{margin:0;text-align:right;min-width:0}
+.rail .quote{font-style:italic;font-size:13.5px;color:var(--text2)}
+main{min-width:0}
+.section{padding:8px 0 46px;scroll-margin-top:88px}
+.section+.section{border-top:1px solid var(--line);padding-top:38px}
+.section p{max-width:78ch;color:var(--text2)}
+.section p+p{margin-top:12px}
+.section p strong,.section li strong{color:var(--text)}
+.lede{font-size:17.5px;color:var(--text2);max-width:78ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:20px 22px}
+.callout{position:relative;padding:18px 22px 18px 26px;border-radius:var(--r-lg);margin:20px 0;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.callout::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.callout.danger::before{background:var(--danger)}
+.callout.warn::before{background:var(--warn)}
+.callout.ok::before{background:var(--ok)}
+.callout h3{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+.callout .tag{float:right;margin-left:12px}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 18px;min-width:132px;flex:1 1 132px}
+.stat b{display:block;font-size:clamp(22px,2.6vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat.c b{background:none;color:var(--danger);-webkit-text-fill-color:var(--danger)}
+.stat span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-top:16px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.mono{font-family:var(--mono);font-size:.92em}
+.ok{color:var(--ok);font-weight:600}
+.bad{color:var(--danger);font-weight:600}
+.ul-tight{padding-left:20px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+.ul-tight li{margin:7px 0}
+.cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:18px 20px}
+.card h4{margin-bottom:6px}
+.card p{font-size:14px;max-width:none}
+.card .chip{margin-bottom:10px}
+.footnote{font-size:13px;color:var(--muted);max-width:80ch;margin-top:12px}
+.footer{border-top:1px solid var(--line);margin-top:10px;padding:22px clamp(16px,3vw,40px) 40px;color:var(--muted);font-size:13px;max-width:1720px;margin-left:auto;margin-right:auto}
+@media (max-width:1280px){ .shell{grid-template-columns:220px minmax(0,1fr)} .rail{display:none} }
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:18px}
+  .sidebar{position:static;max-height:none;overflow:visible}
+  .sidebar nav{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .sidebar a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .sidebar a.active{border-left:0;border-bottom-color:var(--accent)}
+  table{min-width:560px}
+}
+@media print{
+  .topbar,.sidebar,.rail{display:none}
+  body{background:#fff;color:#000}
+  .shell{display:block;padding:0}
+  .panel,.callout,.card,.tablewrap{background:#fff;border-color:#999;backdrop-filter:none}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark"><b>Syntaxure</b> / EMS Telemetry Stamping Fix</div>
+  <div class="top-meta">
+    <span class="chip">2026-10-04</span>
+    <span class="chip u">built — not deployed / migration not applied</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav aria-label="Sections">
+      <a href="#s-tldr" class="active">TL;DR</a>
+      <a href="#s-gap">The gap</a>
+      <a href="#s-fix">The fix</a>
+      <a href="#s-evidence">Evidence</a>
+      <a href="#s-next">What's next</a>
+    </nav>
+  </aside>
+
+  <main>
+
+    <article class="section" id="s-tldr">
+      <h1>Telemetry Tenant Stamping Fix</h1>
+      <p class="lede"><strong>Follow-up to the RM-03 finding.</strong> Four telemetry write paths — <code>createAlert</code>, <code>logRelayAction</code>, <code>startBlackoutEvent</code>, <code>startAlertIncident</code> — never set <code>customer_id</code>/<code>emu_id</code>, leaving <strong>428 live rows</strong> unstamped: invisible to every non-service-role caller under RLS, and invisible to customer-scoped read paths like <code>getUnreadAlerts()</code> and <code>getRelayLogs()</code>. The writers now resolve the tenant stamp at write time, and an idempotent backfill migration repairs the historical rows. Both are committed locally; <strong>neither is deployed or applied</strong> under the current hold.</p>
+
+      <div class="stat-row">
+        <div class="stat"><b>4</b><span>write paths now stamp <code>customer_id</code> + <code>emu_id</code></span></div>
+        <div class="stat"><b>5/5</b><span>new tests passing; existing suites unaffected</span></div>
+        <div class="stat c"><b>428</b><span>historical rows the backfill migration repairs</span></div>
+      </div>
+    </article>
+
+    <article class="section" id="s-gap">
+      <h2>The gap</h2>
+      <p>Phase 3a added <code>customer_id</code>/<code>emu_id</code> to <code>alerts</code>, <code>relay_logs</code>, <code>blackout_events</code>, and <code>device_alert_state</code>, and the backfill migration stamped the rows that existed then. But the write paths never populated the columns — only <code>insertReading</code> did (via the ingest route's stamp). The <code>createAlert</code> JSDoc even claimed callers "set customer_id through the TenantStamp already stamped on the insert" — the insert had no such field.</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Table</th><th>NULL <code>customer_id</code> (pre-fix, live)</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">relay_logs</td><td class="bad">168 / 181</td></tr>
+            <tr><td class="mono">alerts</td><td class="bad">246 / 13,032</td></tr>
+            <tr><td class="mono">blackout_events</td><td class="bad">9 / 23</td></tr>
+            <tr><td class="mono">device_alert_state</td><td class="bad">5 / 12</td></tr>
+            <tr><td class="mono">power_readings</td><td>4 / 96,286</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">No cross-tenant leak: RLS is fail-closed for NULL stamps. The impact is the opposite — the owning customer couldn't see their own recent rows.</p>
+    </article>
+
+    <article class="section" id="s-fix">
+      <h2>The fix</h2>
+      <ul class="ul-tight">
+        <li><strong>Write paths</strong> resolve the tenant stamp via <code>lookupControllerByDevice()</code> — the same device → controller → EMU bridge ingest and the RLS policies use — and write <code>customer_id</code> + <code>emu_id</code>. If the device has no controller bridge the stamp stays NULL: fail-closed, matching ingest's graceful degradation.</li>
+        <li><strong>Backfill migration</strong> <code>20261004000002_backfill_telemetry_stamps.sql</code> — five idempotent UPDATEs (only rows with <code>customer_id IS NULL</code>), joining each row's device to its ACTIVE controller's EMU. <code>power_readings</code> gets <code>customer_id</code> + <code>emu_id</code> only: the recording-time installation isn't knowable for historical rows, and stamping the current one would be false.</li>
+      </ul>
+    </article>
+
+    <article class="section" id="s-evidence">
+      <h2>Evidence</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Suite</th><th>Checks</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Stamping</strong> <span class="mono">stamping.test.mjs</span></td><td>all four writers stamp <code>customer_id</code>+<code>emu_id</code> · all four fall back to NULL without a bridge</td><td class="ok">5 / 5</td></tr>
+            <tr><td><strong>Regressions</strong></td><td>devices 8/8 · controllers 4/4 · installations 3/3 · emuLifecycle 5/5</td><td class="ok">20 / 20</td></tr>
+            <tr><td><strong>Type-check</strong></td><td>turbo type-check across all packages</td><td class="ok">clean</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">Post-apply verification (next phase): re-run the NULL-count check — expect only rows whose devices have no ACTIVE controller to remain NULL.</p>
+    </article>
+
+    <article class="section" id="s-next">
+      <h2>What's next</h2>
+      <div class="cardgrid">
+        <div class="card">
+          <span class="chip c">Needs go-ahead</span>
+          <h4>Deploy + apply</h4>
+          <p>Ship the code (staging → main) and apply the backfill migration via <code>supabase db push --db-url</code> — both held per current instruction.</p>
+        </div>
+        <div class="card">
+          <span class="chip i">Then</span>
+          <h4>Verify the repair</h4>
+          <p>Re-run the read-only NULL-count check; the customer-facing alert and relay-log views should recover their missing rows.</p>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <aside class="rail">
+    <div class="panel facts">
+      <h3>Key facts</h3>
+      <dl>
+        <dt>Writers fixed</dt><dd>4</dd>
+        <dt>Tests</dt><dd>5 / 5</dd>
+        <dt>Rows repaired</dt><dd class="bad">428</dd>
+        <dt>Migration</dt><dd class="mono">…0002</dd>
+        <dt>Applied</dt><dd>not yet</dd>
+        <dt>Branch</dt><dd class="mono">work/…</dd>
+      </dl>
+    </div>
+    <blockquote class="panel quote">A comment claiming rows are stamped is not the same as rows being stamped.</blockquote>
+  </aside>
+</div>
+
+<div class="footer">
+  Energy Monitoring · telemetry tenant-stamping fix · 2026-10-04 · 4 writers + backfill migration · committed locally (no push, not applied)
+</div>
+
+</body>
+</html>

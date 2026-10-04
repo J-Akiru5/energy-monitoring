@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "../client";
+import { lookupControllerByDevice } from "./tenant";
 import type { AlertType } from "@energy/types";
 
 // ──── Types ─────────────────────────────────────────────────────────────
@@ -129,6 +130,7 @@ export async function startAlertIncident(
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
   const now = new Date().toISOString();
+  const stamp = await lookupControllerByDevice(deviceId);
 
   const { error } = await supabase
     .from("device_alert_state")
@@ -143,6 +145,8 @@ export async function startAlertIncident(
         started_at:          now,
         recovery_started_at: null,
         updated_at:          now,
+        customer_id:         stamp?.customerId ?? null,
+        emu_id:              stamp?.emuId ?? null,
       },
       { onConflict: "device_id,alert_type,phase" }
     );

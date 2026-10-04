@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "../client";
+import { lookupControllerByDevice } from "./tenant";
 
 export interface BlackoutEvent {
   id: string;
@@ -65,6 +66,7 @@ export async function startBlackoutEvent(
 ): Promise<string | null> {
   const supabase = getSupabaseAdmin();
   const now = new Date().toISOString();
+  const stamp = await lookupControllerByDevice(deviceId);
 
   // 1. Create new blackout event
   const { data: event, error: eventError } = await supabase
@@ -73,6 +75,8 @@ export async function startBlackoutEvent(
       device_id: deviceId,
       started_at: now,
       alert_id: alertId,
+      customer_id: stamp?.customerId ?? null,
+      emu_id: stamp?.emuId ?? null,
     })
     .select()
     .single();
