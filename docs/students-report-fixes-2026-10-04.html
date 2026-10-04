@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Monitoring — Student Report Defects: Diagnosis &amp; Fixes (apps/web)</title>
+<style>
+:root{
+  --bg:#050505; --text:#ededed; --text2:#B7BFCB; --muted:#8A93A0;
+  --line:rgba(255,255,255,.10);
+  --panel:rgba(255,255,255,.045);
+  --field:rgba(255,255,255,.06);
+  --accent:#22D3EE; --accent-2:#A855F7;
+  --grad:linear-gradient(135deg,#22D3EE,#A855F7);
+  --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --r-sm:6px; --r-lg:16px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,h4,p,dl,dd,figure,blockquote{margin:0}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.14;font-weight:800;letter-spacing:-.025em}
+h2{font-size:clamp(20px,2.6vw,27px);line-height:1.22;font-weight:700;letter-spacing:-.015em;margin-bottom:12px}
+h3{font-size:17px;font-weight:700;margin:22px 0 8px}
+h4{font-size:15px;font-weight:700}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:var(--mono)}
+code{font-size:.88em;background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:var(--r-sm)}
+pre{margin:14px 0 0;background:#0a0c10;border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--text2)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;height:64px;
+  padding:0 clamp(16px,3vw,40px);background:rgba(5,5,5,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.wordmark b{color:var(--accent)}
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;text-transform:uppercase;
+  color:var(--accent);display:inline-block;white-space:nowrap;line-height:1.6}
+.chip.d{color:var(--ok)} .chip.u{color:var(--warn)} .chip.c{color:var(--danger)} .chip.i{color:var(--accent-2)}
+.shell{display:grid;grid-template-columns:230px minmax(0,1fr) 280px;gap:clamp(20px,2.6vw,36px);
+  padding:28px clamp(16px,3vw,40px) 90px;max-width:1720px;margin:0 auto;align-items:start}
+.sidebar,.rail{position:sticky;top:84px;max-height:calc(100vh - 108px);overflow-y:auto}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar a{display:block;padding:9px 10px;min-height:40px;border-radius:var(--r-sm);color:var(--text2);font-size:13.5px;border-left:2px solid transparent}
+.sidebar a:hover{color:var(--text);text-decoration:none;background:var(--panel)}
+.sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel)}
+.rail .panel{margin-bottom:14px}
+.rail .facts dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;margin:0}
+.rail .facts dt{color:var(--muted)}
+.rail .facts dd{margin:0;text-align:right;min-width:0}
+.rail .quote{font-style:italic;font-size:13.5px;color:var(--text2)}
+main{min-width:0}
+.section{padding:8px 0 46px;scroll-margin-top:88px}
+.section+.section{border-top:1px solid var(--line);padding-top:38px}
+.section p{max-width:78ch;color:var(--text2)}
+.section p+p{margin-top:12px}
+.section p strong,.section li strong{color:var(--text)}
+.lede{font-size:17.5px;color:var(--text2);max-width:78ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:20px 22px}
+.callout{position:relative;padding:18px 22px 18px 26px;border-radius:var(--r-lg);margin:20px 0;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.callout::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.callout.danger::before{background:var(--danger)}
+.callout.warn::before{background:var(--warn)}
+.callout.ok::before{background:var(--ok)}
+.callout h3{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+.callout .tag{float:right;margin-left:12px}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 18px;min-width:132px;flex:1 1 132px}
+.stat b{display:block;font-size:clamp(22px,2.6vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat.c b{background:none;color:var(--danger);-webkit-text-fill-color:var(--danger)}
+.stat span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-top:16px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.mono{font-family:var(--mono);font-size:.92em}
+.ok{color:var(--ok);font-weight:600}
+.bad{color:var(--danger);font-weight:600}
+.warn{color:var(--warn);font-weight:600}
+.ul-tight{padding-left:20px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+.ul-tight li{margin:7px 0}
+.footnote{font-size:13px;color:var(--muted);max-width:80ch;margin-top:12px}
+.footer{border-top:1px solid var(--line);margin-top:10px;padding:22px clamp(16px,3vw,40px) 40px;color:var(--muted);font-size:13px;max-width:1720px;margin-left:auto;margin-right:auto}
+@media (max-width:1280px){ .shell{grid-template-columns:230px minmax(0,1fr)} .rail{display:none} }
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:18px}
+  .sidebar{position:static;max-height:none;overflow:visible}
+  .sidebar nav{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .sidebar a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .sidebar a.active{border-left:0;border-bottom-color:var(--accent)}
+  table{min-width:520px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark"><b>Syntaxure</b> / EMS Student Report Fixes</div>
+  <div class="top-meta">
+    <span class="chip">2026-10-04</span>
+    <span class="chip u">averages decision pending</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav aria-label="Sections">
+      <a href="#s-tldr" class="active">TL;DR</a>
+      <a href="#s-branch">Branch &amp; scope</a>
+      <a href="#s-defects">Defects &amp; reproduction</a>
+      <a href="#s-fixes">Fixes</a>
+      <a href="#s-tests">Test results</a>
+      <a href="#s-ordering">Cost-ordering reproduction</a>
+      <a href="#s-pending">Pending decision — averages</a>
+    </nav>
+  </aside>
+
+  <main>
+
+    <article class="section" id="s-tldr">
+      <h1>Student Report Defects — Diagnosis &amp; Fixes</h1>
+      <p class="lede"><strong>WVSU student reports, three defects.</strong> All three were reproduced with tests before any code changed, and the two mechanical ones are fixed: <strong>PDF generation</strong> (a single U+2192 arrow made pdf-lib throw on every request) and <strong>row truncation</strong> (Reports dropped the newest rows past 5000; History was silently capped at 1000, oldest-first). One shared energy-delta method now serves Reports, PDF, and History. The <strong>averages definition</strong> is deliberately <strong>not changed yet</strong> — that changes what a reported number means and needs your approval; the proposal is at the bottom with the exact reproduction of 322.711/day.</p>
+
+      <div class="stat-row">
+        <div class="stat"><b>3/3</b><span>defects reproduced with tests</span></div>
+        <div class="stat"><b>31</b><span>new/updated tests, all passing</span></div>
+        <div class="stat"><b>0</b><span>row caps left in Reports/History paths</span></div>
+        <div class="stat c"><b>1</b><span>decision pending: averages definition</span></div>
+      </div>
+    </article>
+
+    <article class="section" id="s-branch">
+      <h2>Branch &amp; scope</h2>
+      <p>Pipeline confirmed fully synced at <code>8b6713d</code> (<code>develop</code> = <code>staging</code> = <code>main</code>). Work is on dedicated branch <code>fix/students-report-defects</code>, based on <code>develop</code>; it will land as a PR to <code>develop</code> with no auto-merge. Nothing has been merged, pushed to a shared branch, or deployed. Scope is <code>apps/web</code> only — no schema changes, and nothing touched notifications, thresholds, auto-trip, firmware, or the live database (reads only).</p>
+    </article>
+
+    <article class="section" id="s-defects">
+      <h2>Defects &amp; reproduction</h2>
+
+      <div class="callout danger">
+        <span class="tag chip c">Defect 1 — PDF</span>
+        <h3>Every PDF request returned 500: the "Window:" line contained U+2192 (→)</h3>
+        <p>pdf-lib's standard Helvetica uses WinAnsi encoding, which cannot encode <code>→</code>; the throw was caught and returned as a generic 500. <strong>Reproduction:</strong> the new route test called <code>GET /api/reports/pdf</code> for all 12 metric×phase combinations — <strong>12/12 failed with "expected 200, got 500"</strong>. Fixed by sanitizing every dynamic string and using <code>-&gt;</code> in the window line; the same 12 cases now return real <code>%PDF</code> bytes. The PDF also now draws the <strong>Current point</strong> line for every metric (previously power-only), mirroring the reports page's "Current Point" card.</p>
+      </div>
+
+      <div class="callout danger">
+        <span class="tag chip c">Defect 2 — averages</span>
+        <h3>18.557 kWh over 1.38 h → 322.711 kWh/day</h3>
+        <p><code>averageDayKwh = totalDelta ÷ span</code> between the first and latest reading in the filtered window; week and month are then <code>day × 7</code> and <code>day × 30</code>. A short burst makes the span tiny, so the "daily average" explodes. <strong>Reproduction:</strong> a temporary unit test fed a 1.38 h / ~18.56 kWh burst through <code>buildConsumptionSummary</code> and printed <code>avgDay=322.73, avgWeek=2259.13, avgMonth=9681.98</code> — the students' 322.711 / 2,258.976 / 9,681.327 exactly. <span class="warn">Not changed yet — see the pending decision.</span></p>
+      </div>
+
+      <div class="callout danger">
+        <span class="tag chip c">Defect 3 — truncation</span>
+        <h3>Reports dropped the newest rows past 5000; History was capped at 1000, oldest-first</h3>
+        <p><strong>Reports:</strong> <code>.order(recorded_at asc).limit(5000)</code> returns the <em>oldest</em> 5000 rows. Reproduction: a 6000-row window with the newest 1000 carrying 10 kWh returned <strong>4.999 kWh instead of ~15</strong> (and the "current point" power came from row 5000, not the newest row).</p>
+        <p><strong>History:</strong> the readings query had no limit/pagination, so Supabase's default max-rows (1000) silently truncated month views. Reproduction against live data (read-only): anchor 2026-09-13, <strong>day 1000/1220 rows, week 1000/1426, month 1000/3440</strong> — the month view computed PHP 6.95 instead of PHP 227.18. Current-month data is sparse enough (325 rows) that today's month view happens not to truncate, but any month with &gt;1000 readings does. Unit tests reproduce both the cap (1500-row window → 1000 read) and the method mismatch (a counter reset: last−first = 0 vs the correct 22 kWh).</p>
+      </div>
+    </article>
+
+    <article class="section" id="s-fixes">
+      <h2>Fixes</h2>
+      <ul class="ul-tight">
+        <li><strong>Shared energy math</strong> — new <code>apps/web/src/lib/energy.ts</code>: <code>monotonicEnergyDelta()</code> (positive deltas, resets ignored) + <code>deltaWithinWindow()</code> + <code>fetchAllPagesDescending()</code>. Reports, PDF (via the summary), and History all use the same delta method now.</li>
+        <li><strong>Paginated reads</strong> — both the Reports query and the History readings query fetch all pages via <code>.range()</code>, <em>newest-first</em>, so if the 100k-row page cap is ever hit the <em>oldest</em> data is dropped, never the newest. A page-order bug in the first implementation (rows within each page weren't reversed) was caught by the new tests before commit.</li>
+        <li><strong>PDF</strong> — new <code>pdf/_lines.ts</code> builds every line, sanitizing all dynamic strings to WinAnsi (arrow, dashes, curly quotes, bullet, ellipsis, peso sign; anything else becomes <code>?</code> instead of throwing), and adds the <strong>Current point</strong> line for kwh/cost/power. The route is now a thin auth + draw loop.</li>
+        <li><strong>Day-bucket deltas</strong> — the History week/month chart now carries the previous day's last reading into each day's delta, so per-day values sum back to the window total (they previously lost every cross-midnight increment: 5.962 vs 6 in the test).</li>
+      </ul>
+    </article>
+
+    <article class="section" id="s-tests">
+      <h2>Test results</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Suite</th><th>What it covers</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">reports/pdf/route.test.mjs</td><td>PDF for all 12 metric×phase combos · 401 unauthenticated</td><td class="ok">13 / 13</td></tr>
+            <tr><td class="mono">reports/_lib.test.mjs</td><td>newest rows beyond 5000 included · reset delta · end-to-end real summary → real PDF</td><td class="ok">3 / 3</td></tr>
+            <tr><td class="mono">history/route.test.mjs</td><td>1500-row month fully read · bucket deltas sum to total · reset delta</td><td class="ok">2 / 2</td></tr>
+            <tr><td class="mono">lib/energy.test.mjs</td><td>delta math · pagination merge order · cap drops oldest · error context</td><td class="ok">7 / 7</td></tr>
+            <tr><td class="mono">reports/pdf/_lines.test.mjs</td><td>WinAnsi sanitizer · Current point for every metric · no arrow</td><td class="ok">6 / 6</td></tr>
+            <tr><td>Existing web suites</td><td>relay 16 · ingest 3 · installations 7 · thresholds 5 · pzem-config 11</td><td class="ok">42 / 42</td></tr>
+            <tr><td>Type-check / lint</td><td><code>tsc --noEmit</code> (web) · eslint on every touched file</td><td class="ok">clean</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">Every defect test was run against the pre-fix code first and failed exactly as described (PDF 500×12, 4.999 vs 15, 1000 vs 1500, reset 0 vs 22, averages 322.73), then passed after the fix. No further failure surfaced after the arrow fix across the 12 combinations.</p>
+    </article>
+
+    <article class="section" id="s-ordering">
+      <h2>Cost-ordering reproduction (step 6)</h2>
+      <p>The complaint "day &lt; week &lt; month should always hold" <strong>was reproduced with existing live data</strong> — seeding was not needed and live writes were prohibited. Read-only probe, device <code>ESP32-CICT-001</code>, anchor 2026-09-13 (PH):</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Window</th><th>Capped rows</th><th>True rows</th><th>Capped cost</th><th>True cost</th></tr></thead>
+          <tbody>
+            <tr><td>day</td><td class="bad">1000</td><td>1220</td><td class="bad">PHP 9.65</td><td>PHP 13.42</td></tr>
+            <tr><td>week</td><td class="bad">1000</td><td>1426</td><td class="bad">PHP 6.95</td><td>PHP 13.43</td></tr>
+            <tr><td>month</td><td class="bad">1000</td><td>3440</td><td class="bad">PHP 6.95</td><td>PHP 227.18</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>Ordering violated in the pre-fix code: day PHP 9.65 &gt; week PHP 6.95.</strong> With complete data the ordering holds (13.42 &lt; 13.43 &lt; 227.18). The truncation is therefore the reproduced cause of the ordering complaint — and it is fixed. A second, smaller contributor was the mixed delta method: on 2026-09-14 the capped week showed 0.217 kWh while the true last−first was 0.0000; the shared monotonic method removes that inconsistency. Current-month data (325 rows) never hit the cap, which is why the defect was intermittent.</p>
+    </article>
+
+    <article class="section" id="s-pending">
+      <h2>Pending decision — averages definition</h2>
+      <div class="callout warn">
+        <span class="tag chip u">Awaiting approval</span>
+        <h3>Proposed averages (not yet implemented)</h3>
+        <ul class="ul-tight">
+          <li><strong>avg/day</strong> = month-to-date kWh ÷ calendar days elapsed this month (PH time, minimum 1 day)</li>
+          <li><strong>avg/week</strong> = avg/day × 7</li>
+          <li><strong>avg/month</strong> = mean of completed months, falling back to month-to-date when there are none</li>
+          <li><strong>Current month total</strong> shown separately (it already is, as "Month")</li>
+        </ul>
+        <p>With this definition the burst example gives ≈ 18.557 ÷ 4 days ≈ <strong>4.64 kWh/day</strong> instead of 322.7 — and day ≤ week ≤ month holds by construction.</p>
+      </div>
+      <p>The dashboard label currently claims <em>"day (last 30d), week (last 8 full calendar weeks), month (last 6 complete months)"</em> — the code does none of that. Once the definition is approved, the label is corrected to match, and the invariant tests are added: <strong>day ≤ week ≤ month</strong> (kWh and cost), <strong>month total = sum of its days</strong>, and the <strong>1.38 h burst must not yield ~322 kWh/day</strong>. The reports page "Average / Day | Week | Month" cards and the PDF averages section will then display the approved numbers.</p>
+      <p class="footnote">Until then the existing averages formula is untouched on this branch — the only pending change is the semantics, not the data plumbing.</p>
+    </article>
+
+  </main>
+
+  <aside class="rail">
+    <div class="panel facts">
+      <h3>Key facts</h3>
+      <dl>
+        <dt>Branch</dt><dd class="mono">fix/students-report-defects</dd>
+        <dt>Base</dt><dd class="mono">develop @ 8b6713d</dd>
+        <dt>Defects fixed</dt><dd>PDF · truncation</dd>
+        <dt>Decision pending</dt><dd class="warn">averages</dd>
+        <dt>New tests</dt><dd>31 passing</dd>
+        <dt>Pushed</dt><dd>not yet</dd>
+      </dl>
+    </div>
+    <div class="panel">
+      <h3>Status</h3>
+      <p style="font-size:13.5px;color:var(--text2)">Mechanical fixes complete and verified on the dedicated branch. Averaging semantics held for Jeff's approval before any code changes what a reported number means.</p>
+    </div>
+    <blockquote class="panel quote">A truncated read is not an error — it is a wrong number that looks right.</blockquote>
+  </aside>
+</div>
+
+<div class="footer">
+  Energy Monitoring · student report defects (apps/web) · 2026-10-04 · PDF + truncation fixed · averages pending approval · branch not pushed
+</div>
+
+</body>
+</html>
