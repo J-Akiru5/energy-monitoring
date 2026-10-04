@@ -69,6 +69,10 @@ export {
 // Controller queries
 export { replaceController } from "./queries/controllers";
 
+// Installation history queries
+export { getInstallationHistory } from "./queries/installations";
+export type { InstallationHistoryRow } from "./queries/installations";
+
 // Relay queries
 export {
   getRelayConfig,
