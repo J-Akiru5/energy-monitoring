@@ -816,8 +816,8 @@ export default function DashboardPage() {
             <div>
               <div className="tile-label">Consumption Summary Report</div>
               <div className="report-subtitle">
-                Averages: day (last 30d), week (last 8 full calendar weeks), month
-                (last 6 complete months)
+                Averages are the current rate — day (month-to-date ÷ days elapsed
+                this month), week (day × 7), month (day × 30)
               </div>
             </div>
             <button

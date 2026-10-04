@@ -1,4 +1,9 @@
 import { getBillingRate, getSupabaseAdmin } from "@energy/database";
+import {
+  deltaWithinWindow,
+  fetchAllPagesDescending,
+  monotonicEnergyDelta,
+} from "../../../lib/energy";
 
 type MonthHistoryItem = {
   period: string;
@@ -178,9 +183,23 @@ function round(value: number, decimals: number): number {
   return Number(value.toFixed(decimals));
 }
 
-function monthLabel(date: Date): string {
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  return `${date.getUTCFullYear()}-${month}`;
+const PH_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+/** PH calendar month key (YYYY-MM) for an instant. */
+function phMonthLabel(ts: number): string {
+  const shifted = new Date(ts + PH_OFFSET_MS);
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Start of the PH calendar month containing an instant, as epoch ms. */
+function phMonthStartTs(ts: number): number {
+  const shifted = new Date(ts + PH_OFFSET_MS);
+  return Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), 1) - PH_OFFSET_MS;
+}
+
+/** PH calendar day-of-month (1-31) for an instant. */
+function phDayOfMonth(ts: number): number {
+  return new Date(ts + PH_OFFSET_MS).getUTCDate();
 }
 
 function rowEnergyByPhase(row: ReadingRow, phase: ReportPhase): number {
@@ -229,30 +248,6 @@ function averagePowerSince(rows: Array<{ ts: number; power: number }>, sinceTs: 
   return sample.reduce((sum, row) => sum + row.power, 0) / sample.length;
 }
 
-function monotonicDelta(energySeries: number[]): number {
-  if (energySeries.length < 2) return 0;
-
-  let total = 0;
-  for (let i = 1; i < energySeries.length; i += 1) {
-    const diff = energySeries[i] - energySeries[i - 1];
-    // Counter resets/noisy backward jumps are ignored instead of producing negative usage.
-    if (diff > 0) {
-      total += diff;
-    }
-  }
-  return total;
-}
-
-function deltaWithinWindow(
-  rows: Array<{ ts: number; energy: number }>,
-  startTs: number,
-  endTs: number
-): number {
-  const inRange = rows.filter((row) => row.ts >= startTs && row.ts <= endTs);
-  if (inRange.length < 2) return 0;
-  return monotonicDelta(inRange.map((row) => row.energy));
-}
-
 /**
  * Build a full consumption summary for the reports view.
  *
@@ -275,22 +270,27 @@ export async function buildConsumptionSummary(
 
   const supabase = getSupabaseAdmin();
 
-  const { data: rawReadings, error: readingsError } = await supabase
-    .from("power_readings")
-    .select(
-      "id, recorded_at, voltage, power_w, energy_kwh, total_power, total_energy, voltage_a, voltage_b, voltage_c, current_amp, current_a, current_b, current_c, power_a, power_b, power_c, energy_a, energy_b, energy_c, frequency, frequency_a, frequency_b, frequency_c, power_factor, power_factor_a, power_factor_b, power_factor_c"
-    )
-    .eq("device_id", deviceId)
-    .eq("customer_id", customerId)
-    .gte("recorded_at", filters.fromIso)
-    .lte("recorded_at", filters.toIso)
-    .order("recorded_at", { ascending: true })
-    .order("id", { ascending: true })
-    .limit(5000);
-
-  if (readingsError) {
-    throw new Error(`Fetch filtered readings failed: ${readingsError.message}`);
-  }
+  // Paginated, newest-first: a plain `.limit(5000)` ascending silently
+  // dropped the newest rows once a window exceeded 5000 readings. Pages are
+  // fetched descending so the page cap, if ever hit, drops the oldest data.
+  const rawReadings = await fetchAllPagesDescending<ReadingRow>(
+    async (from, to) => {
+      const { data, error } = await supabase
+        .from("power_readings")
+        .select(
+          "id, recorded_at, voltage, power_w, energy_kwh, total_power, total_energy, voltage_a, voltage_b, voltage_c, current_amp, current_a, current_b, current_c, power_a, power_b, power_c, energy_a, energy_b, energy_c, frequency, frequency_a, frequency_b, frequency_c, power_factor, power_factor_a, power_factor_b, power_factor_c"
+        )
+        .eq("device_id", deviceId)
+        .eq("customer_id", customerId)
+        .gte("recorded_at", filters.fromIso)
+        .lte("recorded_at", filters.toIso)
+        .order("recorded_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to);
+      return { data: data as ReadingRow[] | null, error };
+    },
+    { context: "Fetch filtered readings failed" }
+  );
 
   let alertRanges: Array<{ start: number; end: number }> = [];
   if (filters.alertOnly) {
@@ -313,9 +313,7 @@ export async function buildConsumptionSummary(
     }));
   }
 
-  const filteredReadings = (rawReadings ?? []).filter((row) => {
-    const typedRow = row as unknown as ReadingRow;
-
+  const filteredReadings = rawReadings.filter((typedRow) => {
     if (!filters.includeBlackout && isBlackoutReading(typedRow, filters.phase)) {
       return false;
     }
@@ -326,7 +324,7 @@ export async function buildConsumptionSummary(
     }
 
     return true;
-  }) as ReadingRow[];
+  });
 
   const reduced = filteredReadings.map((row) => ({
     ts: new Date(row.recorded_at).getTime(),
@@ -338,7 +336,7 @@ export async function buildConsumptionSummary(
   const latest = reduced.length > 0 ? reduced[reduced.length - 1] : null;
 
   if (!latest) {
-    const monthKey = monthLabel(now);
+    const monthKey = phMonthLabel(now.getTime());
     return {
       generatedAt: now.toISOString(),
       deviceId,
@@ -372,18 +370,21 @@ export async function buildConsumptionSummary(
     };
   }
 
-  const latestAt = new Date(latest.at);
   const oneDayStart = latest.ts - DAY_MS;
   const oneWeekStart = latest.ts - WEEK_MS;
-  const monthStartTs = Date.UTC(latestAt.getUTCFullYear(), latestAt.getUTCMonth(), 1, 0, 0, 0, 0);
+  const monthStartTs = phMonthStartTs(latest.ts);
 
   const currentDayKwh = round(deltaWithinWindow(reduced, oneDayStart, latest.ts), 4);
   const currentWeekKwh = round(deltaWithinWindow(reduced, oneWeekStart, latest.ts), 4);
   const currentMonthKwh = round(deltaWithinWindow(reduced, monthStartTs, latest.ts), 4);
 
-  const totalDelta = deltaWithinWindow(reduced, reduced[0].ts, latest.ts);
-  const spanDays = Math.max((latest.ts - reduced[0].ts) / DAY_MS, 1 / 24);
-  const averageDayKwh = round(totalDelta / spanDays, 4);
+  // Approved averages definition (Option B): all three are the current rate,
+  // scaled. avg/day = month-to-date ÷ elapsed PH calendar days (min 1);
+  // week = day × 7; month = day × 30. Historical monthly totals stay in the
+  // Monthly History list, so the ordering day ≤ week ≤ month holds by
+  // construction.
+  const elapsedDays = Math.max(1, phDayOfMonth(latest.ts));
+  const averageDayKwh = round(currentMonthKwh / elapsedDays, 4);
   const averageWeekKwh = round(averageDayKwh * 7, 4);
   const averageMonthKwh = round(averageDayKwh * 30, 4);
 
@@ -395,7 +396,7 @@ export async function buildConsumptionSummary(
   const byMonth = new Map<string, { powerSum: number; powerCount: number }>();
 
   for (const row of reduced) {
-    const key = monthLabel(new Date(row.at));
+    const key = phMonthLabel(row.ts);
     const existing = byMonth.get(key);
     if (!existing) {
       byMonth.set(key, {
@@ -412,12 +413,12 @@ export async function buildConsumptionSummary(
   const monthlyHistory = Array.from(byMonth.entries())
     .map(([period, value]) => {
       const monthRows = reduced
-        .filter((row) => monthLabel(new Date(row.at)) === period)
+        .filter((row) => phMonthLabel(row.ts) === period)
         .map((row) => row.energy);
 
       return {
         period,
-        totalKwh: round(monotonicDelta(monthRows), 4),
+        totalKwh: round(monotonicEnergyDelta(monthRows), 4),
         avgPower: value.powerCount > 0 ? value.powerSum / value.powerCount : 0,
       };
     })
@@ -442,7 +443,7 @@ export async function buildConsumptionSummary(
       dayKwh: currentDayKwh,
       weekKwh: currentWeekKwh,
       monthKwh: currentMonthKwh,
-      monthLabel: monthLabel(new Date(monthStartTs)),
+      monthLabel: phMonthLabel(latest.ts),
       dayEstimatedPhp: round(currentDayKwh * ratePhpPerKwh, 2),
       weekEstimatedPhp: round(currentWeekKwh * ratePhpPerKwh, 2),
       monthEstimatedPhp: round(currentMonthKwh * ratePhpPerKwh, 2),

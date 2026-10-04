@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getBillingRate, getSupabaseAdmin } from "@energy/database";
 import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
+import {
+  fetchAllPagesDescending,
+  monotonicEnergyDelta,
+} from "../../../lib/energy";
 
 export const dynamic = "force-dynamic";
 
@@ -107,12 +111,11 @@ function toMetricValue(row: ReadingRow, metric: HistoryMetric) {
 }
 
 function computeSummary(readings: ReadingRow[], ratePhpPerKwh: number) {
-  const first = readings[0];
-  const last = readings[readings.length - 1];
-
-  const totalKwh = first && last
-    ? Math.max(0, toNumber(last.energy_kwh) - toNumber(first.energy_kwh))
-    : 0;
+  // Shared energy-delta method (Reports/PDF/History): positive deltas with
+  // counter resets ignored — not last − first, which a reset zeroes out.
+  const totalKwh = monotonicEnergyDelta(
+    readings.map((row) => toNumber(row.energy_kwh))
+  );
 
   const divisor = Math.max(1, readings.length);
   const averageVoltage = readings.reduce((sum, row) => sum + toNumber(row.voltage), 0) / divisor;
@@ -148,8 +151,7 @@ function buildBucketedChart(readings: ReadingRow[], metric: HistoryMetric) {
   const buckets = new Map<
     string,
     {
-      firstEnergy: number;
-      lastEnergy: number;
+      energies: number[];
       latestAt: string;
       sampleCount: number;
       sumPower: number;
@@ -165,8 +167,7 @@ function buildBucketedChart(readings: ReadingRow[], metric: HistoryMetric) {
 
     if (!existing) {
       buckets.set(key, {
-        firstEnergy: energy,
-        lastEnergy: energy,
+        energies: [energy],
         latestAt: row.recorded_at,
         sampleCount: 1,
         sumPower: toNumber(row.power_w),
@@ -176,7 +177,7 @@ function buildBucketedChart(readings: ReadingRow[], metric: HistoryMetric) {
       continue;
     }
 
-    existing.lastEnergy = energy;
+    existing.energies.push(energy);
     existing.latestAt = row.recorded_at;
     existing.sampleCount += 1;
     existing.sumPower += toNumber(row.power_w);
@@ -184,19 +185,32 @@ function buildBucketedChart(readings: ReadingRow[], metric: HistoryMetric) {
     existing.sumVoltage += toNumber(row.voltage);
   }
 
-  return Array.from(buckets.entries()).map(([label, bucket]) => ({
-    // week/month timelines are bucketed by day for readability
-    label,
-    value: metric === "energy_kwh"
-      ? round(Math.max(0, bucket.lastEnergy - bucket.firstEnergy), 4)
-      : metric === "power_w"
-        ? roundForMetric(bucket.sumPower / Math.max(1, bucket.sampleCount), metric)
-        : metric === "current_amp"
-          ? roundForMetric(bucket.sumCurrent / Math.max(1, bucket.sampleCount), metric)
-          : roundForMetric(bucket.sumVoltage / Math.max(1, bucket.sampleCount), metric),
-    recordedAt: bucket.latestAt,
-    secondaryValue: round(bucket.lastEnergy, 4),
-  }));
+  // Buckets are day boundaries; each day's energy delta must include the
+  // increment between the previous day's last reading and this day's first
+  // (the boundary jump), otherwise the daily values don't sum back to the
+  // window total.
+  let carryEnergy: number | null = null;
+  return Array.from(buckets.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([label, bucket]) => {
+      const series =
+        carryEnergy === null ? bucket.energies : [carryEnergy, ...bucket.energies];
+      carryEnergy = bucket.energies[bucket.energies.length - 1] ?? carryEnergy;
+
+      return {
+        // week/month timelines are bucketed by day for readability
+        label,
+        value: metric === "energy_kwh"
+          ? round(monotonicEnergyDelta(series), 4)
+          : metric === "power_w"
+            ? roundForMetric(bucket.sumPower / Math.max(1, bucket.sampleCount), metric)
+            : metric === "current_amp"
+              ? roundForMetric(bucket.sumCurrent / Math.max(1, bucket.sampleCount), metric)
+              : roundForMetric(bucket.sumVoltage / Math.max(1, bucket.sampleCount), metric),
+        recordedAt: bucket.latestAt,
+        secondaryValue: round(bucket.energies[bucket.energies.length - 1] ?? 0, 4),
+      };
+    });
 }
 
 /**
@@ -257,16 +271,26 @@ export async function GET(req: NextRequest) {
     const { start, end } = getRangeBounds(period, dateParam);
     const serviceSupabase = getSupabaseAdmin();
 
-    const [readingsResult, alertsResult, billingRate] = await Promise.all([
-      serviceSupabase
-        .from("power_readings")
-        .select("id, voltage, current_amp, power_w, energy_kwh, recorded_at")
-        .eq("device_id", deviceId)
-        .eq("customer_id", customerId)
-        .gte("recorded_at", start.toISOString())
-        .lt("recorded_at", end.toISOString())
-        .order("recorded_at", { ascending: true })
-        .order("id", { ascending: true }),
+    // Paginated, newest-first: the unbounded query was silently capped at
+    // Supabase's default max-rows (1000), oldest-first, truncating week and
+    // month windows. The page cap, if ever hit, drops the oldest data.
+    const [readings, alertsResult, billingRate] = await Promise.all([
+      fetchAllPagesDescending<ReadingRow>(
+        async (from, to) => {
+          const { data, error } = await serviceSupabase
+            .from("power_readings")
+            .select("id, voltage, current_amp, power_w, energy_kwh, recorded_at")
+            .eq("device_id", deviceId)
+            .eq("customer_id", customerId)
+            .gte("recorded_at", start.toISOString())
+            .lt("recorded_at", end.toISOString())
+            .order("recorded_at", { ascending: false })
+            .order("id", { ascending: false })
+            .range(from, to);
+          return { data: data as ReadingRow[] | null, error };
+        },
+        { context: "History readings query failed" }
+      ),
       serviceSupabase
         .from("alerts")
         .select("id, type, message, value, threshold, created_at, is_read")
@@ -279,15 +303,10 @@ export async function GET(req: NextRequest) {
       getBillingRate(),
     ]);
 
-    if (readingsResult.error) {
-      throw new Error(`History readings query failed: ${readingsResult.error.message}`);
-    }
-
     if (alertsResult.error) {
       throw new Error(`History alerts query failed: ${alertsResult.error.message}`);
     }
 
-    const readings = (readingsResult.data ?? []) as ReadingRow[];
     const alerts = alertsResult.data ?? [];
     const ratePhpPerKwh = Number(billingRate?.rate_php_per_kwh ?? 10);
     const summary = computeSummary(readings, ratePhpPerKwh);
