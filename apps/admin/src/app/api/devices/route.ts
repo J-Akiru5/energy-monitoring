@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { listDevices, deactivateDevice, lookupControllerByDevice, replaceController } from "@energy/database";
+import {
+  listDevices,
+  deactivateDevice,
+  lookupControllerByDevice,
+  replaceController,
+  decommissionEmu,
+  redeployEmu,
+} from "@energy/database";
 import type { Permission } from "@energy/database";
 import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
 
@@ -49,7 +56,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const { deviceId, action } = await req.json();
+    const { deviceId, action, siteId, buildingId } = await req.json();
 
     // Replacement is its own permission in the role model; everything else
     // in this route is device management.
@@ -111,6 +118,91 @@ export async function PATCH(req: NextRequest) {
             { error: "No active controller to replace for this device" },
             { status: 409 }
           );
+        }
+        throw err;
+      }
+    }
+
+    if (action === "decommission_emu") {
+      // Same ownership gate as deactivate.
+      if (!access.isSuperAdmin) {
+        const stamp = await lookupControllerByDevice(deviceId);
+        if (!stamp || stamp.customerId !== access.customerId) {
+          return NextResponse.json(
+            { error: "Device not found or access denied" },
+            { status: 403 }
+          );
+        }
+      }
+
+      try {
+        await decommissionEmu(deviceId);
+        return NextResponse.json({ status: "decommissioned" });
+      } catch (err) {
+        if (
+          err instanceof Error &&
+          /already decommissioned|no ACTIVE controller|no active installation/.test(
+            err.message
+          )
+        ) {
+          return NextResponse.json(
+            { error: "EMU cannot be decommissioned in its current state" },
+            { status: 409 }
+          );
+        }
+        throw err;
+      }
+    }
+
+    if (action === "redeploy_emu") {
+      if (!siteId || !buildingId) {
+        return NextResponse.json(
+          { error: "siteId and buildingId are required to redeploy" },
+          { status: 400 }
+        );
+      }
+
+      // Same ownership gate as deactivate.
+      if (!access.isSuperAdmin) {
+        const stamp = await lookupControllerByDevice(deviceId);
+        if (!stamp || stamp.customerId !== access.customerId) {
+          return NextResponse.json(
+            { error: "Device not found or access denied" },
+            { status: 403 }
+          );
+        }
+      }
+
+      try {
+        const result = await redeployEmu(deviceId, siteId, buildingId);
+        return NextResponse.json({
+          status: "redeployed",
+          installationId: result.installationId,
+          emuId: result.emuId,
+          customerId: result.customerId,
+        });
+      } catch (err) {
+        if (err instanceof Error) {
+          if (
+            /target site belongs to a different customer|target building does not belong|target site not found|target building not found/.test(
+              err.message
+            )
+          ) {
+            return NextResponse.json(
+              { error: "Invalid redeploy target for this EMU" },
+              { status: 400 }
+            );
+          }
+          if (
+            /not decommissioned|no ACTIVE controller|already has an active installation/.test(
+              err.message
+            )
+          ) {
+            return NextResponse.json(
+              { error: "EMU cannot be redeployed in its current state" },
+              { status: 409 }
+            );
+          }
         }
         throw err;
       }

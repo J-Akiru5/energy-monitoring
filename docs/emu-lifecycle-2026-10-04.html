@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Monitoring — EMU Decommission / Redeploy (RM-07)</title>
+<style>
+:root{
+  --bg:#050505; --text:#ededed; --text2:#B7BFCB; --muted:#8A93A0;
+  --line:rgba(255,255,255,.10);
+  --panel:rgba(255,255,255,.045);
+  --field:rgba(255,255,255,.06);
+  --accent:#22D3EE; --accent-2:#A855F7;
+  --grad:linear-gradient(135deg,#22D3EE,#A855F7);
+  --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --r-sm:6px; --r-lg:16px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,h4,p,dl,dd,figure,blockquote{margin:0}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.14;font-weight:800;letter-spacing:-.025em}
+h2{font-size:clamp(20px,2.6vw,27px);line-height:1.22;font-weight:700;letter-spacing:-.015em;margin-bottom:12px}
+h3{font-size:17px;font-weight:700;margin-bottom:8px}
+h4{font-size:15px;font-weight:700}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:var(--mono)}
+code{font-size:.88em;background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:var(--r-sm)}
+pre{margin:14px 0 0;background:#0a0c10;border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--text2)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;height:64px;
+  padding:0 clamp(16px,3vw,40px);background:rgba(5,5,5,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.wordmark b{color:var(--accent)}
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;text-transform:uppercase;
+  color:var(--accent);display:inline-block;white-space:nowrap;line-height:1.6}
+.chip.d{color:var(--ok)} .chip.u{color:var(--warn)} .chip.c{color:var(--danger)} .chip.i{color:var(--accent-2)}
+.shell{display:grid;grid-template-columns:220px minmax(0,1fr) 280px;gap:clamp(20px,2.6vw,36px);
+  padding:28px clamp(16px,3vw,40px) 90px;max-width:1720px;margin:0 auto;align-items:start}
+.sidebar,.rail{position:sticky;top:84px;max-height:calc(100vh - 108px);overflow-y:auto}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar a{display:block;padding:9px 10px;min-height:40px;border-radius:var(--r-sm);color:var(--text2);font-size:13.5px;border-left:2px solid transparent}
+.sidebar a:hover{color:var(--text);text-decoration:none;background:var(--panel)}
+.sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel)}
+.rail .panel{margin-bottom:14px}
+.rail .facts dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;margin:0}
+.rail .facts dt{color:var(--muted)}
+.rail .facts dd{margin:0;text-align:right;min-width:0}
+.rail .quote{font-style:italic;font-size:13.5px;color:var(--text2)}
+main{min-width:0}
+.section{padding:8px 0 46px;scroll-margin-top:88px}
+.section+.section{border-top:1px solid var(--line);padding-top:38px}
+.section p{max-width:78ch;color:var(--text2)}
+.section p+p{margin-top:12px}
+.section p strong,.section li strong{color:var(--text)}
+.lede{font-size:17.5px;color:var(--text2);max-width:78ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:20px 22px}
+.callout{position:relative;padding:18px 22px 18px 26px;border-radius:var(--r-lg);margin:20px 0;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.callout::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.callout.danger::before{background:var(--danger)}
+.callout.warn::before{background:var(--warn)}
+.callout.ok::before{background:var(--ok)}
+.callout h3{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+.callout .tag{float:right;margin-left:12px}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 18px;min-width:132px;flex:1 1 132px}
+.stat b{display:block;font-size:clamp(22px,2.6vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-top:16px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.mono{font-family:var(--mono);font-size:.92em}
+.ok{color:var(--ok);font-weight:600}
+.ul-tight{padding-left:20px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+.ul-tight li{margin:7px 0}
+.diagram{margin:24px 0 8px;padding:18px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);overflow-x:auto}
+.diagram svg{display:block;min-width:720px;max-width:100%;height:auto;margin:0 auto}
+.diagram figcaption{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center}
+.cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:18px 20px}
+.card h4{margin-bottom:6px}
+.card p{font-size:14px;max-width:none}
+.card .chip{margin-bottom:10px}
+.footnote{font-size:13px;color:var(--muted);max-width:80ch;margin-top:12px}
+.footer{border-top:1px solid var(--line);margin-top:10px;padding:22px clamp(16px,3vw,40px) 40px;color:var(--muted);font-size:13px;max-width:1720px;margin-left:auto;margin-right:auto}
+@media (max-width:1280px){ .shell{grid-template-columns:220px minmax(0,1fr)} .rail{display:none} }
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:18px}
+  .sidebar{position:static;max-height:none;overflow:visible}
+  .sidebar nav{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .sidebar a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .sidebar a.active{border-left:0;border-bottom-color:var(--accent)}
+  table{min-width:560px}
+}
+@media print{
+  .topbar,.sidebar,.rail{display:none}
+  body{background:#fff;color:#000}
+  .shell{display:block;padding:0}
+  .panel,.callout,.card,.tablewrap,.diagram{background:#fff;border-color:#999;backdrop-filter:none}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark"><b>Syntaxure</b> / EMS EMU Lifecycle · RM-07</div>
+  <div class="top-meta">
+    <span class="chip">2026-10-04</span>
+    <span class="chip u">built — migration not yet applied</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav aria-label="Sections">
+      <a href="#s-tldr" class="active">TL;DR</a>
+      <a href="#s-design">Design</a>
+      <a href="#s-contract">Contract</a>
+      <a href="#s-evidence">Evidence</a>
+      <a href="#s-next">What's next</a>
+    </nav>
+  </aside>
+
+  <main>
+
+    <article class="section" id="s-tldr">
+      <h1>EMU Decommission / Redeploy</h1>
+      <p class="lede"><strong>RM-07.</strong> The decommission → redeploy path now exists as two transactional database functions behind admin actions. Decommission ends the EMU's open installation and sets it <code>DECOMMISSIONED</code>; redeploy creates a new installation and reactivates it — both in single transactions, with cross-customer redeployment deliberately rejected as RM-09 territory. The migration is <strong>not yet applied</strong> to live (build-only phase, per the current hold); the live verification script is committed and ready to run.</p>
+
+      <div class="stat-row">
+        <div class="stat"><b>2</b><span>transactional RPCs (decommission, redeploy)</span></div>
+        <div class="stat"><b>14</b><span>tests passing (5 wrapper + 9 admin route)</span></div>
+        <div class="stat"><b>0</b><span>cross-customer redeploys possible</span></div>
+      </div>
+
+      <div class="callout warn">
+        <span class="tag chip u">Reality check</span>
+        <h3>The roadmap's lifecycle string is longer than the schema</h3>
+        <p><code>emus.status</code> is defined as <code>'ACTIVE' | 'DECOMMISSIONED'</code> (migration comment, line 67). The INVENTORY → PROVISIONED → ASSIGNED → INSTALLED chain has no schema representation and no code ever set it. This implementation makes the two real states operational rather than inventing state columns the schema doesn't have; the intermediate chain remains conceptual until a product decision says otherwise.</p>
+      </div>
+    </article>
+
+    <article class="section" id="s-design">
+      <h2>Design</h2>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 860 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Lifecycle: ACTIVE with open installation, decommission ends installation and sets DECOMMISSIONED, redeploy creates new installation and returns to ACTIVE">
+          <defs>
+            <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#22D3EE"/></marker>
+            <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#A855F7"/></marker>
+          </defs>
+          <rect x="60" y="60" width="260" height="80" rx="8" fill="rgba(74,222,128,.07)" stroke="rgba(74,222,128,.45)"/>
+          <text x="190" y="90" fill="#ededed" font-family="Inter, sans-serif" font-size="14" font-weight="600" text-anchor="middle">ACTIVE</text>
+          <text x="190" y="112" fill="#8A93A0" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">exactly one open installation</text>
+
+          <rect x="540" y="60" width="260" height="80" rx="8" fill="rgba(248,113,113,.07)" stroke="rgba(248,113,113,.45)"/>
+          <text x="670" y="90" fill="#ededed" font-family="Inter, sans-serif" font-size="14" font-weight="600" text-anchor="middle">DECOMMISSIONED</text>
+          <text x="670" y="112" fill="#8A93A0" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">installation ended (ended_at set)</text>
+
+          <path d="M324 86 L536 86" stroke="#22D3EE" stroke-width="2.5" marker-end="url(#a1)"/>
+          <text x="430" y="72" fill="#22D3EE" font-family="Inter, sans-serif" font-size="12" text-anchor="middle">decommission_emu</text>
+
+          <path d="M536 114 L324 114" stroke="#A855F7" stroke-width="2.5" marker-end="url(#a2)"/>
+          <text x="430" y="134" fill="#A855F7" font-family="Inter, sans-serif" font-size="12" text-anchor="middle">redeploy_emu (same customer only)</text>
+
+          <text x="430" y="172" fill="#8A93A0" font-family="Inter, sans-serif" font-size="12" text-anchor="middle">Controllers are untouched — the hardware credential stays valid for a physically redeployed unit.</text>
+        </svg>
+        <figcaption>Fig. 1 — the two real lifecycle states, with installation rows carrying the tenancy history RM-06 renders.</figcaption>
+      </figure>
+
+      <ul class="ul-tight">
+        <li><strong>Transactional:</strong> each operation ends/creates the installation and flips the status in one database function — a mid-failure cannot leave a decommissioned EMU with an open installation, or an ACTIVE EMU with none.</li>
+        <li><strong>Same-customer only:</strong> the redeploy target's site must belong to the EMU's owning customer, and the building must belong to that site. Cross-customer redeployment is a reassignment — RM-09, blocked on OD-1 — so it is rejected rather than guessed at.</li>
+        <li><strong>Controllers untouched:</strong> the device token stays valid across decommission/redeploy; telemetry can resume when the unit is physically reinstalled.</li>
+      </ul>
+    </article>
+
+    <article class="section" id="s-contract">
+      <h2>Contract</h2>
+      <div class="panel" style="margin-top:16px">
+        <pre><code>PATCH /api/devices   (admin app, session + manage_devices)
+
+{ "action": "decommission_emu", "deviceId": "&lt;uuid&gt;" }
+  → 200 { "status": "decommissioned" }
+  → 409 EMU cannot be decommissioned in its current state
+
+{ "action": "redeploy_emu", "deviceId": "&lt;uuid&gt;",
+  "siteId": "&lt;uuid&gt;", "buildingId": "&lt;uuid&gt;" }
+  → 200 { "status": "redeployed", installationId, emuId, customerId }
+  → 400 missing target ids / invalid target for this EMU
+  → 409 EMU cannot be redeployed in its current state
+
+DB functions (service_role only):
+  decommission_emu(p_device_id)
+  redeploy_emu(p_device_id, p_site_id, p_building_id)</code></pre>
+      </div>
+    </article>
+
+    <article class="section" id="s-evidence">
+      <h2>Evidence</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Suite</th><th>Checks</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Wrapper</strong> <span class="mono">emuLifecycle.test.mjs</span></td><td>RPC name + args · response mapping · empty response · DB error paths</td><td class="ok">5 / 5</td></tr>
+            <tr><td><strong>Admin route</strong> <span class="mono">devices/route.test.mjs</span></td><td>permission mapping (replace_device vs manage_devices) · own/cross-tenant · 400/409 mappings · RPC-never-called on denial</td><td class="ok">9 / 9</td></tr>
+            <tr><td><strong>Live lifecycle</strong> <span class="mono">scripts/test-emu-lifecycle.ts</span></td><td>baseline · rejected transitions · decommission · double-decommission · cross-customer target · building/site mismatch · valid redeploy</td><td class="warn">prepared — runs after the migration is applied</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">Type-check clean; eslint clean on every touched file (0 errors). Committed to the working branch <code>work/rm02-rm03-validation</code> — no push, no migration applied, per the current hold.</p>
+    </article>
+
+    <article class="section" id="s-next">
+      <h2>What's next</h2>
+      <div class="cardgrid">
+        <div class="card">
+          <span class="chip c">Requires go-ahead</span>
+          <h4>Apply migration + run the live test</h4>
+          <p><code>supabase db push --db-url</code> for <code>20261004000001_emu_lifecycle.sql</code>, then <code>node scripts/test-emu-lifecycle.ts</code> — the same pattern used for RM-02.</p>
+        </div>
+        <div class="card">
+          <span class="chip u">Blocked on OD-1</span>
+          <h4>RM-09 cross-customer reassignment</h4>
+          <p>This flow deliberately rejects cross-customer targets; the policy split needs the ownership-party fact from OD-1.</p>
+        </div>
+        <div class="card">
+          <span class="chip i">Optional</span>
+          <h4>UI surface</h4>
+          <p>Admin has no devices page yet; the actions are API-only until one is built.</p>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <aside class="rail">
+    <div class="panel facts">
+      <h3>Key facts</h3>
+      <dl>
+        <dt>RPCs</dt><dd>2</dd>
+        <dt>Tests</dt><dd>14 / 14</dd>
+        <dt>Migration</dt><dd class="mono">…0001</dd>
+        <dt>Applied</dt><dd>not yet</dd>
+        <dt>Cross-customer</dt><dd>rejected</dd>
+        <dt>Branch</dt><dd class="mono">work/…</dd>
+      </dl>
+    </div>
+    <div class="panel">
+      <h3>Status</h3>
+      <p style="font-size:13.5px;color:var(--text2)">RM-07 built and unit-verified; live verification pending the migration apply in the next phase.</p>
+    </div>
+    <blockquote class="panel quote">Two real states beat six imaginary ones — make what the schema can hold actually work first.</blockquote>
+  </aside>
+</div>
+
+<div class="footer">
+  Energy Monitoring · RM-07 decommission/redeploy · 2026-10-04 · 14/14 tests · migration built, not applied · committed locally (no push)
+</div>
+
+</body>
+</html>

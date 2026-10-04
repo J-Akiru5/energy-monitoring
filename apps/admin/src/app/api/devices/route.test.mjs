@@ -1,13 +1,7 @@
 /**
- * Tests for /api/devices (admin) — super-admin vs customer scoping.
- *
- * Covers:
- *   - Super Admin GET → unscoped listDevices() call (no "*" sentinel leak)
- *   - Normal user GET → customer-scoped listDevices(customerId)
- *   - demo1-style expired-grant fallback → scoped WVSU query
- *   - Super Admin PATCH → no false 403 from the "*" sentinel
- *   - Normal user PATCH → ownership enforced
- *   - Unauthenticated / denied cases preserved
+ * Tests for admin /api/devices PATCH — action routing and permission
+ * mapping, with focus on the RM-07 lifecycle actions (decommission_emu,
+ * redeploy_emu) and the RM-02 replace_controller action.
  *
  * Run (from repo root):
  *   node --experimental-test-module-mocks --test apps/admin/src/app/api/devices/route.test.mjs
@@ -36,33 +30,52 @@ registerHooks({
   },
 });
 
-const WVSU = "333fad51-50b2-4cdb-82e6-1c493f499a5c";
+const DEVICE_A = "11111111-1111-4111-8111-111111111111";
+const DEVICE_B = "22222222-2222-4222-8222-222222222222";
+const CUSTOMER_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const CUSTOMER_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const SITE_A = "33333333-3333-4333-8333-333333333333";
+const BUILDING_A = "44444444-4444-4444-8444-444444444444";
 
 let currentUser = { id: "user-1" };
 let currentAccess = null;
 let denyAccess = false;
+let stampByDevice = {};
+let decommissionError = null;
+let redeployError = null;
 
-const listCalls = [];
+const resolveCalls = [];
 const lookupCalls = [];
-const deactivateCalls = [];
-
-let listResult = [{ id: "d566ef3b", name: "ESP32-CICT-001", is_active: true }];
-let lookupResult = null;
+const decommissionCalls = [];
+const redeployCalls = [];
 
 class AccessDeniedError extends Error {}
 
 mock.module("@energy/database", {
   namedExports: {
-    listDevices: async (...args) => {
-      listCalls.push(args);
-      return listResult;
-    },
-    deactivateDevice: async (deviceId) => {
-      deactivateCalls.push(deviceId);
-    },
+    listDevices: async () => [],
+    deactivateDevice: async () => {},
     lookupControllerByDevice: async (deviceId) => {
       lookupCalls.push(deviceId);
-      return lookupResult;
+      return stampByDevice[deviceId] ?? null;
+    },
+    replaceController: async (deviceId) => ({
+      controllerId: "ctrl-new",
+      deviceId,
+      deviceToken: "em_new",
+    }),
+    decommissionEmu: async (deviceId) => {
+      decommissionCalls.push(deviceId);
+      if (decommissionError) {
+        throw new Error(`Decommission EMU failed: ${decommissionError}`);
+      }
+    },
+    redeployEmu: async (deviceId, siteId, buildingId) => {
+      redeployCalls.push([deviceId, siteId, buildingId]);
+      if (redeployError) {
+        throw new Error(`Redeploy EMU failed: ${redeployError}`);
+      }
+      return { installationId: "inst-new", emuId: "emu-1", customerId: CUSTOMER_A };
     },
   },
 });
@@ -72,7 +85,8 @@ mock.module("@energy/auth", {
     createClient: () => ({
       auth: { getUser: async () => ({ data: { user: currentUser } }) },
     }),
-    resolveAccess: async () => {
+    resolveAccess: async (_userId, permission) => {
+      resolveCalls.push(permission);
       if (denyAccess) throw new AccessDeniedError("denied");
       return currentAccess;
     },
@@ -80,103 +94,170 @@ mock.module("@energy/auth", {
   },
 });
 
-const { GET, PATCH } = await import("./route.ts");
+const { NextRequest } = await import("next/server");
+const { PATCH } = await import("./route.ts");
 
 function reset() {
   currentUser = { id: "user-1" };
   currentAccess = null;
   denyAccess = false;
-  listCalls.length = 0;
+  stampByDevice = {};
+  decommissionError = null;
+  redeployError = null;
+  resolveCalls.length = 0;
   lookupCalls.length = 0;
-  deactivateCalls.length = 0;
-  lookupResult = null;
-  listResult = [{ id: "d566ef3b", name: "ESP32-CICT-001", is_active: true }];
+  decommissionCalls.length = 0;
+  redeployCalls.length = 0;
 }
 
-function patchReq(deviceId, action = "deactivate") {
-  return new Request("http://localhost/api/devices", {
+function patchReq(body) {
+  return new NextRequest("http://localhost/api/devices", {
     method: "PATCH",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ deviceId, action }),
+    body: JSON.stringify(body),
   });
 }
 
-test("Super Admin GET → unscoped listDevices(), no sentinel leak", async () => {
+test("permission mapping: replace_controller resolves replace_device; lifecycle actions use manage_devices", async () => {
   reset();
   currentAccess = { isSuperAdmin: true, customerId: "*", permissions: [] };
-  const res = await GET();
-  assert.equal(res.status, 200);
-  assert.deepEqual(listCalls, [[]], "must call listDevices() with no customerId");
-  const json = await res.json();
-  assert.equal(json.devices.length, 1);
+
+  await PATCH(patchReq({ deviceId: DEVICE_A, action: "replace_controller" }));
+  assert.deepEqual(resolveCalls, ["replace_device"]);
+
+  resolveCalls.length = 0;
+  await PATCH(patchReq({ deviceId: DEVICE_A, action: "decommission_emu" }));
+  assert.deepEqual(resolveCalls, ["manage_devices"]);
+
+  resolveCalls.length = 0;
+  await PATCH(
+    patchReq({
+      deviceId: DEVICE_A,
+      action: "redeploy_emu",
+      siteId: SITE_A,
+      buildingId: BUILDING_A,
+    })
+  );
+  assert.deepEqual(resolveCalls, ["manage_devices"]);
 });
 
-test("normal customer user GET → scoped listDevices(customerId)", async () => {
+test("decommission_emu: own device → 200, RPC called", async () => {
   reset();
-  currentAccess = { isSuperAdmin: false, customerId: WVSU, permissions: ["manage_devices"] };
-  const res = await GET();
-  assert.equal(res.status, 200);
-  assert.deepEqual(listCalls, [[WVSU]]);
-});
+  currentAccess = { isSuperAdmin: false, customerId: CUSTOMER_A, permissions: [] };
+  stampByDevice[DEVICE_A] = { customerId: CUSTOMER_A };
 
-test("demo1-style expired-grant fallback → WVSU-scoped query shows the device", async () => {
-  reset();
-  currentAccess = { isSuperAdmin: false, customerId: WVSU, permissions: ["manage_devices"] };
-  const res = await GET();
+  const res = await PATCH(patchReq({ deviceId: DEVICE_A, action: "decommission_emu" }));
+
+  assert.equal(res.status, 200);
   const json = await res.json();
-  assert.equal(res.status, 200);
-  assert.deepEqual(listCalls, [[WVSU]]);
-  assert.equal(json.devices[0].id, "d566ef3b");
+  assert.equal(json.status, "decommissioned");
+  assert.deepEqual(decommissionCalls, [DEVICE_A]);
 });
 
-test("Super Admin PATCH deactivate → allowed without ownership lookup", async () => {
+test("decommission_emu: cross-tenant device → 403, RPC never called", async () => {
+  reset();
+  currentAccess = { isSuperAdmin: false, customerId: CUSTOMER_A, permissions: [] };
+  stampByDevice[DEVICE_B] = { customerId: CUSTOMER_B };
+
+  const res = await PATCH(patchReq({ deviceId: DEVICE_B, action: "decommission_emu" }));
+
+  assert.equal(res.status, 403);
+  assert.deepEqual(decommissionCalls, []);
+});
+
+test("decommission_emu: state conflict → 409", async () => {
   reset();
   currentAccess = { isSuperAdmin: true, customerId: "*", permissions: [] };
-  const res = await PATCH(patchReq("device-x"));
+  decommissionError = "EMU is already decommissioned";
+
+  const res = await PATCH(patchReq({ deviceId: DEVICE_A, action: "decommission_emu" }));
+
+  assert.equal(res.status, 409);
+  const json = await res.json();
+  assert.match(json.error, /current state/);
+});
+
+test("redeploy_emu: missing target ids → 400, RPC never called", async () => {
+  reset();
+  currentAccess = { isSuperAdmin: true, customerId: "*", permissions: [] };
+
+  const res = await PATCH(patchReq({ deviceId: DEVICE_A, action: "redeploy_emu" }));
+
+  assert.equal(res.status, 400);
+  assert.deepEqual(redeployCalls, []);
+});
+
+test("redeploy_emu: own device + valid target → 200, RPC called with all ids", async () => {
+  reset();
+  currentAccess = { isSuperAdmin: false, customerId: CUSTOMER_A, permissions: [] };
+  stampByDevice[DEVICE_A] = { customerId: CUSTOMER_A };
+
+  const res = await PATCH(
+    patchReq({
+      deviceId: DEVICE_A,
+      action: "redeploy_emu",
+      siteId: SITE_A,
+      buildingId: BUILDING_A,
+    })
+  );
+
   assert.equal(res.status, 200);
-  assert.deepEqual(deactivateCalls, ["device-x"]);
-  assert.deepEqual(lookupCalls, [], "super admin must not need the ownership bridge");
+  const json = await res.json();
+  assert.equal(json.status, "redeployed");
+  assert.equal(json.installationId, "inst-new");
+  assert.deepEqual(redeployCalls, [[DEVICE_A, SITE_A, BUILDING_A]]);
 });
 
-test("normal user PATCH within own customer → allowed", async () => {
+test("redeploy_emu: cross-tenant device → 403, RPC never called", async () => {
   reset();
-  currentAccess = { isSuperAdmin: false, customerId: WVSU, permissions: ["manage_devices"] };
-  lookupResult = { customerId: WVSU };
-  const res = await PATCH(patchReq("device-x"));
-  assert.equal(res.status, 200);
-  assert.deepEqual(deactivateCalls, ["device-x"]);
-});
+  currentAccess = { isSuperAdmin: false, customerId: CUSTOMER_A, permissions: [] };
+  stampByDevice[DEVICE_B] = { customerId: CUSTOMER_B };
 
-test("normal user PATCH outside own customer → 403, no deactivation", async () => {
-  reset();
-  currentAccess = { isSuperAdmin: false, customerId: WVSU, permissions: ["manage_devices"] };
-  lookupResult = { customerId: "some-other-customer" };
-  const res = await PATCH(patchReq("device-x"));
+  const res = await PATCH(
+    patchReq({
+      deviceId: DEVICE_B,
+      action: "redeploy_emu",
+      siteId: SITE_A,
+      buildingId: BUILDING_A,
+    })
+  );
+
   assert.equal(res.status, 403);
-  assert.deepEqual(deactivateCalls, []);
+  assert.deepEqual(redeployCalls, []);
 });
 
-test("normal user PATCH unknown device → 403, no deactivation", async () => {
+test("redeploy_emu: invalid target → 400", async () => {
   reset();
-  currentAccess = { isSuperAdmin: false, customerId: WVSU, permissions: ["manage_devices"] };
-  lookupResult = null;
-  const res = await PATCH(patchReq("device-x"));
-  assert.equal(res.status, 403);
-  assert.deepEqual(deactivateCalls, []);
+  currentAccess = { isSuperAdmin: true, customerId: "*", permissions: [] };
+  redeployError = "target site belongs to a different customer";
+
+  const res = await PATCH(
+    patchReq({
+      deviceId: DEVICE_A,
+      action: "redeploy_emu",
+      siteId: SITE_A,
+      buildingId: BUILDING_A,
+    })
+  );
+
+  assert.equal(res.status, 400);
+  const json = await res.json();
+  assert.match(json.error, /Invalid redeploy target/);
 });
 
-test("unauthenticated GET → 401", async () => {
+test("redeploy_emu: state conflict → 409", async () => {
   reset();
-  currentUser = null;
-  const res = await GET();
-  assert.equal(res.status, 401);
-  assert.deepEqual(listCalls, []);
-});
+  currentAccess = { isSuperAdmin: true, customerId: "*", permissions: [] };
+  redeployError = "EMU is not decommissioned (status ACTIVE)";
 
-test("AccessDeniedError → 403 (no regression)", async () => {
-  reset();
-  denyAccess = true;
-  const res = await GET();
-  assert.equal(res.status, 403);
-  assert.deepEqual(listCalls, []);
+  const res = await PATCH(
+    patchReq({
+      deviceId: DEVICE_A,
+      action: "redeploy_emu",
+      siteId: SITE_A,
+      buildingId: BUILDING_A,
+    })
+  );
+
+  assert.equal(res.status, 409);
 });

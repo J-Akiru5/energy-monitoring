@@ -73,6 +73,9 @@ export { replaceController } from "./queries/controllers";
 export { getInstallationHistory } from "./queries/installations";
 export type { InstallationHistoryRow } from "./queries/installations";
 
+// EMU lifecycle queries
+export { decommissionEmu, redeployEmu } from "./queries/emuLifecycle";
+
 // Relay queries
 export {
   getRelayConfig,
