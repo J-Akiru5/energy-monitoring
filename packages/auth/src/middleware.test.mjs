@@ -80,6 +80,19 @@ test("no session + /api/thresholds/esp32 is still allowed (existing behavior pre
   assertNotRedirected(await updateSession(req("/api/thresholds/esp32?deviceId=abc")), "/api/thresholds/esp32");
 });
 
+test("no session + /api/devices/:id/pzem-config (device token path) is not redirected", async () => {
+  currentUser = null;
+  assertNotRedirected(
+    await updateSession(req("/api/devices/11111111-1111-4111-8111-111111111111/pzem-config")),
+    "/api/devices/:id/pzem-config"
+  );
+});
+
+test("no session + /api/devices list is not redirected (route returns its own 401 JSON)", async () => {
+  currentUser = null;
+  assertNotRedirected(await updateSession(req("/api/devices")), "/api/devices list");
+});
+
 test("no session + /dashboard still redirects to /login (browser behavior unchanged)", async () => {
   currentUser = null;
   const res = await updateSession(req("/dashboard"));

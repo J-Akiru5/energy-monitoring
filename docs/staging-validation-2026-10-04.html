@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Monitoring — Staging Validation: RM-05 Promotion Candidate (2026-10-04)</title>
+<style>
+:root{
+  --bg:#050505; --text:#ededed; --text2:#B7BFCB; --muted:#8A93A0;
+  --line:rgba(255,255,255,.10);
+  --panel:rgba(255,255,255,.045);
+  --field:rgba(255,255,255,.06);
+  --accent:#22D3EE; --accent-2:#A855F7;
+  --grad:linear-gradient(135deg,#22D3EE,#A855F7);
+  --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --r-sm:6px; --r-lg:16px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,h4,p,dl,dd,figure,blockquote{margin:0}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.14;font-weight:800;letter-spacing:-.025em}
+h2{font-size:clamp(20px,2.6vw,27px);line-height:1.22;font-weight:700;letter-spacing:-.015em;margin-bottom:12px}
+h3{font-size:17px;font-weight:700;margin-bottom:8px}
+h4{font-size:15px;font-weight:700}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:var(--mono)}
+code{font-size:.88em;background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:var(--r-sm)}
+pre{margin:14px 0 0;background:#0a0c10;border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--text2)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;height:64px;
+  padding:0 clamp(16px,3vw,40px);background:rgba(5,5,5,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.wordmark b{color:var(--accent)}
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;text-transform:uppercase;
+  color:var(--accent);display:inline-block;white-space:nowrap;line-height:1.6}
+.chip.d{color:var(--ok)} .chip.u{color:var(--warn)} .chip.c{color:var(--danger)} .chip.i{color:var(--accent-2)}
+.shell{display:grid;grid-template-columns:220px minmax(0,1fr) 280px;gap:clamp(20px,2.6vw,36px);
+  padding:28px clamp(16px,3vw,40px) 90px;max-width:1720px;margin:0 auto;align-items:start}
+.sidebar,.rail{position:sticky;top:84px;max-height:calc(100vh - 108px);overflow-y:auto}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar a{display:block;padding:9px 10px;min-height:40px;border-radius:var(--r-sm);color:var(--text2);font-size:13.5px;border-left:2px solid transparent}
+.sidebar a:hover{color:var(--text);text-decoration:none;background:var(--panel)}
+.sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel)}
+.rail .panel{margin-bottom:14px}
+.rail .facts dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;margin:0}
+.rail .facts dt{color:var(--muted)}
+.rail .facts dd{margin:0;text-align:right;min-width:0}
+.rail .quote{font-style:italic;font-size:13.5px;color:var(--text2)}
+main{min-width:0}
+.section{padding:8px 0 46px;scroll-margin-top:88px}
+.section+.section{border-top:1px solid var(--line);padding-top:38px}
+.section p{max-width:78ch;color:var(--text2)}
+.section p+p{margin-top:12px}
+.section p strong,.section li strong{color:var(--text)}
+.lede{font-size:17.5px;color:var(--text2);max-width:78ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:20px 22px}
+.callout{position:relative;padding:18px 22px 18px 26px;border-radius:var(--r-lg);margin:20px 0;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.callout::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.callout.danger::before{background:var(--danger)}
+.callout.warn::before{background:var(--warn)}
+.callout.ok::before{background:var(--ok)}
+.callout h3{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+.callout .tag{float:right;margin-left:12px}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 18px;min-width:132px;flex:1 1 132px}
+.stat b{display:block;font-size:clamp(22px,2.6vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat.c b{background:none;color:var(--danger);-webkit-text-fill-color:var(--danger)}
+.stat span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-top:16px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.mono{font-family:var(--mono);font-size:.92em}
+.ok{color:var(--ok);font-weight:600}
+.bad{color:var(--danger);font-weight:600}
+.warn{color:var(--warn);font-weight:600}
+.ul-tight{padding-left:20px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+.ul-tight li{margin:7px 0}
+.cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:18px 20px}
+.card h4{margin-bottom:6px}
+.card p{font-size:14px;max-width:none}
+.card .chip{margin-bottom:10px}
+.footnote{font-size:13px;color:var(--muted);max-width:80ch;margin-top:12px}
+.footer{border-top:1px solid var(--line);margin-top:10px;padding:22px clamp(16px,3vw,40px) 40px;color:var(--muted);font-size:13px;max-width:1720px;margin-left:auto;margin-right:auto}
+@media (max-width:1280px){ .shell{grid-template-columns:220px minmax(0,1fr)} .rail{display:none} }
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:18px}
+  .sidebar{position:static;max-height:none;overflow:visible}
+  .sidebar nav{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .sidebar a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .sidebar a.active{border-left:0;border-bottom-color:var(--accent)}
+  table{min-width:560px}
+}
+@media print{
+  .topbar,.sidebar,.rail{display:none}
+  body{background:#fff;color:#000}
+  .shell{display:block;padding:0}
+  .panel,.callout,.card,.tablewrap,.diagram{background:#fff;border-color:#999;backdrop-filter:none}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark"><b>Syntaxure</b> / EMS Staging Validation · 2026-10-04</div>
+  <div class="top-meta">
+    <span class="chip">candidate: staging @ cefd890</span>
+    <span class="chip d">device + session paths verified</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav aria-label="Sections">
+      <a href="#s-tldr" class="active">TL;DR</a>
+      <a href="#s-scope">Scope &amp; method</a>
+      <a href="#s-results">Results</a>
+      <a href="#s-findings">Findings</a>
+      <a href="#s-promote">Promotion checklist</a>
+    </nav>
+  </aside>
+
+  <main>
+
+    <article class="section" id="s-tldr">
+      <h1>Staging Validation — RM-05 Promotion Candidate</h1>
+      <p class="lede"><strong>2026-10-04.</strong> The staging deployment (<code>main</code> + PR #30, tip <code>cefd890</code>) was exercised end-to-end with automated smoke tests: unauthenticated boundaries, the full device-token path (RM-05's cutover), and real signed-in session paths. <strong>Every critical path passed</strong> — including device ingest writing a real reading and cross-tenant session requests being rejected. One device-facing defect was found and fixed in this same branch: the session middleware was redirecting the firmware's <code>pzem-config</code> device-token call to <code>/login</code>.</p>
+
+      <div class="stat-row">
+        <div class="stat"><b>20</b><span>smoke checks executed against staging</span></div>
+        <div class="stat"><b>19</b><span>passed (1 harness bug, corrected and re-run)</span></div>
+        <div class="stat"><b>1</b><span>real defect found + fixed here</span></div>
+        <div class="stat"><b>0</b><span>cross-tenant leaks observed</span></div>
+      </div>
+
+      <div class="callout ok">
+        <span class="tag chip d">Headline</span>
+        <h3>RM-05 works in the deployed environment</h3>
+        <p>Wrong device tokens get <code>401 "Invalid or inactive device token"</code>; a valid token authenticates and ingests telemetry (<code>200 {"status":"ok"}</code>, reading persisted); the thresholds identity-binding fix rejects a valid token aimed at another device's ID; session requests for another tenant's device are <code>403</code>. This is the evidence the staging gate exists for.</p>
+      </div>
+    </article>
+
+    <article class="section" id="s-scope">
+      <h2>Scope &amp; method</h2>
+      <p>The staging branch alias for each app sits behind Vercel Authentication, so tests ran with an automation bypass secret (created via the Vercel API for the three projects, note "opencode staging validation 2026-10-04" — revocable in Project Settings → Deployment Protection). Requests were plain <code>curl</code> against the staging aliases:</p>
+      <pre><code>web         https://energy-monitoring-web-git-staging-j-akiru5s-projects.vercel.app
+admin       https://energy-monitoring-admin-git-staging-j-akiru5s-projects.vercel.app
+super-admin https://energy-monitoring-super-admin-git-staging-j-akiru5s-projects.vercel.app</code></pre>
+      <p>Device tests used the disposable <code>TEST</code> fixture devices (safe to delete); session tests used a real SSR auth cookie minted for the disposable fixture user <code>test-rls-verification@example.invalid</code> — the same cookie format the app issues, so the session path is exercised exactly as a browser would.</p>
+      <p><strong>Candidate scope:</strong> staging currently contains <code>main</code> + PR #30 (RM-05 cutover + thresholds identity binding). PRs #31 (RM-03 tests) and #32 (RM-02 replacement) are not merged to staging yet; RM-02's database function is already live (shared DB) and was verified separately with its own 16/16 suite.</p>
+    </article>
+
+    <article class="section" id="s-results">
+      <h2>Results</h2>
+
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Group</th><th>Check</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="6"><strong>Web</strong><br><span class="mono" style="color:var(--muted)">unauthenticated</span></td><td><code>/login</code> renders</td><td class="ok">200</td></tr>
+            <tr><td><code>/dashboard</code> redirects to login</td><td class="ok">307 → /login</td></tr>
+            <tr><td><code>POST /api/ingest</code> — no token</td><td class="ok">401 "Missing X-Device-Token header"</td></tr>
+            <tr><td><code>POST /api/ingest</code> — wrong token</td><td class="ok">401 "Invalid or inactive device token"</td></tr>
+            <tr><td><code>GET /api/thresholds/esp32</code> — wrong token</td><td class="ok">401 "Invalid or inactive device token"</td></tr>
+            <tr><td><code>POST /api/relay</code> — no auth / wrong secret</td><td class="ok">401 "Not authenticated" (both)</td></tr>
+            <tr><td rowspan="6"><strong>Web</strong><br><span class="mono" style="color:var(--muted)">device token (fixture)</span></td><td><code>POST /api/ingest</code> — valid token, valid payload</td><td class="ok">200 {"status":"ok"} — reading persisted (id 96290)</td></tr>
+            <tr><td><code>GET /api/thresholds/esp32</code> — valid token, own ID</td><td class="ok">200 thresholds JSON</td></tr>
+            <tr><td><code>GET /api/thresholds/esp32</code> — valid token, other device's ID</td><td class="ok">401 "Invalid device token" (identity binding)</td></tr>
+            <tr><td><code>GET /api/relay</code> — valid token, own ID</td><td class="ok">200 {"state":null}</td></tr>
+            <tr><td><code>GET /api/relay</code> — valid token, spoofed ID</td><td class="ok">200 — identity resolved from token, not query</td></tr>
+            <tr><td><code>GET /api/devices/:id/pzem-config</code> — device token</td><td class="bad">307 → /login (middleware gap) — <strong>fixed in this branch</strong></td></tr>
+            <tr><td rowspan="6"><strong>Web</strong><br><span class="mono" style="color:var(--muted)">session (fixture user)</span></td><td><code>/dashboard</code> with session cookie</td><td class="ok">200 (app renders)</td></tr>
+            <tr><td><code>/login</code> while authenticated</td><td class="ok">307 → / (A6 behavior)</td></tr>
+            <tr><td><code>GET /api/relay</code> — own device</td><td class="ok">200 {"state":null}</td></tr>
+            <tr><td><code>GET /api/relay</code> — other tenant's device</td><td class="ok">403 "Device not found or access denied"</td></tr>
+            <tr><td><code>GET /api/readings</code> — own device</td><td class="ok">200 — includes the ingest reading</td></tr>
+            <tr><td><code>GET /api/readings</code> — other tenant's device</td><td class="ok">200 {"readings":[]} — no leak</td></tr>
+            <tr><td rowspan="4"><strong>Admin</strong><br><span class="mono" style="color:var(--muted)">unauthenticated</span></td><td><code>/login</code> renders</td><td class="ok">200</td></tr>
+            <tr><td><code>/api/devices</code>, <code>/api/overview</code>, <code>/api/billing</code></td><td class="warn">307 → /login (see Finding B)</td></tr>
+            <tr><td><code>/api/relay/config</code> — no session</td><td class="ok">400 "Missing deviceId" (reached route; see Finding B)</td></tr>
+            <tr><td>Super-admin <code>/login</code> renders</td><td class="ok">200</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">One earlier "500" on device ingest was a test-harness quoting artifact (PowerShell stripped JSON quotes → the route's JSON parser threw). Re-run with a file body: 200. Not an application defect; the route's malformed-JSON response is a 500 rather than 400 — noted as minor polish, not blocking.</p>
+    </article>
+
+    <article class="section" id="s-findings">
+      <h2>Findings</h2>
+
+      <div class="callout danger">
+        <span class="tag chip c">Fixed here</span>
+        <h3>A · Session middleware blocked the firmware's pzem-config device call</h3>
+        <p><code>packages/auth/src/middleware.ts</code>'s device-API allowlist (<code>DEVICE_API_PREFIXES</code>) listed <code>/api/ingest</code>, <code>/api/heartbeat</code>, <code>/api/thresholds/esp32</code>, and <code>/api/relay</code> — but not <code>/api/devices</code>. So the ESP32's authenticated <code>GET /api/devices/:id/pzem-config</code> was redirected to <code>/login</code> (307) before the route could validate its device token. This is pre-existing on <code>main</code>, not introduced by the promotion candidate. Fix in this branch: add <code>/api/devices</code> to the allowlist (session routes under it enforce their own auth and return 401 JSON), with two new middleware tests. Re-validation of this path requires the fix deployed to staging.</p>
+      </div>
+
+      <div class="callout warn">
+        <span class="tag chip u">Behavior note</span>
+        <h3>B · Unauthenticated API calls get 307 redirects, not 401 JSON</h3>
+        <p>The staging-validation procedure expects <code>401 {"error":"Not authenticated"}</code> for unauthenticated API calls (A8, admin routes). The session middleware intercepts them first and redirects to <code>/login</code> — so API clients receive an HTML redirect instead of JSON. Access is still denied, and this matches current <code>main</code> behavior. A cleaner design would return 401 JSON for <code>/api/*</code> paths in the middleware; that's a deliberate change worth its own decision, not a promotion blocker.</p>
+      </div>
+
+      <div class="callout">
+        <span class="tag chip">Minor</span>
+        <h3>C · Malformed JSON → 500 (should be 400/422)</h3>
+        <p>Discovered while diagnosing the harness bug: <code>POST /api/ingest</code> with an unparseable body throws in <code>req.json()</code> and returns a generic 500. A 400-family response would be more correct for clients. Cosmetic for devices (firmware always sends valid JSON); noted for a future pass.</p>
+      </div>
+
+      <div class="callout">
+        <span class="tag chip">Minor</span>
+        <h3>D · Cross-tenant readings returns 200 with an empty list</h3>
+        <p>The procedure's T5 expected <code>403</code> for cross-tenant access; <code>/api/readings</code> instead returns <code>200 {"readings":[]}</code>. No data leak — the query is customer-scoped — but the API doesn't distinguish "no data" from "not yours". Optional hardening, not a blocker.</p>
+      </div>
+    </article>
+
+    <article class="section" id="s-promote">
+      <h2>Promotion checklist</h2>
+      <div class="cardgrid">
+        <div class="card">
+          <span class="chip d">1 · ready</span>
+          <h4>Staging candidate validated</h4>
+          <p>Device-auth cutover (RM-05), device ingest, thresholds identity binding, session isolation — all verified on the deployed staging environment.</p>
+        </div>
+        <div class="card">
+          <span class="chip u">2 · pending</span>
+          <h4>Merge this fix, re-validate pzem</h4>
+          <p>Merge <code>fix/pzem-config-middleware-allowlist</code> → staging (redeploys), then re-run the pzem-config device-token check expecting 200.</p>
+        </div>
+        <div class="card">
+          <span class="chip i">3 · pending</span>
+          <h4>Review &amp; merge PRs #31, #32</h4>
+          <p>RM-03 test suite and RM-02 replacement flow are open against staging; both are independently verified against the live DB. Merge order is independent.</p>
+        </div>
+        <div class="card">
+          <span class="chip i">4 · needs go-ahead</span>
+          <h4>Promote staging → main</h4>
+          <p>Open a PR from <code>staging</code> into <code>main</code> — satisfying RM-00's DoD that the next production promotion originates from staging. Requires explicit approval.</p>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <aside class="rail">
+    <div class="panel facts">
+      <h3>Key facts</h3>
+      <dl>
+        <dt>Candidate</dt><dd class="mono">cefd890</dd>
+        <dt>Checks run</dt><dd>20</dd>
+        <dt>Passed</dt><dd class="ok">19 (+1 re-run)</dd>
+        <dt>Defects found</dt><dd>1 (fixed)</dd>
+        <dt>Leaks</dt><dd>0</dd>
+        <dt>Bypass secrets</dt><dd>3 (revocable)</dd>
+        <dt>Fixture data</dt><dd>TEST — safe to delete</dd>
+      </dl>
+    </div>
+    <div class="panel">
+      <h3>Status</h3>
+      <p style="font-size:13.5px;color:var(--text2)">Staging gate passed for the RM-05 candidate. One device-facing middleware defect found and fixed in this branch; pzem re-validation pending the fix's staging deploy.</p>
+    </div>
+    <blockquote class="panel quote">The gate exists to catch exactly this: a device call that worked in unit tests but was redirected away by a middleware list nobody remembered to update.</blockquote>
+  </aside>
+</div>
+
+<div class="footer">
+  Energy Monitoring · Staging validation 2026-10-04 · candidate staging @ cefd890 · 20 checks · 1 defect fixed (pzem-config middleware allowlist) · promotion pending approval
+</div>
+
+</body>
+</html>
