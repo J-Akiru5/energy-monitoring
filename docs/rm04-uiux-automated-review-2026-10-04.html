@@ -129,13 +129,13 @@ td strong{color:var(--text)}
 
     <article class="section" id="s-tldr">
       <h1>RM-04 — Automated UI/UX Review (WCAG 2.2 AA)</h1>
-      <p class="lede"><strong>RM-04 advanced to its automatable limit.</strong> A real browser (system Chrome, driven by Playwright) walked the staging deployments: all three apps' login pages, the web dashboard, and the logout flow — both themes, with axe-core running the WCAG 2.2 A/AA rule set. The pass found <strong>two serious violation types</strong> (a 2.54:1 contrast failure and invalid <code>&lt;dl&gt;</code> semantics) plus <strong>one target-size flag</strong>; all three are fixed, re-verified at <strong>0 violations</strong> on staging, and live in production. The human workbench verdict still needs the super-admin landing page and a manual keyboard/screen-reader walk.</p>
+      <p class="lede"><strong>RM-04 advanced to its automatable limit.</strong> A real browser (system Chrome, driven by Playwright) walked the staging deployments: all three apps' login pages, the web dashboard, the super-admin landing page (via a time-limited demo grant, revoked immediately after), and the logout flows — both themes, with axe-core running the WCAG 2.2 A/AA rule set. The pass found <strong>two serious violation types</strong> (a 2.54:1 contrast failure and invalid <code>&lt;dl&gt;</code> semantics) plus <strong>one target-size flag</strong>; all three are fixed, re-verified at <strong>0 violations</strong> on staging, and live in production. The human workbench verdict still needs a manual keyboard/screen-reader walk.</p>
 
       <div class="stat-row">
-        <div class="stat"><b>9</b><span>screens reviewed (3 apps × 2 themes + dashboard + logout)</span></div>
+        <div class="stat"><b>11</b><span>screens reviewed (3 apps × 2 themes + dashboard + super-admin landing + logouts)</span></div>
         <div class="stat"><b>3</b><span>findings: 2 serious + 1 target size — all fixed</span></div>
         <div class="stat"><b>0</b><span>axe violations after the fixes, light and dark</span></div>
-        <div class="stat"><b>1</b><span>screen still needing a human: super-admin landing</span></div>
+        <div class="stat"><b>1</b><span>remaining human step: keyboard + screen-reader walk</span></div>
       </div>
     </article>
 
@@ -146,7 +146,7 @@ td strong{color:var(--text)}
         <li><strong>Rules:</strong> axe-core with the <code>wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa</code> tag set, injected into each page.</li>
         <li><strong>Environment:</strong> the staging deployments behind Vercel Authentication, reached with per-project automation bypass secrets; authenticated screens used a real SSR session cookie for the disposable fixture user.</li>
         <li><strong>Beyond axe:</strong> keyboard focus walk (first 8 stops, computed focus indicator), pointer-target sizes (in-viewport, &lt; 24 CSS px), and 320 px reflow (no horizontal overflow).</li>
-        <li><strong>Coverage limits:</strong> automated tooling cannot judge screen-reader phrasing, motion comfort, or visual intent; the super-admin landing page needs a super-admin session (no fixture exists, and creating one is a live DB mutation outside this task's scope).</li>
+        <li><strong>Coverage limits:</strong> automated tooling cannot judge screen-reader phrasing, motion comfort, or visual intent. The super-admin landing page was covered using the decision #9 temporary-grant path (the repo's grant script, a 2-hour grant, revoked immediately after the review; access resolutions were recorded in <code>super_admin_access_log</code>).</li>
       </ul>
     </article>
 
@@ -162,13 +162,16 @@ td strong{color:var(--text)}
             <tr><td>admin /login</td><td>dark</td><td class="bad">1 violation</td><td class="ok">0</td></tr>
             <tr><td>super-admin /login</td><td>light</td><td class="bad">1 violation</td><td class="ok">0</td></tr>
             <tr><td>super-admin /login</td><td>dark</td><td class="bad">1 violation</td><td class="ok">0</td></tr>
+            <tr><td>super-admin / (landing, temp grant)</td><td>light</td><td>not covered</td><td class="ok">0</td></tr>
+            <tr><td>super-admin / (landing, temp grant)</td><td>dark</td><td>not covered</td><td class="ok">0</td></tr>
             <tr><td>web /dashboard</td><td>light</td><td class="ok">0</td><td class="ok">0</td></tr>
             <tr><td>web /dashboard</td><td>dark</td><td class="ok">0</td><td class="ok">0</td></tr>
             <tr><td>web logout</td><td>—</td><td>redirected, session cleared</td><td class="ok">redirects to /login, session cleared</td></tr>
+            <tr><td>super-admin logout</td><td>—</td><td>not covered</td><td class="ok">redirects to /login, session cleared</td></tr>
           </tbody>
         </table>
       </div>
-      <p class="footnote">Target sizes: one in-viewport element under 24 px before (dashboard ALERTS header link, 347×18) — none after. Reflow at 320 px: no horizontal overflow. Keyboard focus walk: every stop showed a visible indicator (outline or box-shadow).</p>
+      <p class="footnote">Target sizes: one in-viewport element under 24 px before (dashboard ALERTS header link, 347×18) — none after, and none on the super-admin landing page. Reflow at 320 px: no horizontal overflow. Keyboard focus walk: every stop showed a visible indicator (outline or box-shadow). The super-admin landing page rendered the temporary-access badge correctly and signed the session out cleanly.</p>
     </article>
 
     <article class="section" id="s-findings">
@@ -228,11 +231,10 @@ td strong{color:var(--text)}
       <h2>Workbench status</h2>
       <p><strong>Automated evidence: complete and green.</strong> The workbench's own rules make an overall verdict "Incomplete" until every check is reviewed, so the suggested verdict for the covered surfaces is <strong>Approve</strong> (0 violations in both themes) with these still open:</p>
       <ul class="ul-tight">
-        <li><strong>Super-admin landing page</strong> — requires a super-admin session (needs Jeff or a temporary grant; both themes).</li>
-        <li><strong>Manual functional walk</strong> — keyboard-only completion of login and logout (focus order beyond 8 stops, Esc behavior), and one screen-reader pass.</li>
+        <li><strong>Manual functional walk</strong> — keyboard-only completion of login and logout (focus order beyond the automated stops, Esc behavior), and one screen-reader pass.</li>
         <li><strong>Visual judgment items</strong> — practice checks (hierarchy, spacing consistency, empty states) that automated tooling can't score.</li>
       </ul>
-      <p class="footnote">Screenshots from every reviewed screen (before and after) are retained locally in the review workspace; they are not committed to the repo.</p>
+      <p class="footnote">The super-admin landing page was reviewed with a 2-hour temporary grant issued via the repo's sanctioned script and revoked immediately after; every temporary-grant access resolution during the review is recorded in <code>super_admin_access_log</code>. Screenshots from every reviewed screen (before and after) are retained locally in the review workspace; they are not committed to the repo.</p>
     </article>
 
   </main>
@@ -241,24 +243,25 @@ td strong{color:var(--text)}
     <div class="panel facts">
       <h3>Key facts</h3>
       <dl>
-        <dt>Reviewed</dt><dd>9 screens, 2 themes</dd>
+        <dt>Reviewed</dt><dd>11 screens, 2 themes</dd>
         <dt>Tooling</dt><dd>Playwright + axe-core</dd>
         <dt>Findings</dt><dd class="bad">2 serious, 1 minor</dd>
         <dt>After fixes</dt><dd class="ok">0 violations</dd>
         <dt>Fix commit</dt><dd class="mono">3166400</dd>
         <dt>Live on</dt><dd>staging + production</dd>
+        <dt>Temp grant</dt><dd>revoked after review</dd>
       </dl>
     </div>
     <div class="panel">
       <h3>Status</h3>
-      <p style="font-size:13.5px;color:var(--text2)">Automated pass green and deployed. Human workbench verdict pending: super-admin landing page + manual keyboard/screen-reader walk.</p>
+      <p style="font-size:13.5px;color:var(--text2)">Automated pass green and deployed. Human workbench verdict pending: manual keyboard/screen-reader walk.</p>
     </div>
     <blockquote class="panel quote">Automation can prove the contrast is 7.5:1. It cannot tell you the login feels trustworthy.</blockquote>
   </aside>
 </div>
 
 <div class="footer">
-  Energy Monitoring · RM-04 automated UI/UX review · 2026-10-04 · 9 screens · 3 findings fixed · 0 violations after · manual workbench verdict pending
+  Energy Monitoring · RM-04 automated UI/UX review · 2026-10-04 · 11 screens · 3 findings fixed · 0 violations after · manual keyboard/screen-reader walk pending
 </div>
 
 </body>
