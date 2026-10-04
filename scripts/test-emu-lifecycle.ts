@@ -131,22 +131,26 @@ async function main() {
     .select("id")
     .eq("customer_id", customerB)
     .eq("name", SITE_B_NAME)
+    .limit(1)
     .maybeSingle();
   const { data: buildingB } = await supabase
     .from("buildings")
     .select("id")
     .eq("site_id", siteB?.id)
     .eq("name", BUILDING_B_NAME)
+    .limit(1)
     .maybeSingle();
   const { data: siteA } = await supabase
     .from("sites")
     .select("id")
     .eq("name", SITE_A_NAME)
+    .limit(1)
     .maybeSingle();
   const { data: buildingA } = await supabase
     .from("buildings")
     .select("id")
     .eq("name", BUILDING_A_NAME)
+    .limit(1)
     .maybeSingle();
 
   if (!siteB || !buildingB || !siteA || !buildingA) {

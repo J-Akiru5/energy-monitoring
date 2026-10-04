@@ -161,6 +161,7 @@ async function ensureChain(supabase: Supabase, spec: typeof A): Promise<Chain | 
     .select("id")
     .eq("site_id", siteId)
     .eq("name", spec.building)
+    .limit(1)
     .maybeSingle();
   let buildingId = building?.id as string | undefined;
   if (!buildingId) {
@@ -231,6 +232,8 @@ async function ensureChain(supabase: Supabase, spec: typeof A): Promise<Chain | 
     .from("controllers")
     .select("id")
     .eq("legacy_device_id", deviceId)
+    .eq("status", "ACTIVE")
+    .limit(1)
     .maybeSingle();
   let controllerId = controller?.id as string | undefined;
   if (!controllerId) {
@@ -325,6 +328,7 @@ async function ensureChain(supabase: Supabase, spec: typeof A): Promise<Chain | 
     .select("id")
     .eq("device_id", deviceId)
     .eq("message", MARKER)
+    .limit(1)
     .maybeSingle();
   let alertId = alert?.id as string | undefined;
   if (!alertId) {
@@ -356,6 +360,7 @@ async function ensureChain(supabase: Supabase, spec: typeof A): Promise<Chain | 
     .select("id")
     .eq("device_id", deviceId)
     .eq("notes", MARKER)
+    .limit(1)
     .maybeSingle();
   let relayLogId = relayLog?.id as string | undefined;
   if (!relayLogId) {
