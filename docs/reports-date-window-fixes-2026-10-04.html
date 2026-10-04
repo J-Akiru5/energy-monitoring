@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Monitoring — Reports PH Date-Window Fixes (2026-10-04)</title>
+<style>
+:root{
+  --bg:#050505; --text:#ededed; --text2:#B7BFCB; --muted:#8A93A0;
+  --line:rgba(255,255,255,.10);
+  --panel:rgba(255,255,255,.045);
+  --field:rgba(255,255,255,.06);
+  --accent:#22D3EE; --accent-2:#A855F7;
+  --grad:linear-gradient(135deg,#22D3EE,#A855F7);
+  --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --r-sm:6px; --r-lg:16px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,h4,p,dl,dd,figure,blockquote{margin:0}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.14;font-weight:800;letter-spacing:-.025em}
+h2{font-size:clamp(20px,2.6vw,27px);line-height:1.22;font-weight:700;letter-spacing:-.015em;margin-bottom:12px}
+h3{font-size:17px;font-weight:700;margin:22px 0 8px}
+h4{font-size:15px;font-weight:700}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:var(--mono)}
+code{font-size:.88em;background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:var(--r-sm)}
+pre{margin:14px 0 0;background:#0a0c10;border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--text2)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;height:64px;
+  padding:0 clamp(16px,3vw,40px);background:rgba(5,5,5,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.wordmark b{color:var(--accent)}
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;text-transform:uppercase;
+  color:var(--accent);display:inline-block;white-space:nowrap;line-height:1.6}
+.chip.d{color:var(--ok)} .chip.u{color:var(--warn)} .chip.c{color:var(--danger)} .chip.i{color:var(--accent-2)}
+.shell{display:grid;grid-template-columns:230px minmax(0,1fr) 280px;gap:clamp(20px,2.6vw,36px);
+  padding:28px clamp(16px,3vw,40px) 90px;max-width:1720px;margin:0 auto;align-items:start}
+.sidebar,.rail{position:sticky;top:84px;max-height:calc(100vh - 108px);overflow-y:auto}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar a{display:block;padding:9px 10px;min-height:40px;border-radius:var(--r-sm);color:var(--text2);font-size:13.5px;border-left:2px solid transparent}
+.sidebar a:hover{color:var(--text);text-decoration:none;background:var(--panel)}
+.sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel)}
+.rail .panel{margin-bottom:14px}
+.rail .facts dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;margin:0}
+.rail .facts dt{color:var(--muted)}
+.rail .facts dd{margin:0;text-align:right;min-width:0}
+.rail .quote{font-style:italic;font-size:13.5px;color:var(--text2)}
+main{min-width:0}
+.section{padding:8px 0 46px;scroll-margin-top:88px}
+.section+.section{border-top:1px solid var(--line);padding-top:38px}
+.section p{max-width:78ch;color:var(--text2)}
+.section p+p{margin-top:12px}
+.section p strong,.section li strong{color:var(--text)}
+.lede{font-size:17.5px;color:var(--text2);max-width:78ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:20px 22px}
+.callout{position:relative;padding:18px 22px 18px 26px;border-radius:var(--r-lg);margin:20px 0;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.callout::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.callout.danger::before{background:var(--danger)}
+.callout.warn::before{background:var(--warn)}
+.callout.ok::before{background:var(--ok)}
+.callout h3{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+.callout .tag{float:right;margin-left:12px}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 18px;min-width:132px;flex:1 1 132px}
+.stat b{display:block;font-size:clamp(22px,2.6vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-top:16px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.mono{font-family:var(--mono);font-size:.92em}
+.ok{color:var(--ok);font-weight:600}
+.bad{color:var(--danger);font-weight:600}
+.warn{color:var(--warn);font-weight:600}
+.ul-tight{padding-left:20px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+.ul-tight li{margin:7px 0}
+.footnote{font-size:13px;color:var(--muted);max-width:80ch;margin-top:12px}
+.footer{border-top:1px solid var(--line);margin-top:10px;padding:22px clamp(16px,3vw,40px) 40px;color:var(--muted);font-size:13px;max-width:1720px;margin-left:auto;margin-right:auto}
+@media (max-width:1280px){ .shell{grid-template-columns:230px minmax(0,1fr)} .rail{display:none} }
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:18px}
+  .sidebar{position:static;max-height:none;overflow:visible}
+  .sidebar nav{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .sidebar a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .sidebar a.active{border-left:0;border-bottom-color:var(--accent)}
+  table{min-width:520px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark"><b>Syntaxure</b> / EMS Reports · PH date windows</div>
+  <div class="top-meta">
+    <span class="chip">2026-10-04</span>
+    <span class="chip d">81/81 tests green</span>
+    <span class="chip i">Option B approved</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav aria-label="Sections">
+      <a href="#s-tldr" class="active">TL;DR</a>
+      <a href="#s-student">The student's observation</a>
+      <a href="#s-utc">1 · Reports ran on UTC</a>
+      <a href="#s-avg">2 · Averages divisor</a>
+      <a href="#s-pdf">3 · PDF week label</a>
+      <a href="#s-history">4 · History window label</a>
+      <a href="#s-tests">Tests</a>
+      <a href="#s-files">Files &amp; pipeline</a>
+    </nav>
+  </aside>
+
+  <main>
+
+    <article class="section" id="s-tldr">
+      <h1>Reports PH Date-Window Fixes</h1>
+      <p class="lede"><strong>Four defects around report dates are fixed.</strong> Reports now treats every date as a Philippine (UTC+8) calendar date — the month window no longer silently drops the first eight PH hours of the 1st (6.186 of 46.682 kWh on the test fixture). The average/day divisor now uses the PH days actually inside the selected range (4.24 → 5.30 on the fixture), the PDF no longer calls a rolling 7-day value a "calendar week", and History now shows the exact PH window its totals cover — with a hint when a week straddles two months. History's window definitions themselves are unchanged.</p>
+
+      <div class="stat-row">
+        <div class="stat"><b>4</b><span>defects fixed (1 timezone, 1 semantics, 2 labels)</span></div>
+        <div class="stat"><b>6.186</b><span>kWh recovered on the 46.682 kWh fixture</span></div>
+        <div class="stat"><b>81/81</b><span>tests pass across 11 web test files</span></div>
+        <div class="stat"><b>1</b><span>meaning decision recorded: Option B, approved</span></div>
+      </div>
+    </article>
+
+    <article class="section" id="s-student">
+      <h2>The student's observation — not a bug</h2>
+      <p>A WVSU student saw History show <strong>Week 73.833 kWh &gt; Month 52.312 kWh</strong> for 10/01/2026 and flagged it. It was investigated and is <strong>correct behavior</strong>: History's week is the PH calendar week <strong>Mon–Sun (Sep 28 – Oct 4)</strong>, which includes three September days, while the month is <strong>Oct 1–31</strong>. Different windows, different totals — no code change to History's window definitions was made, per scope.</p>
+      <p>What the investigation <em>did</em> find were four real defects on the Reports side, fixed in this branch.</p>
+    </article>
+
+    <article class="section" id="s-utc">
+      <h2>1 · Reports date handling ran on UTC, not PH</h2>
+      <div class="callout danger">
+        <span class="tag chip c">fixed</span>
+        <h3>Effect: 00:00–08:00 PH on the 1st was never loaded</h3>
+        <p>The API's <code>current_month</code> preset started at <code>Date.UTC(y, m, 1)</code> — 08:00 PH on the 1st — and <code>today</code> used UTC day bounds; the page's custom ranges were built as <code>${date}T00:00:00.000Z</code>/<code>23:59:59.999Z</code>. Every date input was therefore shifted 8 hours against the PH calendar.</p>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Window</th><th>Before</th><th>After</th></tr></thead>
+          <tbody>
+            <tr><td><code>current_month</code> start (Oct 2026)</td><td class="bad mono">2026-10-01T00:00:00.000Z</td><td class="ok mono">2026-09-30T16:00:00.000Z</td></tr>
+            <tr><td><code>today</code> bounds</td><td class="bad mono">10-04T00:00Z → 10-04T23:59Z</td><td class="ok mono">10-03T16:00Z → 10-04T15:59:59.999Z</td></tr>
+            <tr><td>Custom date inputs</td><td class="bad mono">T00:00:00.000Z → T23:59:59.999Z</td><td class="ok mono">T00:00:00.000+08:00 → T23:59:59.999+08:00</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">Fixture (PH Oct 1 00:00 → Oct 4 17:00, monotonic counter): month-to-date was <strong class="bad">40.496 kWh</strong> before, <strong class="ok">46.682 kWh</strong> after — the first 8 PH hours on the 1st (6.186 kWh) are no longer dropped. New helpers live in <code>apps/web/src/lib/phTime.ts</code>; <code>parseReportFilters()</code> gained an optional injectable <code>now</code> for deterministic tests.</p>
+    </article>
+
+    <article class="section" id="s-avg">
+      <h2>2 · Average/day divided by the wrong number of days</h2>
+      <p><code>avg/day</code> was month-to-date <em>within the selected range</em> ÷ <em>the full PH day-of-month</em>. A range starting on the 3rd divided 8 days of energy by 10 — understating the daily rate. Three options were put to Jeff with measured numbers:</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Option</th><th>Definition</th><th>Fixture (range Oct 3–10, 42.4 kWh)</th></tr></thead>
+          <tbody>
+            <tr><td class="bad">Before</td><td>range month-to-date ÷ day-of-month</td><td class="bad">4.24 kWh/day</td></tr>
+            <tr><td class="ok"><strong>B — approved</strong></td><td>range month-to-date ÷ PH days from max(range start, month start) to latest, inclusive</td><td class="ok">5.30 kWh/day (42.4 ÷ 8)</td></tr>
+            <tr><td>A</td><td>full month-to-date ÷ elapsed days (ignores range; needs pre-range fetching)</td><td>12.22 kWh/day</td></tr>
+            <tr><td>C</td><td>keep 4.24, relabel only</td><td>4.24 kWh/day</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout ok">
+        <span class="tag chip d">decision recorded</span>
+        <h3>Option B — approved by Jeff, 2026-10-04</h3>
+        <p>avg/day = month-to-date within the selected range ÷ PH calendar days from <code>max(range start, month start)</code> to the latest reading, inclusive (min 1); week = day × 7; month = day × 30. No extra fetching, and the averages stay consistent with the filter — matching the tile's "Auto-updates with filter changes". The tile note now reads <em>"month-to-date ÷ days in range"</em>. Default range behavior is unchanged (range start = month start).</p>
+      </div>
+    </article>
+
+    <article class="section" id="s-pdf">
+      <h2>3 · PDF week label</h2>
+      <p>The kWh report printed <code>"Week (calendar week)"</code> for a rolling last-7-days value. Wording only — the calculation is untouched:</p>
+      <pre><code>- Week (calendar week): 40.2260 kWh  |  PHP 402.26
++ Week (last 7 days):    40.2260 kWh  |  PHP 402.26</code></pre>
+      <p class="footnote">A Monday-start calendar week was raised as a possible alternative and deliberately not implemented, per scope.</p>
+    </article>
+
+    <article class="section" id="s-history">
+      <h2>4 · History now shows its window</h2>
+      <p>The History summary now displays the exact PH window the totals cover, using the API's existing <code>rangeStart</code>/<code>rangeEnd</code> (end adjusted inclusive by 1 ms). For a week that crosses a month boundary, a one-line hint names the earlier month:</p>
+      <div class="panel">
+        <p class="mono" style="color:var(--text)">Window: Mon Sep 28 – Sun Oct 4, 2026 <span style="color:var(--warn)">· includes days from September</span></p>
+      </div>
+      <p class="footnote">This is exactly the explanation for the student's week &gt; month question, now visible in the product. No totals or window definitions changed.</p>
+    </article>
+
+    <article class="section" id="s-tests">
+      <h2>Tests</h2>
+      <p>Failing-first: the new tests were run against the pre-fix code and failed with the expected numbers (month start <code>2026-10-01T00:00:00.000Z</code>, fixture total <code>40.496</code>, avg/day <code>4.24</code>, week wording absent), then passed after the fixes.</p>
+      <ul class="ul-tight">
+        <li><strong>New</strong> <code>apps/web/src/lib/phTime.test.mjs</code> — 9 tests: PH date keys, day/month boundaries (October 2026 starts at <code>2026-09-30T16:00:00.000Z</code>), <code>+08:00</code> range ISO, preset date inputs, window label, month-span detection.</li>
+        <li><strong>Extended</strong> <code>_lib.test.mjs</code> — PH presets (<code>current_month</code>, <code>today</code>, custom <code>+08:00</code>), the 46.682 kWh fixture, week ≤ month on the default range, and the Option B averages fixture.</li>
+        <li><strong>Extended</strong> <code>pdf/_lines.test.mjs</code> — "Week (last 7 days)" wording, and no line may claim a calendar week.</li>
+        <li><strong>Existing invariants kept green</strong> — day ≤ week ≤ month, month = sum of PH days, the 1.38 h burst case, counter-reset handling, PDF end-to-end.</li>
+      </ul>
+      <pre><code>node --experimental-test-module-mocks --test &lt;11 web test files&gt;
+ℹ tests 81   ℹ pass 81   ℹ fail 0</code></pre>
+      <p class="footnote">Type-check (<code>tsc --noEmit</code>) and ESLint pass on every changed file.</p>
+    </article>
+
+    <article class="section" id="s-files">
+      <h2>Files &amp; pipeline</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>File</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">apps/web/src/lib/phTime.ts</td><td>new — PH conversions, preset ranges, window labels</td></tr>
+            <tr><td class="mono">apps/web/src/lib/phTime.test.mjs</td><td>new — 9 helper tests</td></tr>
+            <tr><td class="mono">apps/web/src/app/api/reports/_lib.ts</td><td>PH presets, injectable <code>now</code>, Option B divisor</td></tr>
+            <tr><td class="mono">apps/web/src/app/reports/page.tsx</td><td>PH date inputs, <code>+08:00</code> custom ranges, tile note</td></tr>
+            <tr><td class="mono">apps/web/src/app/api/reports/pdf/_lines.ts</td><td>"Week (last 7 days)"</td></tr>
+            <tr><td class="mono">apps/web/src/app/history/page.tsx</td><td>window label + month-span hint</td></tr>
+            <tr><td class="mono">_lib.test.mjs · pdf/_lines.test.mjs</td><td>failing-first coverage for the fixes</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">Branch <code>fix/reports-ph-time-windows</code> off <code>develop</code> @ <code>389cd3e</code>, PR into <code>develop</code>, no auto-merge, staging/main untouched. No schema, firmware, auth, or database changes. <code>docs/energy-consumption-computation-note.*</code> does not exist, so per instructions it was not created or updated.</p>
+    </article>
+
+  </main>
+
+  <aside class="rail">
+    <div class="panel facts">
+      <h3>Key facts</h3>
+      <dl>
+        <dt>Branch</dt><dd class="mono">fix/reports-ph-time-windows</dd>
+        <dt>Base</dt><dd class="mono">develop @ 389cd3e</dd>
+        <dt>Tests</dt><dd class="ok">81/81</dd>
+        <dt>Fixture</dt><dd>40.496 → 46.682 kWh</dd>
+        <dt>Averages</dt><dd>Option B (approved)</dd>
+        <dt>History windows</dt><dd>unchanged</dd>
+      </dl>
+    </div>
+    <div class="panel">
+      <h3>Decision log</h3>
+      <p style="font-size:13.5px;color:var(--text2)">Jeff approved <strong>Option B</strong> for avg/day on 2026-10-04: divide the range's month-to-date by the PH days from the range start (clamped to the month) through the latest reading, inclusive. Week and month derive as ×7 / ×30.</p>
+    </div>
+    <blockquote class="panel quote">The student's week &gt; month wasn't a bug — it was a missing sentence. Now History prints the sentence.</blockquote>
+  </aside>
+</div>
+
+<div class="footer">
+  Energy Monitoring · Reports PH date-window fixes · 2026-10-04 · 4 defects fixed · 6.186 kWh recovered on fixture · 81/81 tests · Option B approved
+</div>
+
+</body>
+</html>

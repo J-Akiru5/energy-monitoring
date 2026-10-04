@@ -110,3 +110,15 @@ test("buildReportLines renders a window line without the U+2192 arrow", () => {
   assert.ok(windowLine.text.includes("->"));
   assert.ok(!windowLine.text.includes("\u2192"));
 });
+
+test("kWh report labels the rolling week as 'Week (last 7 days)'", () => {
+  const lines = buildReportLines(makeSummary("kwh"));
+  assert.ok(
+    lines.some((line) => line.text.startsWith("Week (last 7 days):")),
+    "the week line must say 'last 7 days' — the value is a rolling window, not a calendar week"
+  );
+  assert.ok(
+    !lines.some((line) => line.text.includes("calendar week")),
+    "no line may claim the week value is a calendar week"
+  );
+});

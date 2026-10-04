@@ -4,6 +4,13 @@ import {
   fetchAllPagesDescending,
   monotonicEnergyDelta,
 } from "../../../lib/energy";
+import {
+  phDateKey,
+  startOfPhDay,
+  endOfPhDay,
+  startOfPhMonth,
+  phDayOfMonth,
+} from "../../../lib/phTime";
 
 type MonthHistoryItem = {
   period: string;
@@ -113,15 +120,17 @@ function boolParam(value: string | null, defaultValue: boolean): boolean {
   return value === "1" || value.toLowerCase() === "true";
 }
 
-function startOfUtcDay(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
-}
-
-function endOfUtcDay(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999));
-}
-
-export function parseReportFilters(searchParams: URLSearchParams): ReportFilters {
+/**
+ * Parse the reports query string. Every preset date is a PH (UTC+8)
+ * calendar date: "today" is the PH day, "current_month" starts at 00:00 PH
+ * on the 1st, and custom ranges carry explicit +08:00 bounds from the page.
+ *
+ * @param now  Injectable clock for tests; defaults to the real time.
+ */
+export function parseReportFilters(
+  searchParams: URLSearchParams,
+  now: Date = new Date()
+): ReportFilters {
   const presetRaw = (searchParams.get("preset") ?? "current_month").toLowerCase();
   const preset: ReportPreset =
     presetRaw === "today" ||
@@ -140,7 +149,6 @@ export function parseReportFilters(searchParams: URLSearchParams): ReportFilters
   const metric: ReportMetric =
     metricRaw === "kwh" || metricRaw === "cost" || metricRaw === "power" ? metricRaw : "kwh";
 
-  const now = new Date();
   let fromDate: Date;
   let toDate: Date;
 
@@ -148,8 +156,8 @@ export function parseReportFilters(searchParams: URLSearchParams): ReportFilters
     fromDate = new Date(searchParams.get("from") as string);
     toDate = new Date(searchParams.get("to") as string);
   } else if (preset === "today") {
-    fromDate = startOfUtcDay(now);
-    toDate = endOfUtcDay(now);
+    fromDate = startOfPhDay(phDateKey(now));
+    toDate = endOfPhDay(phDateKey(now));
   } else if (preset === "7d") {
     toDate = now;
     fromDate = new Date(now.getTime() - 7 * DAY_MS);
@@ -157,8 +165,8 @@ export function parseReportFilters(searchParams: URLSearchParams): ReportFilters
     toDate = now;
     fromDate = new Date(now.getTime() - 30 * DAY_MS);
   } else {
-    // current_month default
-    fromDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
+    // current_month default: the PH calendar month containing "now".
+    fromDate = startOfPhMonth(now);
     toDate = now;
   }
 
@@ -183,23 +191,9 @@ function round(value: number, decimals: number): number {
   return Number(value.toFixed(decimals));
 }
 
-const PH_OFFSET_MS = 8 * 60 * 60 * 1000;
-
 /** PH calendar month key (YYYY-MM) for an instant. */
 function phMonthLabel(ts: number): string {
-  const shifted = new Date(ts + PH_OFFSET_MS);
-  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
-/** Start of the PH calendar month containing an instant, as epoch ms. */
-function phMonthStartTs(ts: number): number {
-  const shifted = new Date(ts + PH_OFFSET_MS);
-  return Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), 1) - PH_OFFSET_MS;
-}
-
-/** PH calendar day-of-month (1-31) for an instant. */
-function phDayOfMonth(ts: number): number {
-  return new Date(ts + PH_OFFSET_MS).getUTCDate();
+  return phDateKey(ts).slice(0, 7);
 }
 
 function rowEnergyByPhase(row: ReadingRow, phase: ReportPhase): number {
@@ -372,18 +366,24 @@ export async function buildConsumptionSummary(
 
   const oneDayStart = latest.ts - DAY_MS;
   const oneWeekStart = latest.ts - WEEK_MS;
-  const monthStartTs = phMonthStartTs(latest.ts);
+  const monthStartTs = startOfPhMonth(latest.ts).getTime();
 
   const currentDayKwh = round(deltaWithinWindow(reduced, oneDayStart, latest.ts), 4);
   const currentWeekKwh = round(deltaWithinWindow(reduced, oneWeekStart, latest.ts), 4);
   const currentMonthKwh = round(deltaWithinWindow(reduced, monthStartTs, latest.ts), 4);
 
   // Approved averages definition (Option B): all three are the current rate,
-  // scaled. avg/day = month-to-date ÷ elapsed PH calendar days (min 1);
-  // week = day × 7; month = day × 30. Historical monthly totals stay in the
-  // Monthly History list, so the ordering day ≤ week ≤ month holds by
+  // scaled. avg/day = month-to-date within the selected range ÷ PH calendar
+  // days from max(range start, month start) to the latest reading, inclusive
+  // (min 1); week = day × 7; month = day × 30. Historical monthly totals stay
+  // in the Monthly History list, so the ordering day ≤ week ≤ month holds by
   // construction.
-  const elapsedDays = Math.max(1, phDayOfMonth(latest.ts));
+  const rangeStartTs = new Date(filters.fromIso).getTime();
+  const effectiveMonthStartTs = Math.max(monthStartTs, rangeStartTs);
+  const elapsedDays = Math.max(
+    1,
+    phDayOfMonth(latest.ts) - phDayOfMonth(effectiveMonthStartTs) + 1
+  );
   const averageDayKwh = round(currentMonthKwh / elapsedDays, 4);
   const averageWeekKwh = round(averageDayKwh * 7, 4);
   const averageMonthKwh = round(averageDayKwh * 30, 4);
