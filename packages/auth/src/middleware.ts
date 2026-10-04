@@ -12,6 +12,9 @@ const DEVICE_API_PREFIXES = [
   "/api/heartbeat",
   "/api/thresholds/esp32",
   "/api/relay",
+  // pzem-config has a device-token path (firmware boot fetch). Session
+  // routes under this prefix enforce their own auth and return 401 JSON.
+  "/api/devices",
 ];
 
 export async function updateSession(request: NextRequest) {
