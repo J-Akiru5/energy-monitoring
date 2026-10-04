@@ -163,7 +163,18 @@ async function main() {
 
   // ── Baseline ──
   console.log("Baseline...");
-  check("baseline: EMU is ACTIVE", emu0?.status === "ACTIVE", `status=${emu0?.status}`);
+  // Self-heal: an interrupted previous run may have left the fixture EMU
+  // decommissioned. Restore the ACTIVE baseline before testing.
+  if (emu0?.status === "DECOMMISSIONED") {
+    console.log("  (self-heal: redeploying fixture EMU left decommissioned by a prior run)");
+    await redeployEmu(device.id, siteB.id, buildingB.id);
+  }
+  const { data: emuBase } = await supabase
+    .from("emus")
+    .select("status")
+    .eq("id", emuId)
+    .single();
+  check("baseline: EMU is ACTIVE", emuBase?.status === "ACTIVE", `status=${emuBase?.status}`);
   const open0 = await openInstallations(supabase, emuId);
   check("baseline: exactly one open installation", open0.length === 1, `count=${open0.length}`);
   const oldInstallationId = open0[0]?.id;
