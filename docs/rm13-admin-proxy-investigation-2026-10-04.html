@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Monitoring — RM-13: Was admin's proxy.ts ever non-functional?</title>
+<style>
+:root{
+  --bg:#050505; --text:#ededed; --text2:#B7BFCB; --muted:#8A93A0;
+  --line:rgba(255,255,255,.10);
+  --panel:rgba(255,255,255,.045);
+  --field:rgba(255,255,255,.06);
+  --accent:#22D3EE; --accent-2:#A855F7;
+  --grad:linear-gradient(135deg,#22D3EE,#A855F7);
+  --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --r-sm:6px; --r-lg:16px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,h4,p,dl,dd,figure,blockquote{margin:0}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.14;font-weight:800;letter-spacing:-.025em}
+h2{font-size:clamp(20px,2.6vw,27px);line-height:1.22;font-weight:700;letter-spacing:-.015em;margin-bottom:12px}
+h3{font-size:17px;font-weight:700;margin-bottom:8px}
+h4{font-size:15px;font-weight:700}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:var(--mono)}
+code{font-size:.88em;background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:var(--r-sm)}
+pre{margin:14px 0 0;background:#0a0c10;border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--text2)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;height:64px;
+  padding:0 clamp(16px,3vw,40px);background:rgba(5,5,5,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.wordmark b{color:var(--accent)}
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;text-transform:uppercase;
+  color:var(--accent);display:inline-block;white-space:nowrap;line-height:1.6}
+.chip.d{color:var(--ok)} .chip.u{color:var(--warn)} .chip.c{color:var(--danger)} .chip.i{color:var(--accent-2)}
+.shell{display:grid;grid-template-columns:220px minmax(0,1fr) 280px;gap:clamp(20px,2.6vw,36px);
+  padding:28px clamp(16px,3vw,40px) 90px;max-width:1720px;margin:0 auto;align-items:start}
+.sidebar,.rail{position:sticky;top:84px;max-height:calc(100vh - 108px);overflow-y:auto}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar a{display:block;padding:9px 10px;min-height:40px;border-radius:var(--r-sm);color:var(--text2);font-size:13.5px;border-left:2px solid transparent}
+.sidebar a:hover{color:var(--text);text-decoration:none;background:var(--panel)}
+.sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel)}
+.rail .panel{margin-bottom:14px}
+.rail .facts dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;margin:0}
+.rail .facts dt{color:var(--muted)}
+.rail .facts dd{margin:0;text-align:right;min-width:0}
+.rail .quote{font-style:italic;font-size:13.5px;color:var(--text2)}
+main{min-width:0}
+.section{padding:8px 0 46px;scroll-margin-top:88px}
+.section+.section{border-top:1px solid var(--line);padding-top:38px}
+.section p{max-width:78ch;color:var(--text2)}
+.section p+p{margin-top:12px}
+.section p strong,.section li strong{color:var(--text)}
+.lede{font-size:17.5px;color:var(--text2);max-width:78ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:20px 22px}
+.callout{position:relative;padding:18px 22px 18px 26px;border-radius:var(--r-lg);margin:20px 0;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.callout::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.callout.danger::before{background:var(--danger)}
+.callout.warn::before{background:var(--warn)}
+.callout.ok::before{background:var(--ok)}
+.callout h3{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+.callout .tag{float:right;margin-left:12px}
+.ul-tight{padding-left:20px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+.ul-tight li{margin:7px 0}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-top:16px}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.mono{font-family:var(--mono);font-size:.92em}
+.ok{color:var(--ok);font-weight:600}
+.footnote{font-size:13px;color:var(--muted);max-width:80ch;margin-top:12px}
+.footer{border-top:1px solid var(--line);margin-top:10px;padding:22px clamp(16px,3vw,40px) 40px;color:var(--muted);font-size:13px;max-width:1720px;margin-left:auto;margin-right:auto}
+@media (max-width:1280px){ .shell{grid-template-columns:220px minmax(0,1fr)} .rail{display:none} }
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:18px}
+  .sidebar{position:static;max-height:none;overflow:visible}
+  .sidebar nav{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .sidebar a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .sidebar a.active{border-left:0;border-bottom-color:var(--accent)}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark"><b>Syntaxure</b> / EMS Investigation · RM-13</div>
+  <div class="top-meta">
+    <span class="chip">2026-10-04</span>
+    <span class="chip d">closed — overstatement, not a bug</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav aria-label="Sections">
+      <a href="#s-answer" class="active">The answer</a>
+      <a href="#s-evidence">Evidence</a>
+      <a href="#s-why">Why "non-functional" appeared</a>
+      <a href="#s-residual">Residual note</a>
+    </nav>
+  </aside>
+
+  <main>
+
+    <article class="section" id="s-answer">
+      <h1>Was admin's <code>proxy.ts</code> ever non-functional?</h1>
+      <p class="lede"><strong>RM-13 — closed.</strong> No. Admin's session proxy has been correctly wired since March 2026 (Next.js 16's <code>proxy.ts</code> convention) and is executing today — observed directly during the 2026-10-04 staging validation, where unauthenticated admin requests were redirected to <code>/login</code> by it. The "non-functional proxy.ts middleware" phrase in commit <code>5c9f6cf</code>'s message was an <strong>overstatement</strong>: the proxy does its job (session redirect), but a session middleware cannot perform per-route permission and ownership authorization — which is what that commit's per-route gates were actually for.</p>
+    </article>
+
+    <article class="section" id="s-evidence">
+      <h2>Evidence</h2>
+      <table>
+        <thead><tr><th>Source</th><th>Finding</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">git log --follow apps/admin/src/proxy.ts</td><td>Exists since <strong>2026-03-15</strong>, renamed from <code>middleware.ts</code> "to resolve Next 16 deprecation warning" — the file was never deleted or orphaned.</td></tr>
+          <tr><td class="mono">git show 5c9f6cf:apps/admin/src/proxy.ts</td><td>At the commit that called it "non-functional" (2026-09-12), the file was a correct thin wrapper around the shared <code>updateSession()</code>, with the standard catch-all matcher.</td></tr>
+          <tr><td class="mono">git log packages/auth/src/middleware.ts</td><td>The shared <code>updateSession()</code> the admin proxy calls has been present since March and was extended (not replaced) on 2026-09-11 for the web app.</td></tr>
+          <tr><td>Live staging run, 2026-10-04</td><td>Unauthenticated admin requests returned <strong>307 → /login</strong> for <code>/api/devices</code>, <code>/api/overview</code>, <code>/api/billing</code> — the proxy executing. Routes that are exempted by the device-API allowlist (e.g. <code>/api/relay/config</code> via the <code>/api/relay</code> prefix) reached their handlers and returned their own JSON — exactly the middleware's designed split.</td></tr>
+        </tbody>
+      </table>
+      <p class="footnote">If the proxy had truly been non-functional, those admin API calls would have reached the route handlers and returned their own <code>401 {"error":"Not authenticated"}</code> JSON — they did not.</p>
+    </article>
+
+    <article class="section" id="s-why">
+      <h2>Why "non-functional" appeared</h2>
+      <p>The 2026-09-11 staging-validation procedure asserted "no <code>middleware.ts</code> file to wire it up" for the admin app — an assumption from pre-Next-16 convention. Next.js 16 renamed the convention to <code>proxy.ts</code>; the admin app had already migrated in March. This is the <strong>same error class already recorded in the architecture doc's risk register</strong>: a "dead code" finding re-asserted as confirmed before someone checked the file and found the rename. The commit message inherited the stale premise.</p>
+      <div class="callout warn">
+        <span class="tag chip u">Lesson</span>
+        <h3>"Can't authorize APIs" ≠ "non-functional"</h3>
+        <p>The proxy's real limitation — a session redirect cannot enforce per-route permissions or device ownership on JSON APIs — is exactly why the per-route gates were required. That's a design boundary, not a defect. The wording in the commit overstated a true limitation into a false claim about the file.</p>
+      </div>
+    </article>
+
+    <article class="section" id="s-residual">
+      <h2>Residual note</h2>
+      <p>One genuine behavior question remains from the staging validation (Finding B there): unauthenticated <code>/api/*</code> calls on non-exempt paths get a <strong>307 redirect to an HTML login page</strong> rather than a <code>401 JSON</code> — awkward for API clients, though access is correctly denied. That is a deliberate-change candidate for the middleware (return 401 JSON for <code>/api/*</code>), not part of this finding.</p>
+      <p><strong>RM-13 status: closed — no fix needed.</strong></p>
+    </article>
+
+  </main>
+
+  <aside class="rail">
+    <div class="panel facts">
+      <h3>Key facts</h3>
+      <dl>
+        <dt>Verdict</dt><dd class="ok">overstatement</dd>
+        <dt>Proxy wired since</dt><dd class="mono">2026-03-15</dd>
+        <dt>Executing today</dt><dd>yes (307s)</dd>
+        <dt>Fix needed</dt><dd>no</dd>
+        <dt>Residual</dt><dd>401 vs 307 (note)</dd>
+      </dl>
+    </div>
+    <blockquote class="panel quote">Check the file, not the sentence someone wrote about the file.</blockquote>
+  </aside>
+</div>
+
+<div class="footer">
+  Energy Monitoring · RM-13 admin proxy investigation · 2026-10-04 · closed as overstatement · committed locally (no push)
+</div>
+
+</body>
+</html>
