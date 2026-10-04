@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Monitoring — staging/main Pipeline Bypass · Diagnosis &amp; Resync Plan (RM-00)</title>
+<style>
+:root{
+  --bg:#050505; --text:#ededed; --text2:#B7BFCB; --muted:#8A93A0;
+  --line:rgba(255,255,255,.10);
+  --panel:rgba(255,255,255,.045);
+  --field:rgba(255,255,255,.06);
+  --accent:#22D3EE; --accent-2:#A855F7;
+  --grad:linear-gradient(135deg,#22D3EE,#A855F7);
+  --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --r-sm:6px; --r-lg:16px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,h4,p,dl,dd,figure,blockquote{margin:0}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.14;font-weight:800;letter-spacing:-.025em}
+h2{font-size:clamp(20px,2.6vw,27px);line-height:1.22;font-weight:700;letter-spacing:-.015em;margin-bottom:12px}
+h3{font-size:17px;font-weight:700;margin-bottom:8px}
+h4{font-size:15px;font-weight:700}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:var(--mono)}
+code{font-size:.88em;background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:var(--r-sm)}
+pre{margin:14px 0 0;background:#0a0c10;border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--text2)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;height:64px;
+  padding:0 clamp(16px,3vw,40px);background:rgba(5,5,5,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.wordmark b{color:var(--accent)}
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;text-transform:uppercase;
+  color:var(--accent);display:inline-block;white-space:nowrap;line-height:1.6}
+.chip.d{color:var(--ok)} .chip.u{color:var(--warn)} .chip.c{color:var(--danger)} .chip.i{color:var(--accent-2)}
+.chip.muted{color:var(--muted)}
+.shell{display:grid;grid-template-columns:220px minmax(0,1fr) 280px;gap:clamp(20px,2.6vw,36px);
+  padding:28px clamp(16px,3vw,40px) 90px;max-width:1720px;margin:0 auto;align-items:start}
+.sidebar,.rail{position:sticky;top:84px;max-height:calc(100vh - 108px);overflow-y:auto}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar a{display:block;padding:9px 10px;min-height:40px;border-radius:var(--r-sm);color:var(--text2);font-size:13.5px;border-left:2px solid transparent}
+.sidebar a:hover{color:var(--text);text-decoration:none;background:var(--panel)}
+.sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel)}
+.side-group{font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:14px 10px 6px}
+.rail .panel{margin-bottom:14px}
+.rail .facts dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;margin:0}
+.rail .facts dt{color:var(--muted)}
+.rail .facts dd{margin:0;text-align:right;min-width:0}
+.rail .quote{font-style:italic;font-size:13.5px;color:var(--text2)}
+main{min-width:0}
+.section{padding:8px 0 46px;scroll-margin-top:88px}
+.section+.section{border-top:1px solid var(--line);padding-top:38px}
+.section p{max-width:78ch;color:var(--text2)}
+.section p+p{margin-top:12px}
+.section p strong,.section li strong{color:var(--text)}
+.lede{font-size:17.5px;color:var(--text2);max-width:78ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:20px 22px}
+.callout{position:relative;padding:18px 22px 18px 26px;border-radius:var(--r-lg);margin:20px 0;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.callout::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.callout.danger::before{background:var(--danger)}
+.callout.warn::before{background:var(--warn)}
+.callout.ok::before{background:var(--ok)}
+.callout h3{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+.callout .tag{float:right;margin-left:12px}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 18px;min-width:132px;flex:1 1 132px}
+.stat b{display:block;font-size:clamp(22px,2.6vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat.c b{background:none;color:var(--danger);-webkit-text-fill-color:var(--danger)}
+.stat span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-top:16px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.mono{font-family:var(--mono);font-size:.92em}
+.timeline{margin-top:18px;border-left:2px solid var(--line);padding-left:22px;display:flex;flex-direction:column;gap:20px}
+.tl-item{position:relative}
+.tl-item::before{content:'';position:absolute;left:-29px;top:6px;width:12px;height:12px;border-radius:50%;
+  background:var(--bg);border:2px solid var(--accent)}
+.tl-item.warn::before{border-color:var(--warn)}
+.tl-item.danger::before{border-color:var(--danger)}
+.tl-date{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.03em}
+.tl-item h4{margin:2px 0 4px}
+.tl-item p{font-size:14px;max-width:76ch}
+.diagram{margin:24px 0 8px;padding:18px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);overflow-x:auto}
+.diagram svg{display:block;min-width:760px;max-width:100%;height:auto;margin:0 auto}
+.diagram figcaption{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center}
+.cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:18px 20px}
+.card h4{margin-bottom:6px}
+.card p{font-size:14px;max-width:none}
+.card .chip{margin-bottom:10px}
+.bar{height:12px;border-radius:var(--r-sm);overflow:hidden;display:flex;border:1px solid var(--line);margin-top:14px;max-width:640px}
+.bar i{display:block;height:100%}
+.bar .seg1{background:var(--accent)}
+.bar .seg2{background:var(--accent-2)}
+.bar-legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:8px;font-size:13px;color:var(--muted)}
+.bar-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:0}
+.ul-tight{padding-left:20px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+.ul-tight li{margin:7px 0}
+.footnote{font-size:13px;color:var(--muted);max-width:80ch;margin-top:12px}
+.footer{border-top:1px solid var(--line);margin-top:10px;padding:22px clamp(16px,3vw,40px) 40px;color:var(--muted);font-size:13px;max-width:1720px;margin-left:auto;margin-right:auto}
+@media (max-width:1280px){ .shell{grid-template-columns:220px minmax(0,1fr)} .rail{display:none} }
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:18px}
+  .sidebar{position:static;max-height:none;overflow:visible}
+  .sidebar nav{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .sidebar a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .sidebar a.active{border-left:0;border-bottom-color:var(--accent)}
+  .side-group{display:none}
+  table{min-width:560px}
+}
+@media print{
+  .topbar,.sidebar,.rail{display:none}
+  body{background:#fff;color:#000}
+  .shell{display:block;padding:0}
+  .panel,.callout,.card,.tablewrap,.diagram{background:#fff;border-color:#999;backdrop-filter:none}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark"><b>Syntaxure</b> / EMS Staging Resync · RM-00</div>
+  <div class="top-meta">
+    <span class="chip">Prepared 2026-10-04</span>
+    <span class="chip d">Executed 2026-10-04 — verified 0 / 0</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav aria-label="Sections">
+      <a href="#s-tldr" class="active">TL;DR</a>
+      <a href="#s-state">Confirmed branch state</a>
+      <a href="#s-intake">What actually reached main</a>
+      <a href="#s-why">Why the bypass happened</a>
+      <a href="#s-fix">Fix — executed &amp; verified</a>
+      <a href="#s-followups">Follow-ups to decide</a>
+      <a href="#s-evidence">Evidence log</a>
+    </nav>
+  </aside>
+
+  <main>
+
+    <article class="section" id="s-tldr">
+      <h1>staging/main Pipeline Bypass — Diagnosis &amp; Resync Plan</h1>
+      <p class="lede"><strong>RM-00.</strong> <code>staging</code> is exactly <strong>78 commits behind <code>main</code></strong> with <strong>zero divergence</strong> — the same gap recorded on 2026-10-03, re-confirmed against a fresh full fetch. But the gap was not caused by one merge: <strong>13 first-parent events</strong> delivered those 78 commits to <code>main</code> (6 develop syncs, 5 firmware merges, 2 direct writes), and <strong>not a single promotion in the repo's history has ever gone through <code>staging</code></strong>. <code>staging</code>'s own deployment was healthy — bypassing it was a release-cadence failure under production pressure, not a workaround for a broken environment. The fix — a plain fast-forward of <code>staging</code> to <code>main</code>'s tip — was executed on Jeff's go-ahead (direct, no PR) and verified from origin: <code>staging</code> = <code>main</code> @ <code>bc6a34e</code>, gap <code>0&nbsp;&nbsp;0</code>.</p>
+
+      <div class="stat-row">
+        <div class="stat"><b>78</b><span>commits <code>main</code> was ahead of <code>staging</code> — resynced 2026-10-04 to <code>0&nbsp;0</code></span></div>
+        <div class="stat"><b>0</b><span>commits <code>staging</code> has that <code>main</code> lacks — clean ancestry</span></div>
+        <div class="stat"><b>13</b><span>first-parent events delivered the 78 to <code>main</code></span></div>
+        <div class="stat"><b>0</b><span>PRs ever targeted <code>staging</code>, as base or head</span></div>
+        <div class="stat c"><b>2</b><span>direct writes to <code>main</code> with no PR at all</span></div>
+      </div>
+
+      <div class="callout ok">
+        <span class="tag chip d">Executed — verified 0 / 0</span>
+        <h3>Fast-forward <code>staging</code> to <code>bc6a34e</code></h3>
+        <p>Executed 2026-10-04 on Jeff's explicit go-ahead ("direct, no PR"). Because <code>staging</code>'s tip was a strict ancestor of <code>main</code>, it was a pure fast-forward push — no force, no rewrite, nothing lost — and it left the two refs identical, the strongest form of "replica of main". Verified from origin: both refs report <code>bc6a34e</code>, gap <code>0&nbsp;&nbsp;0</code>.</p>
+      </div>
+
+      <div class="callout danger">
+        <span class="tag chip c">Correction to RM-00</span>
+        <h3>The roadmap understates the finding</h3>
+        <p>RM-00 names commit <code>9c3f0e2</code> ("Merge develop into main" on <code>chore/sync-develop-to-main</code>) as the cause. The commit-level read confirms <code>9c3f0e2</code> is real and that it went develop → main without staging — but it is <strong>one of 13 events</strong> across a ~60-hour release sprint, and it wasn't even the first or last. The pipeline rule ("main only receives merges from staging") had no enforcement anywhere: <code>main</code> has no branch protection and no rulesets, so two commits went in with no PR at all.</p>
+      </div>
+    </article>
+
+    <article class="section" id="s-state">
+      <h2>Confirmed branch state <span class="chip d">Verified 2026-10-04</span></h2>
+      <p>Checked against a full, non-shallow clone (<code>git rev-parse --is-shallow-repository</code> → <code>false</code>) after <code>git fetch --all --prune</code> and <code>git fetch --tags</code>. Live refs were then cross-checked with <code>git ls-remote</code> and match the local refs exactly.</p>
+
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Ref</th><th>Tip</th><th>Date (+0800)</th><th>Subject</th></tr></thead>
+          <tbody>
+            <tr><td><strong>main</strong></td><td class="mono">bc6a34e</td><td class="mono">2026-09-14 17:40</td><td>fix(web): zero out sensor readings when device is offline</td></tr>
+            <tr><td><strong>staging</strong></td><td class="mono">b4ff2c8</td><td class="mono">2026-09-11 15:06</td><td>feat(super-admin): add proxy.ts session middleware; docs: staging validation procedure + WVSU account verification</td></tr>
+            <tr><td><strong>develop</strong></td><td class="mono">dc2bd10</td><td class="mono">2026-09-13 14:41</td><td>Merge pull request #28 from J-Akiru5/fix/middleware-relay-device-allowlist</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <ul class="ul-tight">
+        <li><code>git merge-base --is-ancestor origin/staging origin/main</code> → exit <code>0</code>. <strong>Not diverged</strong> — every commit on <code>staging</code> is already on <code>main</code>.</li>
+        <li><code>git rev-list --left-right --count origin/main...origin/staging</code> → <code>78&nbsp;&nbsp;0</code> (left = main-only, right = staging-only). <strong>Identical to the 2026-10-03 check</strong> — no drift in either direction since.</li>
+        <li>The three branches form a strict chain: <code>staging</code> ⊂ <code>develop</code> ⊂ <code>main</code>. <code>staging→develop</code> = 39 commits, <code>develop→main</code> = 39, <code>staging→main</code> = 78 — the roadmap's "39 + 39" decomposition holds exactly. <code>develop</code> is also an ancestor of <code>main</code> (exit <code>0</code>).</li>
+        <li>The 78 commits break down as <strong>50 non-merge + 28 merge</strong> commits.</li>
+        <li>Working tree is checked out on <code>main</code> @ <code>bc6a34e</code> with only two untracked build artifacts (<code>apps/super-admin/next-env.d.ts</code>, <code>packages/ui/tsconfig.tsbuildinfo</code>) — untouched by this task.</li>
+        <li>Staleness: <code>staging</code> was ~23 hours old when the first bypass merged; it is now 23 days old. The last movement on any of the three branches was <code>main</code> on 2026-09-14 — <strong>20 days ago</strong>.</li>
+      </ul>
+
+      <div class="bar" role="img" aria-label="78 commits: 50 non-merge, 28 merge">
+        <i class="seg1" style="width:64.1%"></i><i class="seg2" style="width:35.9%"></i>
+      </div>
+      <div class="bar-legend">
+        <span><i style="background:#22D3EE"></i>50 non-merge commits (64%)</span>
+        <span><i style="background:#A855F7"></i>28 merge commits (36%)</span>
+      </div>
+
+      <p class="footnote">The 78-commit gap and the clean-ancestry finding both still hold exactly as recorded on 2026-10-03. No stale numbers in the original RM-00 filing.</p>
+    </article>
+
+    <article class="section" id="s-intake">
+      <h2>What actually reached <code>main</code> — and how</h2>
+      <p>This is the core correction to the RM-00 narrative. Walking <code>main</code>'s first-parent chain from <code>staging</code>'s tip forward shows <strong>13 events</strong> that moved <code>main</code> while <code>staging</code> received nothing. Six were "release sync" PRs that merged <code>develop</code> into <code>main</code>; five were firmware PRs that targeted <code>main</code> directly; two were direct writes with no PR at all. There is <strong>no merge commit anywhere in the entire repository that mentions <code>staging</code></strong>, and no PR has ever used it as base or head.</p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 880 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Branch topology: staging flows into develop, develop and firmware and two direct writes flow into main, staging was never merged into main">
+          <defs>
+            <marker id="arrC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#22D3EE"/></marker>
+            <marker id="arrP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#A855F7"/></marker>
+            <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f87171"/></marker>
+            <linearGradient id="mainGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#22D3EE"/><stop offset="1" stop-color="#A855F7"/></linearGradient>
+          </defs>
+
+          <text x="14" y="84" fill="#ededed" font-family="JetBrains Mono, monospace" font-size="14" font-weight="600">main</text>
+          <line x1="80" y1="80" x2="820" y2="80" stroke="url(#mainGrad)" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="80" cy="80" r="5" fill="#8A93A0"/>
+          <circle cx="810" cy="80" r="6" fill="#22D3EE"/>
+          <text x="700" y="60" fill="#22D3EE" font-family="JetBrains Mono, monospace" font-size="12">bc6a34e · 2026-09-14</text>
+          <text x="80" y="108" fill="#8A93A0" font-family="JetBrains Mono, monospace" font-size="11">merge-base = staging tip b4ff2c8</text>
+          <text x="330" y="108" fill="#B7BFCB" font-family="Inter, sans-serif" font-size="12">78 commits accumulated here — 0 of them promoted via staging</text>
+
+          <text x="14" y="204" fill="#ededed" font-family="JetBrains Mono, monospace" font-size="14" font-weight="600">staging</text>
+          <line x1="80" y1="200" x2="270" y2="200" stroke="#8A93A0" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="270" cy="200" r="5" fill="#8A93A0"/>
+          <text x="150" y="228" fill="#8A93A0" font-family="JetBrains Mono, monospace" font-size="11">b4ff2c8 · frozen 2026-09-11</text>
+
+          <path d="M284 200 L356 200" stroke="#22D3EE" stroke-width="2.5" marker-end="url(#arrC)"/>
+          <text x="288" y="190" fill="#22D3EE" font-family="JetBrains Mono, monospace" font-size="11">+39</text>
+
+          <text x="368" y="204" fill="#ededed" font-family="JetBrains Mono, monospace" font-size="14" font-weight="600">develop</text>
+          <line x1="368" y1="200" x2="520" y2="200" stroke="#8A93A0" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="508" cy="200" r="5" fill="#A855F7"/>
+          <text x="420" y="228" fill="#8A93A0" font-family="JetBrains Mono, monospace" font-size="11">dc2bd10 · 2026-09-13</text>
+
+          <path d="M520 192 C580 186 590 104 648 88" stroke="#22D3EE" stroke-width="2.5" fill="none" marker-end="url(#arrC)"/>
+          <text x="556" y="160" fill="#22D3EE" font-family="Inter, sans-serif" font-size="12">6 release-sync PRs</text>
+          <text x="556" y="176" fill="#8A93A0" font-family="JetBrains Mono, monospace" font-size="11">#10 #15 #19 #22 #25 #29</text>
+
+          <rect x="560" y="252" width="230" height="46" rx="6" fill="rgba(168,85,247,.08)" stroke="rgba(168,85,247,.45)"/>
+          <text x="578" y="272" fill="#ededed" font-family="Inter, sans-serif" font-size="13" font-weight="600">firmware workstream</text>
+          <text x="578" y="289" fill="#8A93A0" font-family="JetBrains Mono, monospace" font-size="11">#3 #8 #11 #24 #26 → main</text>
+          <path d="M675 250 C690 200 700 130 720 92" stroke="#A855F7" stroke-width="2.5" fill="none" marker-end="url(#arrP)"/>
+
+          <rect x="560" y="326" width="230" height="46" rx="6" fill="rgba(248,113,113,.07)" stroke="rgba(248,113,113,.45)"/>
+          <text x="578" y="346" fill="#ededed" font-family="Inter, sans-serif" font-size="13" font-weight="600">direct writes — no PR</text>
+          <text x="578" y="363" fill="#8A93A0" font-family="JetBrains Mono, monospace" font-size="11">840161b · bc6a34e</text>
+          <path d="M675 324 C700 270 740 170 780 96" stroke="#f87171" stroke-width="2.5" fill="none" stroke-dasharray="5 4" marker-end="url(#arrR)"/>
+
+          <path d="M262 192 C280 150 300 120 330 96" stroke="#f87171" stroke-width="2" fill="none" stroke-dasharray="4 5"/>
+          <line x1="322" y1="112" x2="340" y2="96" stroke="#f87171" stroke-width="3"/>
+          <line x1="322" y1="96" x2="340" y2="112" stroke="#f87171" stroke-width="3"/>
+          <text x="64" y="160" fill="#f87171" font-family="Inter, sans-serif" font-size="12">intended staging → main route</text>
+          <text x="64" y="176" fill="#f87171" font-family="JetBrains Mono, monospace" font-size="11">never used — 0 promotions, ever</text>
+        </svg>
+        <figcaption>Fig. 1 — how main actually accumulated its 78 commits since staging's tip. Every route into main was exercised except the one the pipeline names.</figcaption>
+      </figure>
+
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>#</th><th>Commit</th><th>Route into main</th><th>Merged (UTC)</th><th>What the record says</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">1</td><td class="mono">dc71335</td><td>PR #3 · fix/firmware-pzemc-and-crash-fix → main</td><td class="mono">09-12 06:05</td><td>Firmware crash-loop leak + PZEM-C crossed-harness fix (main-targeted workstream).</td></tr>
+            <tr><td class="mono">2</td><td class="mono">7388957</td><td>PR #8 · feature/pzem-source-failover → main</td><td class="mono">09-12 15:50</td><td>Firmware PZEM source failover + authenticated relay boot fetch.</td></tr>
+            <tr><td class="mono">3</td><td class="mono">9e098ca</td><td>PR #10 · develop → main (release sync)</td><td class="mono">09-12 16:09</td><td>19 commits (login UI, PZEM backend, admin auth); merge-tree dry-run clean; "preserving the already-verified firmware currently on main".</td></tr>
+            <tr><td class="mono">4</td><td class="mono">7ea6bdf</td><td>PR #15 · develop → main (release sync)</td><td class="mono">09-12 20:01</td><td>Unified login UI, WVSU branding, temporary super-admin grants; firmware byte-identical to main; "Do NOT merge without final production approval."</td></tr>
+            <tr><td class="mono">5</td><td class="mono">c391c43</td><td>PR #11 · feature/firmware-dual-reset-buttons → main</td><td class="mono">09-13 02:17</td><td>Dual physical reset buttons firmware.</td></tr>
+            <tr><td class="mono">6</td><td class="mono">bb8318d</td><td>PR #19 · chore/sync-develop-to-main → main <span class="chip c" style="margin-left:4px">contains 9c3f0e2</span></td><td class="mono">09-13 02:34</td><td><strong>Priority stated: an expired temporary Super Admin grant was still live in production</strong> because main's <code>access.ts</code> only checked <code>revoked_at</code>. PR opened 02:34:36Z, merged 02:34:54Z — 18 seconds.</td></tr>
+            <tr><td class="mono">7</td><td class="mono">4dc96ed</td><td>PR #22 · develop → main (release sync)</td><td class="mono">09-13 03:52</td><td>"Promotes the current develop tip as-is" — relay config/poll race fix.</td></tr>
+            <tr><td class="mono">8</td><td class="mono">2ec3c65</td><td>PR #24 · fix/firmware-phoenix-heartbeat → main</td><td class="mono">09-13 05:35</td><td>Firmware Phoenix application heartbeat.</td></tr>
+            <tr><td class="mono">9</td><td class="mono">2ea00a2</td><td>PR #25 · develop → main (release sync)</td><td class="mono">09-13 05:36</td><td>Realtime publication migration already applied to the live database — main needed it for alignment.</td></tr>
+            <tr><td class="mono">10</td><td class="mono">4039fab</td><td>PR #29 · develop → main (release sync)</td><td class="mono">09-13 06:41</td><td>Middleware allowlist fix; "No other develop changes pending."</td></tr>
+            <tr><td class="mono">11</td><td class="mono">392cd18</td><td>PR #26 · fix/firmware-https-relay-polling → main</td><td class="mono">09-13 06:41</td><td>Firmware HTTPS relay polling replaces Realtime transport.</td></tr>
+            <tr><td class="mono">12</td><td class="mono">840161b</td><td><strong>Direct local merge</strong> of chore/reset-account-credentials — no PR to main</td><td class="mono">09-14</td><td>Credential-reset script landed on main directly; its own PR (#20, against <code>develop</code>) is <strong>still open</strong>.</td></tr>
+            <tr><td class="mono">13</td><td class="mono">bc6a34e</td><td><strong>Direct commit on main</strong> — no PR, not on develop</td><td class="mono">09-14 17:40</td><td>Stale sensor-status fix; main's current tip.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">Commit→PR association verified via the GitHub commits API: <code>9c3f0e2 → PR #19</code>; <code>840161b</code> and <code>bc6a34e</code> → no associated PRs.</p>
+    </article>
+
+    <article class="section" id="s-why">
+      <h2>Why the bypass happened</h2>
+      <p>The immediate driver is documented; the systemic reason has to be reconstructed because <strong>nothing in the record states a decision to skip staging</strong> — the pipeline was simply never operated. Here is what the evidence supports, and what it doesn't.</p>
+
+      <div class="callout danger">
+        <span class="tag chip c">Driver — documented</span>
+        <h3>Production urgency: a live, expired Super Admin grant</h3>
+        <p>PR #19's own body states the priority: main still only checked <code>revoked_at</code>, so the PR #17 <code>expires_at</code> enforcement had not reached production and "an expired temporary Super Admin grant was still live." The direct develop→main sync was the hotfix. Its PR lifecycle was 18 seconds, with no human review recorded (the only review entry is the Copilot reviewer reporting a quota limit).</p>
+      </div>
+
+      <div class="callout warn">
+        <span class="tag chip u">Driver — release cadence</span>
+        <h3>13 events in ~60 hours, each individually verified</h3>
+        <p>The sprint ran 2026-09-12 06:05 to 2026-09-14 17:40 UTC. The six develop→main "release sync" PRs each documented their own verification in place of staged validation — merge-tree dry runs, <code>tsc</code>/build/test results, and explicit "firmware byte-identical" checks. Under that rhythm, a develop→staging→main cycle would have serialized every fix behind a staging round-trip.</p>
+      </div>
+
+      <div class="callout">
+        <span class="tag chip">Driver — firmware isolation</span>
+        <h3>Firmware work was deliberately main-only</h3>
+        <p>Firmware isn't deployed by Vercel, and the field-verified firmware existed only on <code>main</code> while <code>develop</code>'s firmware lineage had diverged. The sync PRs protected it explicitly — PR #10 "preserving the already-verified firmware currently on main", PR #15 "firmware byte-identical to main", PR #19 "Firmware on main is untouched by develop". Routing firmware through staging would have added merge risk with no deployment benefit.</p>
+      </div>
+
+      <h3 style="margin-top:26px">Was <code>staging</code> broken or blocking? No — the evidence says it was healthy and simply unused.</h3>
+      <ul class="ul-tight">
+        <li><strong>Its deployment was up.</strong> GitHub commit statuses on <code>staging</code>'s tip <code>b4ff2c8</code>: <code>Vercel – energy-monitoring-web: success</code>, <code>Vercel – energy-monitoring-admin: success</code>. The Vercel branch gate explicitly allowlists staging builds (<code>scripts/vercel-ignore.sh</code>: <code>main staging develop</code>). There is no record of a staging outage, failure, or block.</li>
+        <li><strong>It was never used in the first place.</strong> Zero PRs have ever had <code>staging</code> as base or head (<code>gh pr list --base staging</code> and <code>--head staging</code> both return <code>[]</code> across all 29 PRs). No merge commit in the repo mentions it. Its last commit is also the commit that introduced the staging-validation procedure itself — the pipeline was documented on 2026-09-11, one day before the sprint bypassed it everywhere.</li>
+        <li><strong>As configured, it wasn't a real gate anyway.</strong> The procedure doc's own "Known Configuration Traps" (Trap 4) records that staging had <em>no environment separation</em> — all apps shared the same Supabase project and env values as production. A staging validation pass would have run against production data.</li>
+        <li><strong>The rule had no enforcement.</strong> <code>main</code> has no branch protection (API returns 404) and no rulesets, and the repo has no CI (no <code>.github/workflows</code>) — so nothing prevented the two direct writes (<code>840161b</code>, <code>bc6a34e</code>) or could have required staging provenance.</li>
+      </ul>
+
+      <h3 style="margin-top:26px">What couldn't be determined</h3>
+      <p>No issue, PR comment, commit message, or doc records an explicit rationale for skipping staging. The GitHub issue tracker is empty. So the honest summary is: the immediate drivers (urgency, cadence, firmware isolation) are on the record per-event; the <em>decision</em> to abandon staged promotion is not — staging was documented and then never routed through. Nothing supports the hypothesis that staging was broken or blocking, and that matters: the cause to fix is the process, not an environment everyone was routing around.</p>
+
+      <div class="timeline">
+        <div class="tl-item">
+          <div class="tl-date">2026-09-11</div>
+          <h4><code>staging</code>'s last commit — and the pipeline's own doc</h4>
+          <p><code>b4ff2c8</code> adds the super-admin <code>proxy.ts</code> session middleware plus <code>docs/staging-validation-procedure.md</code>, which defines the pipeline as <em>develop → staging → main</em>. Vercel deploys for web and admin: both succeed.</p>
+        </div>
+        <div class="tl-item warn">
+          <div class="tl-date">2026-09-12 · 06:05–20:01 UTC</div>
+          <h4>First bypasses — ~23 hours after staging's last commit</h4>
+          <p>Firmware PR #3 and #8 land on main directly. Develop sync PRs #10 and #15 follow — the first promotions to reach main without traversing staging.</p>
+        </div>
+        <div class="tl-item danger">
+          <div class="tl-date">2026-09-13 · 02:17–06:41 UTC</div>
+          <h4>Seven events in under five hours — including <code>9c3f0e2</code></h4>
+          <p>Firmware #11, the urgent sync #19 (<code>9c3f0e2</code>), syncs #22/#25/#29, firmware #24/#26. main and develop are kept in near-lockstep via repeated direct syncs; staging receives nothing.</p>
+        </div>
+        <div class="tl-item danger">
+          <div class="tl-date">2026-09-14</div>
+          <h4>Two writes with no PR at all</h4>
+          <p><code>840161b</code> merges the credentials-reset branch into main locally while its PR against develop remains open; <code>bc6a34e</code> is a direct commit that becomes main's tip. Neither touched staging, and neither had a PR.</p>
+        </div>
+        <div class="tl-item">
+          <div class="tl-date">2026-10-04 · today</div>
+          <h4>23 days stale — and exactly where the last check left it</h4>
+          <p>No branch had moved since 2026-09-14. The gap was still 78/0 with clean ancestry; the diagnosis above is unchanged from the 2026-10-03 check on every hard number.</p>
+        </div>
+        <div class="tl-item">
+          <div class="tl-date">2026-10-04 · same day</div>
+          <h4>Resync executed — direct fast-forward, no PR</h4>
+          <p>On Jeff's explicit go-ahead, <code>staging</code> was fast-forwarded from <code>b4ff2c8</code> to <code>bc6a34e</code>. Verified from origin: gap <code>0&nbsp;&nbsp;0</code>, both refs identical. The branch update triggers the Vercel staging deployment.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="section" id="s-fix">
+      <h2>Fix — executed and verified</h2>
+      <p><strong>Executed: fast-forward of <code>staging</code> to <code>main</code>'s current tip.</strong> Because <code>staging</code>'s tip was a strict ancestor of <code>main</code>, this was a pure fast-forward — no force, no history rewrite, nothing discarded — and it left the two refs at the same commit, the strongest possible form of "replica of main for pre-promotion testing" and exactly what RM-00's definition of done asks for.</p>
+
+      <div class="panel" style="margin-top:18px">
+        <span class="chip d" style="margin-bottom:12px">Executed 2026-10-04 · direct fast-forward · no PR</span>
+        <pre><code># 1. Refresh refs (done during diagnosis)
+git fetch origin
+
+# 2. Fast-forward staging to main's tip.
+#    b4ff2c8 is an ancestor of bc6a34e, so this is a plain FF — no --force needed.
+git push origin bc6a34e:refs/heads/staging
+#   b4ff2c8..bc6a34e  bc6a34e -> staging
+
+# 3. Verify both refs now report the same SHA
+git ls-remote origin refs/heads/main refs/heads/staging
+#   bc6a34ea469075a5158309cfcdf148f40ae9115d  refs/heads/main
+#   bc6a34ea469075a5158309cfcdf148f40ae9115d  refs/heads/staging
+
+# 4. Confirm zero gap, zero divergence
+git rev-list --left-right --count origin/main...origin/staging   # 0	0</code></pre>
+      </div>
+
+      <h3 style="margin-top:26px">Why fast-forward rather than a PR from <code>main</code> into <code>staging</code></h3>
+      <ul class="ul-tight">
+        <li><strong>Exactness.</strong> A GitHub PR merge would create a merge commit on <code>staging</code>, so <code>staging</code>'s SHA would differ from <code>main</code>'s and every future staging→main promotion would carry crisscross merge topology. A fast-forward makes the refs identical — the cleanest possible starting point for the documented flow.</li>
+        <li><strong>No review value is lost.</strong> All 78 commits already passed through their own PRs with verification documented per PR (merge-tree dry runs, builds, tests, firmware checks). A resync PR would re-present the same already-verified content.</li>
+        <li><strong>No rewrite, no force.</strong> The push updates <code>staging</code> from <code>b4ff2c8</code> to <code>bc6a34e</code> where the old tip is an ancestor of the new one — neither a force-push nor a history rewrite. Nothing is discarded; rollback, if it were ever needed, is simply re-pointing <code>staging</code> back to <code>b4ff2c8</code> (recorded here and still present on the remote branch object).</li>
+        <li><strong>Alternative if the team prefers PR-gated resync:</strong> open a PR from <code>main</code> into <code>staging</code> and merge it normally. Viable, and it leaves a PR record — but be aware the merge commit changes the topology as described above. The fast-forward is the technically superior option; the PR option is the one to pick only if process uniformity outweighs that cost.</li>
+      </ul>
+
+      <h3 style="margin-top:26px">What now follows</h3>
+      <ul class="ul-tight">
+        <li><code>staging</code> is now an exact replica of production state — the 23 days of drift ended in one ref move, verified at <code>bc6a34e</code>.</li>
+        <li>Vercel builds and deploys the <code>staging</code> branch from the updated ref (it is in the deploy allowlist), re-materializing the staging environment at main's state.</li>
+        <li>The next production promotion should originate from <code>staging</code>, per <code>docs/staging-validation-procedure.md</code> §13 — which specifies <code>git merge staging</code> into <code>main</code>. It will finally be a real promotion, not a no-op, because staging has been made current first.</li>
+      </ul>
+    </article>
+
+    <article class="section" id="s-followups">
+      <h2>Follow-ups worth deciding separately</h2>
+      <p>These are not part of the ref-level fix and don't block it — but RM-00's second half ("stop the direct develop→main path") needs at least a governance decision, or the same bypass recurs on the next hotfix.</p>
+
+      <div class="cardgrid">
+        <div class="card">
+          <span class="chip u">Governance</span>
+          <h4>Protect <code>main</code></h4>
+          <p>There is no branch protection and no ruleset on <code>main</code> today (API 404) — which is how two direct writes got in. A ruleset requiring PRs (plus optional status checks) would stop that class of write. GitHub can't natively require "merged from <code>staging</code>"; that needs a small required status check, which needs CI — and the repo currently has none.</p>
+        </div>
+        <div class="card">
+          <span class="chip u">Environment</span>
+          <h4>Make staging a real gate</h4>
+          <p>The staging procedure's own Trap 4 records that staging shared the production Supabase project and env values. Until staging has at least staging-scoped environments (ideally a separate database), "validated on staging" cannot mean what the pipeline claims — and the incentive to bypass it stays high.</p>
+        </div>
+        <div class="card">
+          <span class="chip u">Hygiene</span>
+          <h4><code>develop</code> is also behind <code>main</code></h4>
+          <p><code>develop</code> (<code>dc2bd10</code>) is 39 commits behind main and lacks main's 25 main-only non-merge commits — 21 firmware commits, two web fixes, and the credentials script. After the resync, any future develop→staging merge needs the same firmware-preservation check the sync PRs used (empty firmware diff vs main). Worth deciding whether to back-merge main into develop for cleanliness.</p>
+        </div>
+        <div class="card">
+          <span class="chip u">Cleanup</span>
+          <h4>Open PR #20 is half-landed</h4>
+          <p>The credentials-reset branch was merged into <code>main</code> directly (<code>840161b</code>) while its PR (#20, against <code>develop</code>) is still open. Merge or close it deliberately so develop and main don't accumulate duplicate-shaped history.</p>
+        </div>
+        <div class="card">
+          <span class="chip i">Docs</span>
+          <h4>Correct RM-00's text</h4>
+          <p>The roadmap attributes the gap to <code>9c3f0e2</code> alone and implies staging might have been broken. The record shows 13 events and a healthy staging deployment. Worth correcting at the next roadmap revision so the next reader doesn't chase a single-commit story.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="section" id="s-evidence">
+      <h2>Evidence log</h2>
+      <p>Every claim above traces to one of these commands or API reads, run 2026-10-04 against <code>J-Akiru5/energy-monitoring</code> from a full non-shallow clone on branch <code>main</code>.</p>
+
+      <div class="panel" style="margin-top:16px">
+        <pre><code># Ancestry and gap
+git fetch --all --prune ; git fetch --tags
+git rev-parse --is-shallow-repository                 # false
+git merge-base --is-ancestor origin/staging origin/main   # exit 0 — not diverged
+git rev-list --left-right --count origin/main...origin/staging   # 78   0
+git rev-list --count origin/staging..origin/develop   # 39
+git rev-list --count origin/develop..origin/main      # 39
+git merge-base --is-ancestor origin/develop origin/main   # exit 0
+git rev-list origin/staging..origin/main --no-merges | wc -l   # 50 (28 merges)
+
+# Tips
+git rev-parse origin/main origin/staging origin/develop
+# bc6a34ea469075a5158309cfcdf148f40ae9115d  main     2026-09-14 17:40 +0800
+# b4ff2c8dcc5fd4614a0c172b961aa2a7242e2532  staging  2026-09-11 15:06 +0800
+# dc2bd10fab58e7a3c41e926a560405b8b3e8c908  develop  2026-09-13 14:41 +0800
+git ls-remote origin refs/heads/main refs/heads/staging refs/heads/develop   # matches local exactly
+
+# Routing into main (first-parent)
+git log --first-parent --merges --oneline origin/main   # 13 events listed in Fig. 1 / table
+git log --all --merges --format="%h %ad %s" | Select-String staging   # no matches — ever
+gh pr list --repo J-Akiru5/energy-monitoring --state all --base staging   # []
+gh pr list --repo J-Akiru5/energy-monitoring --state all --head staging   # []
+
+# Commit → PR association (GitHub commits API)
+# 9c3f0e2 → PR #19 (base main, head chore/sync-develop-to-main)
+# 840161b → none        bc6a34e → none
+
+# staging deployment health at its tip (pre-resync)
+gh api repos/J-Akiru5/energy-monitoring/commits/b4ff2c8/status
+# Vercel – energy-monitoring-web    success
+# Vercel – energy-monitoring-admin  success
+
+# Execution (2026-10-04, Jeff's explicit go-ahead — direct, no PR)
+git push origin bc6a34e:refs/heads/staging
+# b4ff2c8..bc6a34e  bc6a34e -> staging
+git ls-remote origin refs/heads/staging refs/heads/main
+# bc6a34ea469075a5158309cfcdf148f40ae9115d  refs/heads/main
+# bc6a34ea469075a5158309cfcdf148f40ae9115d  refs/heads/staging
+git rev-list --left-right --count origin/main...origin/staging   # 0   0
+
+# Enforcement surface
+gh api repos/J-Akiru5/energy-monitoring/branches/main/protection   # 404 — not protected
+gh api repos/J-Akiru5/energy-monitoring/rulesets                   # []
+gh issue list --state all                                          # [] — no issues at all</code></pre>
+      </div>
+
+      <p class="footnote">Sources: PR #10, #11, #15, #19, #22, #24, #25, #26, #29 bodies and merge metadata; commit <code>9c3f0e2</code> message; <code>docs/staging-validation-procedure.md</code> (added at staging tip <code>b4ff2c8</code>); <code>docs/vercel-branch-gating-2026-09-11.html</code>; <code>scripts/vercel-ignore.sh</code>. Live refs cross-checked with <code>git ls-remote</code>.</p>
+    </article>
+
+  </main>
+
+  <aside class="rail">
+    <div class="panel facts">
+      <h3>Key facts</h3>
+      <dl>
+        <dt>main tip</dt><dd class="mono">bc6a34e</dd>
+        <dt>staging tip</dt><dd class="mono">bc6a34e</dd>
+        <dt>Gap now</dt><dd>0 / 0</dd>
+        <dt>Gap pre-resync</dt><dd>78 / 0</dd>
+        <dt>Diverged</dt><dd>No</dd>
+        <dt>Events to main</dt><dd>13</dd>
+        <dt>Staging PRs ever</dt><dd>0</dd>
+        <dt>Staging deploy</dt><dd>Healthy</dd>
+        <dt>main protected</dt><dd>No</dd>
+        <dt>CI present</dt><dd>No</dd>
+      </dl>
+    </div>
+    <div class="panel">
+      <h3>Status</h3>
+      <p style="font-size:13.5px;color:var(--text2)">Diagnosis complete. Fast-forward executed 2026-10-04 on Jeff's go-ahead (direct, no PR) and verified from origin: <code>staging</code> = <code>main</code> = <code>bc6a34e</code>, gap <code>0&nbsp;0</code>. Vercel staging deployment triggered by the branch update.</p>
+    </div>
+    <blockquote class="panel quote">Two checks in a row with identical numbers is not a stale check — it is the finding: the pipeline has been frozen long enough that nothing has changed to hide it.</blockquote>
+  </aside>
+</div>
+
+<div class="footer">
+  Energy Monitoring · RM-00 staging/main pipeline bypass — diagnosis &amp; resync record · Prepared &amp; executed 2026-10-04 · Fast-forward verified: staging = main @ bc6a34e · No PR
+</div>
+
+</body>
+</html>
