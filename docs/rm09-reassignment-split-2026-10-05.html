@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Monitoring — RM-09: Reassignment Split · 2026-10-05</title>
+<style>
+:root{
+  --bg:#050505; --text:#ededed; --text2:#B7BFCB; --muted:#8A93A0;
+  --line:rgba(255,255,255,.10);
+  --panel:rgba(255,255,255,.045);
+  --field:rgba(255,255,255,.06);
+  --accent:#22D3EE; --accent-2:#A855F7;
+  --grad:linear-gradient(135deg,#22D3EE,#A855F7);
+  --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --r-sm:6px; --r-lg:16px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,h4,p,dl,dd,figure,blockquote{margin:0}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.14;font-weight:800;letter-spacing:-.025em}
+h2{font-size:clamp(20px,2.6vw,27px);line-height:1.22;font-weight:700;letter-spacing:-.015em;margin-bottom:12px}
+h3{font-size:17px;font-weight:700;margin:22px 0 8px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:var(--mono)}
+code{font-size:.88em;background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:var(--r-sm)}
+pre{margin:14px 0 0;background:#0a0c10;border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--text2)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;height:64px;
+  padding:0 clamp(16px,3vw,40px);background:rgba(5,5,5,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.wordmark b{color:var(--accent)}
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;text-transform:uppercase;
+  color:var(--accent);display:inline-block;white-space:nowrap;line-height:1.6}
+.chip.d{color:var(--ok)} .chip.u{color:var(--warn)} .chip.c{color:var(--danger)} .chip.i{color:var(--accent-2)}
+.shell{display:grid;grid-template-columns:230px minmax(0,1fr) 280px;gap:clamp(20px,2.6vw,36px);
+  padding:28px clamp(16px,3vw,40px) 90px;max-width:1720px;margin:0 auto;align-items:start}
+.sidebar,.rail{position:sticky;top:84px;max-height:calc(100vh - 108px);overflow-y:auto}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar a{display:block;padding:9px 10px;min-height:40px;border-radius:var(--r-sm);color:var(--text2);font-size:13.5px;border-left:2px solid transparent}
+.sidebar a:hover{color:var(--text);text-decoration:none;background:var(--panel)}
+.sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel)}
+.rail .panel{margin-bottom:14px}
+.rail .facts dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;margin:0}
+.rail .facts dt{color:var(--muted)}
+.rail .facts dd{margin:0;text-align:right;min-width:0}
+.rail .quote{font-style:italic;font-size:13.5px;color:var(--text2)}
+main{min-width:0}
+.section{padding:8px 0 46px;scroll-margin-top:88px}
+.section+.section{border-top:1px solid var(--line);padding-top:38px}
+.section p{max-width:78ch;color:var(--text2)}
+.section p+p{margin-top:12px}
+.section p strong,.section li strong{color:var(--text)}
+.lede{font-size:17.5px;color:var(--text2);max-width:78ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:20px 22px}
+.callout{position:relative;padding:18px 22px 18px 26px;border-radius:var(--r-lg);margin:20px 0;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.callout::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.callout.danger::before{background:var(--danger)}
+.callout.warn::before{background:var(--warn)}
+.callout.ok::before{background:var(--ok)}
+.callout h3{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+.callout .tag{float:right;margin-left:12px}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 18px;min-width:132px;flex:1 1 132px}
+.stat b{display:block;font-size:clamp(22px,2.6vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-top:16px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.mono{font-family:var(--mono);font-size:.92em}
+.ok{color:var(--ok);font-weight:600}
+.bad{color:var(--danger);font-weight:600}
+.warn{color:var(--warn);font-weight:600}
+.ul-tight{padding-left:20px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+.ul-tight li{margin:7px 0}
+.footnote{font-size:13px;color:var(--muted);max-width:80ch;margin-top:12px}
+.footer{border-top:1px solid var(--line);margin-top:10px;padding:22px clamp(16px,3vw,40px) 40px;color:var(--muted);font-size:13px;max-width:1720px;margin-left:auto;margin-right:auto}
+@media (max-width:1280px){ .shell{grid-template-columns:230px minmax(0,1fr)} .rail{display:none} }
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:18px}
+  .sidebar{position:static;max-height:none;overflow:visible}
+  .sidebar nav{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .sidebar a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .sidebar a.active{border-left:0;border-bottom-color:var(--accent)}
+  table{min-width:520px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark"><b>Syntaxure</b> / EMS Reassignment · RM-09</div>
+  <div class="top-meta">
+    <span class="chip">2026-10-05</span>
+    <span class="chip d">applied + verified 12/12</span>
+    <span class="chip i">decision #2 implemented</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav aria-label="Sections">
+      <a href="#s-tldr" class="active">TL;DR</a>
+      <a href="#s-rules">The split, as decided</a>
+      <a href="#s-build">What shipped</a>
+      <a href="#s-regression">The regression the test caught</a>
+      <a href="#s-verification">Verification</a>
+      <a href="#s-next">Next</a>
+    </nav>
+  </aside>
+
+  <main>
+
+    <article class="section" id="s-tldr">
+      <h1>RM-09 — Operational vs Commercial Reassignment</h1>
+      <p class="lede"><strong>Applied and verified 12/12.</strong> The reassignment authority split from decision #2 now exists in code: operational reassignment (within the EMU's current tenancy) runs through <code>redeploy_emu()</code> and is gated by the dedicated <code>reassign_emu</code> permission; cross-customer reassignment is a new Super-Admin-only path, <code>reassign_emu_cross_customer()</code>, which moves the tenancy transactionally and carries <code>ownership_party</code> unchanged. The live test caught a regression in the very first apply — documented below, because that's the process working.</p>
+
+      <div class="stat-row">
+        <div class="stat"><b>12/12</b><span>RM-09 live checks passed</span></div>
+        <div class="stat"><b>15/15</b><span>RM-07 suite re-run after the repair</span></div>
+        <div class="stat"><b>1</b><span>dedicated permission now gates reassignment</span></div>
+        <div class="stat"><b>1</b><span>regression caught by the live test, fixed, verified</span></div>
+      </div>
+    </article>
+
+    <article class="section" id="s-rules">
+      <h2>The split, as decided</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Path</th><th>Scope</th><th>Authority</th><th>Mechanism</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Operational</strong></td><td>Within the EMU's current customer</td><td>Customer Admin with <code>reassign_emu</code></td><td class="mono">redeploy_emu()</td></tr>
+            <tr><td><strong>Commercial</strong></td><td>Across customers</td><td>Super Admin only</td><td class="mono">reassign_emu_cross_customer()</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul class="ul-tight">
+        <li><strong>Gate change (Jeff, 2026-10-05):</strong> operational reassignment now requires the dedicated <code>reassign_emu</code> permission — previously <code>manage_devices</code>. Operators can manage devices but no longer move EMUs; Owners can. The admin route resolves the permission per action.</li>
+        <li><strong>Ownership doesn't change the classification (Jeff, 2026-10-05):</strong> a PROVIDER-owned unit moved within its customer's tenancy is still operational. The split is by <em>scope</em>, not by <code>ownership_party</code>.</li>
+        <li><strong>Precondition unchanged:</strong> both paths require the EMU to be <code>DECOMMISSIONED</code> first — reassignment is the redeploy counterpart, not a live edit.</li>
+      </ul>
+    </article>
+
+    <article class="section" id="s-build">
+      <h2>What shipped</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>File</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">supabase/migrations/20261005000001_rm09_reassign_cross_customer.sql</td><td><code>reassign_emu_cross_customer()</code> (new) + <code>redeploy_emu()</code> re-declared with an updated comment; service_role only</td></tr>
+            <tr><td class="mono">packages/database/src/queries/emuLifecycle.ts</td><td><code>reassignEmuCrossCustomer()</code> wrapper; stale RM-09-blocked comment removed</td></tr>
+            <tr><td class="mono">apps/admin/src/app/api/devices/route.ts</td><td>per-action permission gate; <code>reassign_emu_cross_customer</code> action — 403 for non-Super-Admins, 400/409 mapped from RPC errors</td></tr>
+            <tr><td class="mono">scripts/test-reassign-emu.ts</td><td>live verification — moves the TEST-B fixture EMU to TEST-A and back</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">The RPC moves the tenancy in one transaction: new installation under the target customer's site/building, then <code>emus.owner_customer_id</code> updated. Historical telemetry keeps its original stamps (ADR-05); future readings stamp the new customer through the controller bridge.</p>
+    </article>
+
+    <article class="section" id="s-regression">
+      <h2>The regression the live test caught</h2>
+      <div class="callout danger">
+        <span class="tag chip c">caught on first apply</span>
+        <h3>My <code>redeploy_emu</code> re-declaration copied the pre-fix body</h3>
+        <p>Migrations <code>20261004000003</code>/<code>...0004</code> exist because the original <code>redeploy_emu</code> had OUT-parameter ambiguity bugs: its <code>RETURNS TABLE (…, emu_id, customer_id)</code> makes those names variables, so bare <code>customer_id</code>/<code>emu_id</code> column references raise <code>column reference "…" is ambiguous</code> at runtime. I copied the <em>original</em> body into the RM-09 migration — reintroducing both bugs in the re-declared function, and inheriting them in the new one.</p>
+        <p>The live test failed on the third check immediately after the first apply. Corrected the migration (every colliding reference qualified — <code>s.customer_id</code>, <code>b.site_id</code>, <code>i.emu_id</code>, <code>cu.id</code>), re-applied with confirmation, and re-ran both suites: RM-09 12/12, RM-07 15/15.</p>
+      </div>
+      <p class="footnote">This is the roadmap's own discipline doing its job: a live test run against the real database caught what a code read and a clean typecheck could not. The lesson is recorded here, not smoothed over — when re-declaring a function, re-read its full migration history first, not just its original definition.</p>
+    </article>
+
+    <article class="section" id="s-verification">
+      <h2>Verification</h2>
+      <div class="callout ok">
+        <span class="tag chip d">RM-09 — 12/12</span>
+        <h3>Live cross-customer reassignment suite</h3>
+        <pre><code>PASS reassign while ACTIVE is rejected
+PASS reassign to the current customer is rejected (use redeploy_emu)
+PASS target site outside the target customer is rejected
+PASS reassign: EMU is ACTIVE under the target customer
+PASS reassign: exactly one open installation
+PASS reassign: installation belongs to the target customer and site
+PASS reassign: returned installation matches the open row
+PASS reassign: ownership_party is carried unchanged
+PASS restore: EMU is ACTIVE back under its home customer
+... 12 passed, 0 failed</code></pre>
+        <p>Fixture EMU moved B → A → B and left ACTIVE under its home customer.</p>
+      </div>
+      <div class="callout">
+        <span class="tag chip">RM-07 regression check</span>
+        <h3>Lifecycle suite re-run after the repair — 15/15</h3>
+        <p><code>redeploy_emu()</code> behaves exactly as before the RM-09 work: same-customer redeploy works; ACTIVE / cross-customer / wrong-building targets are rejected fail-closed.</p>
+      </div>
+      <p class="footnote">Both migrations were dry-run inside <code>BEGIN</code>/<code>ROLLBACK</code> before their confirmed applies. Type-check and ESLint pass on the changed code (two pre-existing unused-<code>err</code> warnings unchanged).</p>
+    </article>
+
+    <article class="section" id="s-next">
+      <h2>Next</h2>
+      <ul class="ul-tight">
+        <li><strong>RM-10 (light):</strong> retention policy statement ("retain indefinitely for now") + a guard that customer deletion never cascades into telemetry deletion.</li>
+        <li><strong>RM-11 / RM-12:</strong> parked with explicit triggers, per the decision record.</li>
+        <li><strong>Pipeline:</strong> RM-08 and RM-09 are on <code>develop</code> only — staging/main deliberately not advanced yet, per Jeff.</li>
+        <li>Elsewhere: RM-01 (WVSU physical results), RM-04 manual a11y walk (delegating to WVSU).</li>
+      </ul>
+    </article>
+
+  </main>
+
+  <aside class="rail">
+    <div class="panel facts">
+      <h3>Key facts</h3>
+      <dl>
+        <dt>Migration</dt><dd class="mono">20261005000001_rm09</dd>
+        <dt>New RPC</dt><dd class="mono">reassign_emu_cross_customer</dd>
+        <dt>Permission</dt><dd class="mono">reassign_emu</dd>
+        <dt>Applied</dt><dd class="ok">yes (confirmed ×2)</dd>
+        <dt>Verified</dt><dd class="ok">12/12 + RM-07 15/15</dd>
+        <dt>Branch</dt><dd class="mono">feat/rm09-reassignment-split</dd>
+      </dl>
+    </div>
+    <div class="panel">
+      <h3>Decision log</h3>
+      <p style="font-size:13.5px;color:var(--text2)">Decision #2 implemented 2026-10-05: operational = within-tenancy, gated by <code>reassign_emu</code>; commercial = cross-customer, Super Admin only. Provider-owned units within tenancy remain operational.</p>
+    </div>
+    <blockquote class="panel quote">A live test against the real database is the only thing that caught the function I thought I'd copied correctly.</blockquote>
+  </aside>
+</div>
+
+<div class="footer">
+  Energy Monitoring · RM-09 reassignment split · 2026-10-05 · applied + verified 12/12 · RM-07 re-run 15/15 · regression caught &amp; repaired · develop only
+</div>
+
+</body>
+</html>
