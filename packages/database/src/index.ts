@@ -66,6 +66,9 @@ export {
   deactivateDevice,
 } from "./queries/devices";
 
+// Controller queries
+export { replaceController } from "./queries/controllers";
+
 // Relay queries
 export {
   getRelayConfig,
