@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Monitoring — On-Site Physical Verification Guide</title>
+<style>
+:root{
+  --bg:#050505; --text:#ededed; --text2:#B7BFCB; --muted:#8A93A0;
+  --line:rgba(255,255,255,.10);
+  --panel:rgba(255,255,255,.045);
+  --field:rgba(255,255,255,.06);
+  --accent:#22D3EE; --accent-2:#A855F7;
+  --grad:linear-gradient(135deg,#22D3EE,#A855F7);
+  --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --r-sm:6px; --r-lg:16px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 17px/1.7 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,h4,p,dl,dd,figure,blockquote{margin:0}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.14;font-weight:800;letter-spacing:-.025em}
+h2{font-size:clamp(20px,2.6vw,27px);line-height:1.22;font-weight:700;letter-spacing:-.015em;margin-bottom:12px}
+h3{font-size:19px;font-weight:700;margin:22px 0 8px}
+h4{font-size:16px;font-weight:700}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:var(--mono)}
+code{font-size:.88em;background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:var(--r-sm)}
+pre{margin:14px 0 0;background:#0a0c10;border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--text2)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;height:64px;
+  padding:0 clamp(16px,3vw,40px);background:rgba(5,5,5,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.wordmark b{color:var(--accent)}
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;text-transform:uppercase;
+  color:var(--accent);display:inline-block;white-space:nowrap;line-height:1.6}
+.chip.d{color:var(--ok)} .chip.u{color:var(--warn)} .chip.c{color:var(--danger)} .chip.i{color:var(--accent-2)}
+.shell{display:grid;grid-template-columns:230px minmax(0,1fr) 280px;gap:clamp(20px,2.6vw,36px);
+  padding:28px clamp(16px,3vw,40px) 90px;max-width:1720px;margin:0 auto;align-items:start}
+.sidebar,.rail{position:sticky;top:84px;max-height:calc(100vh - 108px);overflow-y:auto}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar a{display:block;padding:9px 10px;min-height:40px;border-radius:var(--r-sm);color:var(--text2);font-size:13.5px;border-left:2px solid transparent}
+.sidebar a:hover{color:var(--text);text-decoration:none;background:var(--panel)}
+.sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel)}
+.rail .panel{margin-bottom:14px}
+.rail .facts dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;margin:0}
+.rail .facts dt{color:var(--muted)}
+.rail .facts dd{margin:0;text-align:right;min-width:0}
+.rail .quote{font-style:italic;font-size:13.5px;color:var(--text2)}
+main{min-width:0}
+.section{padding:8px 0 46px;scroll-margin-top:88px}
+.section+.section{border-top:1px solid var(--line);padding-top:38px}
+.section p{max-width:78ch;color:var(--text2)}
+.section p+p{margin-top:12px}
+.section p strong,.section li strong{color:var(--text)}
+.lede{font-size:18px;color:var(--text2);max-width:78ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:20px 22px}
+.callout{position:relative;padding:18px 22px 18px 26px;border-radius:var(--r-lg);margin:20px 0;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.callout::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.callout.danger::before{background:var(--danger)}
+.callout.warn::before{background:var(--warn)}
+.callout.ok::before{background:var(--ok)}
+.callout h3{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+.callout .tag{float:right;margin-left:12px}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 18px;min-width:132px;flex:1 1 132px}
+.stat b{display:block;font-size:clamp(22px,2.6vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-top:16px}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.mono{font-family:var(--mono);font-size:.92em}
+.ok{color:var(--ok);font-weight:600}
+.ul-tight{padding-left:22px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+.ul-tight li{margin:8px 0}
+ol.steps{padding-left:24px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+ol.steps li{margin:10px 0}
+.cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:18px 20px}
+.card h4{margin-bottom:6px}
+.card p{font-size:14px;max-width:none}
+.card .chip{margin-bottom:10px}
+.checklist{background:#0a0c10;border:1px dashed var(--line);border-radius:var(--r-sm);padding:18px 20px;font-family:var(--mono);font-size:14px;line-height:2;color:var(--text);margin-top:14px}
+.footnote{font-size:13px;color:var(--muted);max-width:80ch;margin-top:12px}
+.footer{border-top:1px solid var(--line);margin-top:10px;padding:22px clamp(16px,3vw,40px) 40px;color:var(--muted);font-size:13px;max-width:1720px;margin-left:auto;margin-right:auto}
+@media (max-width:1280px){ .shell{grid-template-columns:230px minmax(0,1fr)} .rail{display:none} }
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:18px}
+  .sidebar{position:static;max-height:none;overflow:visible}
+  .sidebar nav{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .sidebar a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .sidebar a.active{border-left:0;border-bottom-color:var(--accent)}
+  table{min-width:520px}
+}
+@media print{
+  .topbar,.sidebar,.rail{display:none}
+  body{background:#fff;color:#000;font-size:15px}
+  .shell{display:block;padding:0}
+  .panel,.callout,.card,.tablewrap{background:#fff;border-color:#999;backdrop-filter:none}
+  .checklist{background:#fff;border-color:#666}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark"><b>Syntaxure</b> / EMS Physical Verification Guide</div>
+  <div class="top-meta">
+    <span class="chip">2026-10-04</span>
+    <span class="chip u">pre-test setup required</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav aria-label="Sections">
+      <a href="#s-client" class="active">Part 1 — For the on-site contact</a>
+      <a href="#s-client-steps">The three tests</a>
+      <a href="#s-client-report">What to send back</a>
+      <a href="#s-jeff" >Part 2 — For Jeff (technical)</a>
+      <a href="#s-jeff-config">Pre-test setup (required)</a>
+      <a href="#s-jeff-fault">The voltage fault test</a>
+    </nav>
+  </aside>
+
+  <main>
+
+    <article class="section" id="s-client">
+      <h1>On-Site Physical Verification Guide</h1>
+      <p class="lede"><strong>Part 1 is written for the person at the school site</strong> — plain English, no technical terms, about 15 minutes of work. It checks the unit is online and that its main safety switch (the relay) actually cuts power when asked. <strong>Part 2 is for Jeff</strong> — the pre-test settings that must be corrected first, the firmware reflash status, and the electrician-level voltage test.</p>
+
+      <div class="callout danger">
+        <span class="tag chip c">Safety first</span>
+        <h3>Please do NOT do these things</h3>
+        <p><strong>Do not open the device box. Do not touch any wires or screws. Do not remove the unit.</strong> Everything in Part 1 is done from the website and by watching the appliance — nothing involves opening or rewiring anything. If you see smoke, smell burning, or hear unusual crackling, stop immediately, keep away, and contact Jeff. If the unit is in a locked electrical panel, do not attempt to access it — ask the electrician or facilities staff.</p>
+      </div>
+
+      <h3>What this device does, in plain terms</h3>
+      <p>The unit measures how much electricity an appliance uses and can switch that appliance's power on or off remotely. It also has a built-in safety feature: if the voltage becomes too high or too low, it is supposed to cut the power by itself to protect the equipment. This visit checks that the remote on/off switch physically works, and later a qualified electrician will check the automatic safety cut.</p>
+
+      <h3>What you will need</h3>
+      <ul class="ul-tight">
+        <li>A phone or computer with internet access</li>
+        <li>The website address and login that Jeff will give you</li>
+        <li>A small appliance connected to the unit that is <strong>okay to switch off for a few seconds</strong> (for example a lamp) — confirm with whoever uses it first</li>
+        <li>About 15 minutes, and a way to take 2–3 photos</li>
+      </ul>
+    </article>
+
+    <article class="section" id="s-client-steps">
+      <h2>The three tests</h2>
+
+      <h3>Test 1 — Is the unit online and measuring?</h3>
+      <ol class="steps">
+        <li>Log in to the website with the account Jeff provided.</li>
+        <li>Find the device named <strong>ESP32-CICT-001</strong>.</li>
+        <li>It should show <strong>online</strong> (not "offline"), and the voltage/power numbers should <strong>change every few seconds</strong>.</li>
+        <li>Write down what you see. If it says offline or the numbers never change, note that and go to "What to send back".</li>
+      </ol>
+
+      <h3>Test 2 — Does the remote power switch physically work?</h3>
+      <ol class="steps">
+        <li>Open the relay/control page for <strong>ESP32-CICT-001</strong> (the page with Trip / Reset buttons).</li>
+        <li>Press <strong>Trip</strong> (turn off).</li>
+        <li>Watch the appliance: within a few seconds it should <strong>turn off</strong>. You may hear a small click from the device box — that click is the switch moving, which is a good sign.</li>
+        <li>Press <strong>Reset</strong> (turn on). The appliance should <strong>turn back on</strong> within a few seconds.</li>
+        <li>Repeat steps 2–4 one more time so you've seen it twice.</li>
+      </ol>
+      <div class="callout warn">
+        <span class="tag chip u">If it doesn't work</span>
+        <h3>Try twice, then stop</h3>
+        <p>If the appliance does not turn off or on, do not keep pressing the buttons. Note exactly what happened (did the appliance change? did you hear a click?) and send that to Jeff. Do not open the box to investigate.</p>
+      </div>
+
+      <h3>Test 3 — Photos</h3>
+      <ol class="steps">
+        <li>One photo of the device box (closed, as it is — do not open it).</li>
+        <li>One photo of the appliance you tested.</li>
+        <li>One photo of the website screen after the test (showing the device and the button you used).</li>
+      </ol>
+      <p class="footnote">The automatic safety cut (over/under-voltage) is tested separately by a qualified electrician with special equipment. You do not need to do anything for that. Do not attempt it yourself.</p>
+    </article>
+
+    <article class="section" id="s-client-report">
+      <h2>What to send back</h2>
+      <p>Copy the lines below into a message to Jeff and fill in the answers, then attach the photos:</p>
+      <div class="checklist">
+Unit: ESP32-CICT-001<br>
+Date and time of test:<br>
+<br>
+Test 1 — Online before the test? (yes / no):<br>
+Test 1 — Numbers changing every few seconds? (yes / no):<br>
+<br>
+Test 2 — Did the appliance turn OFF when Trip was pressed? (yes / no / partly):<br>
+Test 2 — Did you hear a click from the box? (yes / no):<br>
+Test 2 — Did the appliance turn back ON when Reset was pressed? (yes / no / partly):<br>
+Test 2 — How many seconds did it take (roughly)?<br>
+<br>
+Anything unusual (smells, sounds, warning lights, error messages on the website):<br>
+<br>
+Photos attached: box / appliance / website screen
+      </div>
+      <div class="callout ok">
+        <span class="tag chip d">That's it</span>
+        <h3>Thank you — nothing else is needed from the site</h3>
+        <p>Once Jeff has your answers and photos, he will confirm the results. If the automatic safety test is needed, it will be scheduled separately with a licensed electrician — it is not something to attempt without the proper equipment.</p>
+      </div>
+    </article>
+
+    <article class="section" id="s-jeff">
+      <h2>Part 2 — For Jeff (technical)</h2>
+      <p>This is the RM-01 physical verification, plus two live configuration problems found while preparing this guide that must be corrected before the automatic safety test can mean anything.</p>
+
+      <div class="stat-row">
+        <div class="stat"><b>1</b><span>firmware reflash likely needed (last verified flash 2026-09-12)</span></div>
+        <div class="stat c"><b>2</b><span>live config problems found (thresholds duplicate; local safety disabled)</span></div>
+        <div class="stat"><b>3</b><span>safe client checks (online, relay trip/reset, photos)</span></div>
+      </div>
+
+      <h3>Firmware state</h3>
+      <p>Last verified flash on <code>ESP32-CICT-001</code>: <strong>2026-09-12</strong> (crash-loop fix + PZEM-C crossed-harness fix). Since then <code>main</code> gained the Phoenix heartbeat (#24) and the <strong>HTTPS relay polling</strong> replacement for the broken Realtime transport (#26). To verify the <em>latest combined bundle</em>, the unit needs reflashing:</p>
+      <pre><code>cd firmware
+pio run -t upload        # PlatformIO + USB; needs a laptop at the site (or your visit)</code></pre>
+      <p class="footnote">If reflashing isn't possible soon, the client's Test 2 still verifies the relay physically actuates through the current firmware; the auto-cut test (below) is the part that must run on the latest bundle.</p>
+    </article>
+
+    <article class="section" id="s-jeff-config">
+      <h2>Pre-test setup (required) — two live config problems</h2>
+
+      <div class="callout danger">
+        <span class="tag chip c">Finding 1</span>
+        <h3>Duplicate <code>alert_thresholds</code> rows make the thresholds non-deterministic</h3>
+        <p>Live has <strong>two</strong> rows: <code>id=1</code> (OV 241 / UV 200 / OC 90) and <code>id=2</code> (OV 200 / UV 200 / OC 95). Reads use <code>.limit(1).single()</code> with no <code>ORDER BY</code>, and the admin PUT updates whichever row it happens to fetch — so the effective threshold can flip, and edits can appear not to stick. Note <strong>OV=200 is below a 220 V nominal supply</strong> — if that row is the one in effect, "overvoltage" fires on normal voltage. The staging fetch returned 200/200/95, i.e. row 2 was in effect at that moment.</p>
+        <pre><code>-- inspect
+SELECT id, overvoltage, undervoltage, overcurrent, updated_at FROM alert_thresholds ORDER BY id;
+
+-- keep ONE canonical row with correct values, remove the other (example)
+UPDATE alert_thresholds SET overvoltage = 250, undervoltage = 200, overcurrent = 80, updated_at = now() WHERE id = 1;
+DELETE FROM alert_thresholds WHERE id <> 1;</code></pre>
+      </div>
+
+      <div class="callout warn">
+        <span class="tag chip u">Finding 2</span>
+        <h3>The device's local safety trip is currently disabled</h3>
+        <p><code>relay_config.auto_trip_enabled = false</code> for <code>ESP32-CICT-001</code>, and <code>/api/thresholds/esp32</code> maps that flag straight to the firmware's <code>localSafetyEnabled</code>. So the unit's local over/under-voltage cut is <strong>off right now</strong> — the physical safety test would be meaningless until it's enabled. Also <code>trip_on_undervoltage = false</code> while <code>trip_on_overvoltage = true</code>.</p>
+        <pre><code>-- ONLY after the threshold row above is corrected, or the unit may trip at normal voltage
+UPDATE relay_config
+SET auto_trip_enabled = true, updated_at = now()
+WHERE device_id = 'd566ef3b-3e6e-4ed2-acb7-9de59aaf4d6b';   -- ESP32-CICT-001
+
+-- decide the trip flags you want verified, e.g.:
+UPDATE relay_config SET trip_on_undervoltage = true WHERE device_id = 'd566ef3b-3e6e-4ed2-acb7-9de59aaf4d6b';</code></pre>
+        <p><strong>Power-cycle the unit afterwards</strong> — the firmware fetches thresholds + localSafetyEnabled at boot, so it won't pick up the change until restarted.</p>
+      </div>
+
+      <p><strong>Code follow-up (optional):</strong> <code>getAlertThresholds()</code> and the admin PUT's row lookup should get a deterministic <code>ORDER BY</code> (and ideally the table should enforce a single row) so duplicates can't silently change behavior again.</p>
+    </article>
+
+    <article class="section" id="s-jeff-fault">
+      <h2>The voltage fault test (electrician, latest firmware)</h2>
+      <p>The core of RM-01: prove the relay cuts power on a <strong>real</strong> over/under-voltage, without any network involved, and stays cut until an explicit reset. Requires a licensed electrician with a variable AC source (variac) on the voltage-sensing input:</p>
+      <ol class="steps">
+        <li>With the unit running the latest firmware and <code>auto_trip_enabled=true</code> (Finding 2), confirm the client's Test 2 already showed the relay physically switches.</li>
+        <li>Electrician raises the sensed voltage above the configured overvoltage threshold (or lowers it below undervoltage).</li>
+        <li><strong>Expected:</strong> the relay cuts the load by itself within a few seconds, with no dashboard action and (ideally) with the network disconnected — the local cut must not depend on the cloud.</li>
+        <li><strong>Expected:</strong> power does NOT come back on its own when the voltage returns to normal; an explicit reset is required.</li>
+        <li>Record: the voltage at which it cut, the time to cut, whether it stayed cut, and the alert/log entries in the dashboard.</li>
+      </ol>
+      <div class="callout danger">
+        <span class="tag chip c">Safety</span>
+        <h3>Qualified electrician only — mains voltage</h3>
+        <p>This involves live mains. Do not attempt it personally if not qualified; do not ask the site contact to do it. If no electrician is available yet, the client's Tests 1–2 and a reflash still close most of the loop — the auto-cut remains the one open item.</p>
+      </div>
+    </article>
+
+  </main>
+
+  <aside class="rail">
+    <div class="panel facts">
+      <h3>Key facts</h3>
+      <dl>
+        <dt>Unit</dt><dd class="mono">ESP32-CICT-001</dd>
+        <dt>Client work</dt><dd>~15 min, no tools</dd>
+        <dt>Firmware</dt><dd class="warn">reflash likely</dd>
+        <dt>Thresholds</dt><dd class="bad">duplicate rows</dd>
+        <dt>Local safety</dt><dd class="bad">disabled</dd>
+        <dt>Fault test</dt><dd>electrician</dd>
+      </dl>
+    </div>
+    <div class="panel">
+      <h3>Status</h3>
+      <p style="font-size:13.5px;color:var(--text2)">Guide ready to send to the site contact. Two live config fixes and a firmware decision sit with Jeff before the automatic safety test.</p>
+    </div>
+    <blockquote class="panel quote">Remote checks prove the switch moves. Only a real fault proves it moves on its own.</blockquote>
+  </aside>
+</div>
+
+<div class="footer">
+  Energy Monitoring · on-site physical verification guide · 2026-10-04 · Part 1 for the site contact, Part 2 for Jeff · committed to the repo
+</div>
+
+</body>
+</html>
