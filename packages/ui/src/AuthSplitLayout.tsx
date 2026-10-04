@@ -132,16 +132,14 @@ export function AuthSplitLayout({
                     key={feature.title}
                     className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 backdrop-blur-sm transition-colors hover:border-[#06B6D4]/20 hover:bg-[#06B6D4]/[0.03]"
                   >
-                    <div className="flex items-center gap-2.5 mb-2">
+                    <dt className="flex items-center gap-2.5 mb-2 text-[13px] font-semibold text-[#E2E8F0]">
                       {feature.icon ? (
                         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#06B6D4]/10 text-[#22D3EE]">
                           {feature.icon}
                         </span>
                       ) : null}
-                      <dt className="text-[13px] font-semibold text-[#E2E8F0]">
-                        {feature.title}
-                      </dt>
-                    </div>
+                      {feature.title}
+                    </dt>
                     <dd className="text-[12px] leading-[1.6] text-[#94A3B8]/80 pl-[38px]">
                       {feature.description}
                     </dd>
@@ -153,7 +151,7 @@ export function AuthSplitLayout({
 
           {/* Footer — desktop only */}
           {footer ? (
-            <p className="hidden lg:block text-[10px] font-semibold uppercase tracking-[0.25em] text-[#475569]">
+            <p className="hidden lg:block text-[10px] font-semibold uppercase tracking-[0.25em] text-[#94A3B8]">
               {footer}
             </p>
           ) : null}
