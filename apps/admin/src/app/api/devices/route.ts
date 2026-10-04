@@ -7,6 +7,7 @@ import {
   replaceController,
   decommissionEmu,
   redeployEmu,
+  reassignEmuCrossCustomer,
   getLatestReading,
   getAlertThresholds,
 } from "@energy/database";
@@ -97,12 +98,18 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const { deviceId, action, siteId, buildingId } = await req.json();
+    const { deviceId, action, siteId, buildingId, targetCustomerId } = await req.json();
 
-    // Replacement is its own permission in the role model; everything else
-    // in this route is device management.
+    // Replacement is its own permission in the role model; reassignment
+    // (RM-09) is too: both the operational path (redeploy_emu) and the
+    // commercial path (reassign_emu_cross_customer) require the dedicated
+    // "reassign_emu" permission — not the general manage_devices.
     const requiredPermission: Permission =
-      action === "replace_controller" ? "replace_device" : "manage_devices";
+      action === "replace_controller"
+        ? "replace_device"
+        : action === "redeploy_emu" || action === "reassign_emu_cross_customer"
+          ? "reassign_emu"
+          : "manage_devices";
 
     let access: Awaited<ReturnType<typeof resolveAccess>>;
     try {
@@ -241,6 +248,64 @@ export async function PATCH(req: NextRequest) {
           ) {
             return NextResponse.json(
               { error: "EMU cannot be redeployed in its current state" },
+              { status: 409 }
+            );
+          }
+        }
+        throw err;
+      }
+    }
+
+    if (action === "reassign_emu_cross_customer") {
+      // Commercial reassignment is Super Admin only (decision #2, RM-09):
+      // a customer-scoped caller — even an Owner — cannot move an EMU
+      // into another customer's tenancy.
+      if (!access.isSuperAdmin) {
+        return NextResponse.json(
+          { error: "Cross-customer reassignment is restricted to Super Admins" },
+          { status: 403 }
+        );
+      }
+
+      if (!targetCustomerId || !siteId || !buildingId) {
+        return NextResponse.json(
+          { error: "targetCustomerId, siteId and buildingId are required to reassign" },
+          { status: 400 }
+        );
+      }
+
+      try {
+        const result = await reassignEmuCrossCustomer(
+          deviceId,
+          targetCustomerId,
+          siteId,
+          buildingId
+        );
+        return NextResponse.json({
+          status: "reassigned",
+          installationId: result.installationId,
+          emuId: result.emuId,
+          customerId: result.customerId,
+        });
+      } catch (err) {
+        if (err instanceof Error) {
+          if (
+            /target customer not found|target site not found|target building not found|does not belong|is the EMU's current customer/.test(
+              err.message
+            )
+          ) {
+            return NextResponse.json(
+              { error: "Invalid reassign target for this EMU" },
+              { status: 400 }
+            );
+          }
+          if (
+            /not decommissioned|no ACTIVE controller|already has an active installation/.test(
+              err.message
+            )
+          ) {
+            return NextResponse.json(
+              { error: "EMU cannot be reassigned in its current state" },
               { status: 409 }
             );
           }
