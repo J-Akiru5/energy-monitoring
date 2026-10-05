@@ -206,8 +206,12 @@ export default function RelayPage() {
       if (res.ok) {
         const data = await res.json();
         setState(data.state);
-        setSaveMsg(`✓ Relay ${action === "MANUAL_TRIP" ? "tripped" : "reset"} successfully.`);
-        fetchRelayState(); // Refresh state + logs (config untouched by relay actions)
+        // The device applies relay commands by polling the cloud state
+        // (~2s poll cadence on a busy loop), so the DB write confirms the
+        // command was ACCEPTED, not that the physical relay has moved yet.
+        setSaveMsg("✓ Command sent — waiting for device to apply (up to ~10s)...");
+        fetchRelayState(); // Refresh state + logs immediately
+        setTimeout(() => fetchRelayState(), 10000); // and once more after the poll window
       } else {
         const data = await res.json();
         setSaveMsg(`✗ Error: ${data.error}`);
