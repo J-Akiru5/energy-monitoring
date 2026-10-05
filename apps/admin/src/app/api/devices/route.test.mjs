@@ -19,6 +19,12 @@ registerHooks({
         shortCircuit: true,
       };
     }
+    if (specifier.startsWith("@/")) {
+      return {
+        url: new URL(`../../../${specifier.slice(2)}.ts`, import.meta.url).href,
+        shortCircuit: true,
+      };
+    }
     if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) {
       try {
         return nextResolve(specifier, context);
@@ -54,6 +60,8 @@ class AccessDeniedError extends Error {}
 mock.module("@energy/database", {
   namedExports: {
     listDevices: async () => [],
+    getAlertThresholds: async () => ({ device_offline_seconds: 60 }),
+    getLatestReading: async () => null,
     deactivateDevice: async () => {},
     lookupControllerByDevice: async (deviceId) => {
       lookupCalls.push(deviceId);
@@ -77,6 +85,11 @@ mock.module("@energy/database", {
       }
       return { installationId: "inst-new", emuId: "emu-1", customerId: CUSTOMER_A };
     },
+    reassignEmuCrossCustomer: async () => ({
+      installationId: "inst-new",
+      emuId: "emu-1",
+      customerId: CUSTOMER_A,
+    }),
   },
 });
 
@@ -90,6 +103,7 @@ mock.module("@energy/auth", {
       if (denyAccess) throw new AccessDeniedError("denied");
       return currentAccess;
     },
+    filterDevicesByScopes: async (_access, devices) => devices,
     AccessDeniedError,
   },
 });
@@ -118,7 +132,7 @@ function patchReq(body) {
   });
 }
 
-test("permission mapping: replace_controller resolves replace_device; lifecycle actions use manage_devices", async () => {
+test("permission mapping: replace_controller → replace_device; redeploy_emu → reassign_emu; decommission_emu → manage_devices", async () => {
   reset();
   currentAccess = { isSuperAdmin: true, customerId: "*", permissions: [] };
 
@@ -138,7 +152,7 @@ test("permission mapping: replace_controller resolves replace_device; lifecycle 
       buildingId: BUILDING_A,
     })
   );
-  assert.deepEqual(resolveCalls, ["manage_devices"]);
+  assert.deepEqual(resolveCalls, ["reassign_emu"]);
 });
 
 test("decommission_emu: own device → 200, RPC called", async () => {

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Monitoring &mdash; Admin Overview Live Status Fix &mdash; 2026-10-05</title>
+<style>
+:root{
+  --bg:#050505; --text:#ededed; --text2:#B7BFCB; --muted:#8A93A0;
+  --line:rgba(255,255,255,.10);
+  --panel:rgba(255,255,255,.045);
+  --field:rgba(255,255,255,.06);
+  --accent:#22D3EE; --accent-2:#A855F7;
+  --grad:linear-gradient(135deg,#22D3EE,#A855F7);
+  --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --r-sm:6px; --r-lg:16px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,h4,p,dl,dd,figure,blockquote{margin:0}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.14;font-weight:800;letter-spacing:-.025em}
+h2{font-size:clamp(20px,2.6vw,27px);line-height:1.22;font-weight:700;letter-spacing:-.015em;margin-bottom:12px}
+h3{font-size:17px;font-weight:700;margin:22px 0 8px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:var(--mono)}
+code{font-size:.88em;background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:var(--r-sm)}
+pre{margin:14px 0 0;background:#0a0c10;border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--text2)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;height:64px;
+  padding:0 clamp(16px,3vw,40px);background:rgba(5,5,5,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.wordmark b{color:var(--accent)}
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;text-transform:uppercase;
+  color:var(--accent);display:inline-block;white-space:nowrap;line-height:1.6}
+.chip.d{color:var(--ok)} .chip.u{color:var(--warn)} .chip.c{color:var(--danger)} .chip.i{color:var(--accent-2)}
+.shell{display:grid;grid-template-columns:230px minmax(0,1fr) 280px;gap:clamp(20px,2.6vw,36px);
+  padding:28px clamp(16px,3vw,40px) 90px;max-width:1720px;margin:0 auto;align-items:start}
+.sidebar,.rail{position:sticky;top:84px;max-height:calc(100vh - 108px);overflow-y:auto}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar a{display:block;padding:9px 10px;min-height:40px;border-radius:var(--r-sm);color:var(--text2);font-size:13.5px;border-left:2px solid transparent}
+.sidebar a:hover{color:var(--text);text-decoration:none;background:var(--panel)}
+.sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel)}
+.rail .panel{margin-bottom:14px}
+.rail .facts dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;margin:0}
+.rail .facts dt{color:var(--muted)}
+.rail .facts dd{margin:0;text-align:right;min-width:0}
+main{min-width:0}
+.section{padding:8px 0 46px;scroll-margin-top:88px}
+.section+.section{border-top:1px solid var(--line);padding-top:38px}
+.section p{max-width:78ch;color:var(--text2)}
+.section p+p{margin-top:12px}
+.section p strong,.section li strong{color:var(--text)}
+.lede{font-size:17.5px;color:var(--text2);max-width:78ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:20px 22px}
+.callout{position:relative;padding:18px 22px 18px 26px;border-radius:var(--r-lg);margin:20px 0;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.callout::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.callout.danger::before{background:var(--danger)}
+.callout.warn::before{background:var(--warn)}
+.callout.ok::before{background:var(--ok)}
+.callout h3{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 18px;min-width:132px;flex:1 1 132px}
+.stat b{display:block;font-size:clamp(22px,2.6vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-top:16px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.mono{font-family:var(--mono);font-size:.92em}
+.ok{color:var(--ok);font-weight:600}
+.bad{color:var(--danger);font-weight:600}
+.warn{color:var(--warn);font-weight:600}
+.ul-tight{padding-left:20px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+.ul-tight li{margin:7px 0}
+.footnote{font-size:13px;color:var(--muted);max-width:80ch;margin-top:12px}
+.footer{border-top:1px solid var(--line);margin-top:10px;padding:22px clamp(16px,3vw,40px) 40px;color:var(--muted);font-size:13px;max-width:1720px;margin-left:auto;margin-right:auto}
+@media (max-width:1280px){ .shell{grid-template-columns:230px minmax(0,1fr)} .rail{display:none} }
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:18px}
+  .sidebar{position:static;max-height:none;overflow:visible}
+  .sidebar nav{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .sidebar a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .sidebar a.active{border-left:0;border-bottom-color:var(--accent)}
+  table{min-width:520px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark"><b>Syntaxure</b> / EMS Admin &mdash; Overview Live Status</div>
+  <div class="top-meta">
+    <span class="chip">2026-10-05</span>
+    <span class="chip d">tests 14/14</span>
+    <span class="chip i">build &amp; lint green</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav aria-label="Sections">
+      <a href="#s-tldr" class="active">TL;DR</a>
+      <a href="#s-root">Root cause</a>
+      <a href="#s-changes">Changes</a>
+      <a href="#s-verify">Verification</a>
+      <a href="#s-notes">Notes</a>
+    </nav>
+  </aside>
+
+  <main>
+    <section class="section" id="s-tldr">
+      <h1>Overview now reports live system status</h1>
+      <p class="lede" style="margin-top:14px">The admin Overview page hardcoded <strong>&ldquo;Online&rdquo;</strong> and counted every enabled device as an &ldquo;Active Sensor&rdquo;, so a powered-off system still looked healthy there while <code>/sensors</code> and <code>/pzem</code> correctly showed it offline. Both cards now derive from live telemetry using the same clock as the Sensors page and the <code>DEVICE_OFFLINE</code> alert.</p>
+
+      <div class="stat-row">
+        <div class="stat"><b>15s</b><span>Overview refresh interval (was: load once, never update)</span></div>
+        <div class="stat"><b>1</b><span>shared status helper for /api/devices and /api/overview</span></div>
+        <div class="stat"><b>14/14</b><span>route tests passing (overview 5, devices 9)</span></div>
+      </div>
+
+      <div class="callout ok">
+        <h3>TL;DR</h3>
+        <ul class="ul-tight">
+          <li><strong>System Status</strong> is now <em>Online</em> only when at least one sensor has recent telemetry; otherwise <em>Offline</em> in rose.</li>
+          <li><strong>Active Sensors</strong> counts live (online) devices, not the <code>is_active</code> enable flag.</li>
+          <li><strong>Freshness:</strong> the Overview polls <code>/api/overview</code> every 15 seconds, matching the Alerts page cadence.</li>
+          <li><strong>No drift:</strong> status derivation moved into one helper (<code>src/lib/liveStatus.ts</code>) used by both routes.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="s-root">
+      <h2>Root cause</h2>
+      <ul class="ul-tight">
+        <li><code>apps/admin/src/app/page.tsx</code> rendered <code>{"{loading ? \"—\" : \"Online\"}"}</code> &mdash; the System Status value was a literal, never read from the API.</li>
+        <li><code>/api/overview</code> returned <code>activeDevices: devices.length</code>, and <code>listDevices()</code> filters on <code>devices.is_active</code> (the enable flag), not on telemetry recency. A powered-off PZEM stays <code>is_active = true</code>, so it was counted as an active sensor.</li>
+        <li>The page fetched once on mount and never refreshed, so even a correct value would have gone stale when the site powered down.</li>
+      </ul>
+    </section>
+
+    <section class="section" id="s-changes">
+      <h2>Changes</h2>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>File</th><th>Change</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono">apps/admin/src/lib/liveStatus.ts <em>(new)</em></td>
+              <td><code>resolveOfflineSeconds()</code> (reads <code>device_offline_seconds</code>, defaults 60) and <code>attachLiveStatus()</code> (latest reading per device → <code>is_online</code> + <code>last_seen_at</code>). Same logic previously inlined in <code>/api/devices</code>.</td>
+            </tr>
+            <tr>
+              <td class="mono">api/devices/route.ts</td>
+              <td>Inline status derivation replaced by the shared helper; response shape unchanged.</td>
+            </tr>
+            <tr>
+              <td class="mono">api/overview/route.ts</td>
+              <td>Derives live status for the scoped device list; <code>activeDevices</code> now = online count; new <code>systemStatus: "online" | "offline"</code> field. Super Admins stay unscoped, customer users scoped to their customer for the reading lookup.</td>
+            </tr>
+            <tr>
+              <td class="mono">app/page.tsx</td>
+              <td>System Status card reads <code>systemStatus</code> (green Online / rose Offline); polls every 15s with an unmount guard.</td>
+            </tr>
+            <tr>
+              <td class="mono">route.test.mjs (overview + devices)</td>
+              <td>Added <code>@/</code> alias resolution to the test hooks; mocked the status helpers; new stale/absent-telemetry test asserting <code>activeDevices: 0</code> and <code>systemStatus: "offline"</code>; telemetry-lookup scope asserted for Super Admin vs customer.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">Matching definition of online (identical to <code>/api/devices</code>): device is active <em>and</em> its latest <code>power_readings</code> row is within the offline window.</p>
+    </section>
+
+    <section class="section" id="s-verify">
+      <h2>Verification</h2>
+      <ul class="ul-tight">
+        <li><code>node --experimental-test-module-mocks --test</code> on both route test files &mdash; <span class="ok">14 pass / 0 fail</span>.</li>
+        <li><code>pnpm --filter @energy/admin build</code> &mdash; pass (TypeScript + all routes).</li>
+        <li><code>pnpm --filter @energy/admin lint</code> &mdash; <span class="ok">0 errors</span> (8 pre-existing unused-var warnings).</li>
+      </ul>
+      <div class="callout warn">
+        <h3>Pre-existing test rot fixed in passing</h3>
+        <p>The devices route test could not even load on <code>main</code>: its module mocks were missing <code>filterDevicesByScopes</code> (RM-11) and <code>reassignEmuCrossCustomer</code> (RM-09), and one expectation still said <code>redeploy_emu</code> resolves <code>manage_devices</code> instead of <code>reassign_emu</code>. Mocks and expectation updated to match the current route contract.</p>
+      </div>
+    </section>
+
+    <section class="section" id="s-notes">
+      <h2>Notes</h2>
+      <ul class="ul-tight">
+        <li>No API field removals: existing consumers of <code>activeDevices</code> get the corrected (online) count.</li>
+        <li>When no devices are online &mdash; including &ldquo;no devices at all&rdquo; &mdash; System Status reads <em>Offline</em>.</li>
+        <li><code>loring-admin.vercel.app</code> is a project domain on the admin Vercel project, so this fix reaches the team&rsquo;s URL on the next production deploy.</li>
+      </ul>
+    </section>
+  </main>
+
+  <aside class="rail">
+    <div class="panel facts">
+      <h3 style="margin-top:0">At a glance</h3>
+      <dl>
+        <dt>Date</dt><dd>2026-10-05</dd>
+        <dt>Branch</dt><dd class="mono">fix/admin-overview-status</dd>
+        <dt>Scope</dt><dd>admin Overview + /api/overview</dd>
+        <dt>Tests</dt><dd class="ok">14/14</dd>
+        <dt>Status</dt><dd class="ok">built &amp; linted</dd>
+      </dl>
+    </div>
+  </aside>
+</div>
+
+<footer class="footer">
+  Energy Monitoring &mdash; admin Overview live-status fix, 2026-10-05. Reported from the field: &ldquo;system shows ON even when it&rsquo;s off; only in Overview.&rdquo;
+</footer>
+
+</body>
+</html>
