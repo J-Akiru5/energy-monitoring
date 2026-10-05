@@ -6,7 +6,7 @@ import { updatePassword } from "./actions";
 export default function AccountPage() {
   const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction, isPending] = useActionState(
-    async (prevState: any, formData: FormData) => {
+    async (prevState: { error?: string; success?: boolean } | null, formData: FormData) => {
       const result = await updatePassword(formData);
       if (result.success) {
         formRef.current?.reset();

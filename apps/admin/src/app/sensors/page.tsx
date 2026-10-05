@@ -90,7 +90,7 @@ export default function SensorsPage() {
               {devices.length} device{devices.length !== 1 ? "s" : ""}
             </span>
           </div>
-          <div style={{ overflowX: "auto" }}>
+          <div className="table-scroll table-scroll--wide">
             <table className="data-table">
               <thead>
                 <tr>

@@ -98,6 +98,12 @@ export async function PUT(
     throw err;
   }
 
+  // RM-12: temporary Super Admin grants are read-only — phase-config
+  // updates are mutations.
+  if (access.isTemporarySuperAdmin) {
+    return noStoreJson({ error: "Temporary Super Admin grants are read-only" }, 403);
+  }
+
   // IDOR guard: the URL deviceId must belong to the caller's customer.
   try {
     await assertDeviceOwnership(access, deviceId);

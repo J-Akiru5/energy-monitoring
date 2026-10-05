@@ -7,7 +7,15 @@ import {
   logRelayAction,
   lookupControllerByDevice,
 } from "@energy/database";
-import { createClient, resolveAccess, AccessDeniedError, SUPER_ADMIN_CUSTOMER_ID } from "@energy/auth";
+import {
+  createClient,
+  resolveAccess,
+  AccessDeniedError,
+  assertDeviceInScopes,
+  DeviceAccessDeniedError,
+  SUPER_ADMIN_CUSTOMER_ID,
+} from "@energy/auth";
+import type { ResolvedAccess } from "@energy/auth";
 import { RelayCommandSchema } from "@energy/types";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +57,7 @@ async function verifyDeviceOwnership(
 async function authenticateAndScope(
   req: NextRequest,
   permission: "view_energy" | "control_relay",
-): Promise<{ customerId: string } | null> {
+): Promise<{ access: ResolvedAccess; actor: string } | null> {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
@@ -58,10 +66,10 @@ async function authenticateAndScope(
     return null;
   }
 
-  let customerId: string;
   try {
     const access = await resolveAccess(user.id, permission);
-    customerId = access.customerId;
+    // RM-11 (decision #4): actor identification — stamped server-side.
+    return { access, actor: user.email ?? user.id };
   } catch (err) {
     if (err instanceof AccessDeniedError) {
       noStoreJson({ error: err.message }, 403);
@@ -69,8 +77,25 @@ async function authenticateAndScope(
     }
     throw err;
   }
+}
 
-  return { customerId };
+/**
+ * RM-11 (decision #4): enforce the caller's membership scopes against the
+ * relay target. Returns a 403 response when out of scope, else null.
+ */
+async function enforceScopes(
+  access: ResolvedAccess,
+  deviceId: string,
+): Promise<NextResponse | null> {
+  try {
+    await assertDeviceInScopes(access, deviceId);
+    return null;
+  } catch (err) {
+    if (err instanceof DeviceAccessDeniedError) {
+      return noStoreJson({ error: err.message }, 403);
+    }
+    throw err;
+  }
 }
 
 /**
@@ -90,9 +115,12 @@ export async function GET(req: NextRequest) {
     const auth = await authenticateAndScope(req, "control_relay");
     if (!auth) return new NextResponse(null, { status: 401 });
 
-    if (!(await verifyDeviceOwnership(deviceId, auth.customerId))) {
+    if (!(await verifyDeviceOwnership(deviceId, auth.access.customerId))) {
       return noStoreJson({ error: "Device not found or access denied" }, 403);
     }
+
+    const scopeDenied = await enforceScopes(auth.access, deviceId);
+    if (scopeDenied) return scopeDenied;
 
     const state = await getRelayState(deviceId);
     return noStoreJson({ state });
@@ -116,6 +144,15 @@ export async function POST(req: NextRequest) {
     const auth = await authenticateAndScope(req, "control_relay");
     if (!auth) return new NextResponse(null, { status: 401 });
 
+    // RM-12: temporary Super Admin grants are read-only — relay commands
+    // are mutations.
+    if (auth.access.isTemporarySuperAdmin) {
+      return noStoreJson(
+        { error: "Temporary Super Admin grants are read-only" },
+        403
+      );
+    }
+
     const body = await req.json();
     const parsed = RelayCommandSchema.safeParse(body);
 
@@ -128,9 +165,12 @@ export async function POST(req: NextRequest) {
 
     const command = parsed.data;
 
-    if (!(await verifyDeviceOwnership(command.deviceId, auth.customerId))) {
+    if (!(await verifyDeviceOwnership(command.deviceId, auth.access.customerId))) {
       return noStoreJson({ error: "Device not found or access denied" }, 403);
     }
+
+    const scopeDenied = await enforceScopes(auth.access, command.deviceId);
+    if (scopeDenied) return scopeDenied;
 
     const config = await getRelayConfig(command.deviceId);
     if (!config || !config.relayEnabled) {
@@ -157,7 +197,7 @@ export async function POST(req: NextRequest) {
           undefined,
           undefined,
           undefined,
-          command.initiatedBy,
+          auth.actor,
           command.notes
         );
         break;
@@ -172,7 +212,7 @@ export async function POST(req: NextRequest) {
           undefined,
           undefined,
           undefined,
-          command.initiatedBy,
+          auth.actor,
           command.notes
         );
         break;

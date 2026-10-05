@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Monitoring &mdash; Mobile Responsive Pass &mdash; 2026-10-05</title>
+<style>
+:root{
+  --bg:#050505; --text:#ededed; --text2:#B7BFCB; --muted:#8A93A0;
+  --line:rgba(255,255,255,.10);
+  --panel:rgba(255,255,255,.045);
+  --field:rgba(255,255,255,.06);
+  --accent:#22D3EE; --accent-2:#A855F7;
+  --grad:linear-gradient(135deg,#22D3EE,#A855F7);
+  --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --r-sm:6px; --r-lg:16px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,h4,p,dl,dd,figure,blockquote{margin:0}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.14;font-weight:800;letter-spacing:-.025em}
+h2{font-size:clamp(20px,2.6vw,27px);line-height:1.22;font-weight:700;letter-spacing:-.015em;margin-bottom:12px}
+h3{font-size:17px;font-weight:700;margin:22px 0 8px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:var(--mono)}
+code{font-size:.88em;background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:var(--r-sm)}
+pre{margin:14px 0 0;background:#0a0c10;border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--text2)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;height:64px;
+  padding:0 clamp(16px,3vw,40px);background:rgba(5,5,5,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.wordmark b{color:var(--accent)}
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;text-transform:uppercase;
+  color:var(--accent);display:inline-block;white-space:nowrap;line-height:1.6}
+.chip.d{color:var(--ok)} .chip.u{color:var(--warn)} .chip.c{color:var(--danger)} .chip.i{color:var(--accent-2)}
+.shell{display:grid;grid-template-columns:230px minmax(0,1fr) 280px;gap:clamp(20px,2.6vw,36px);
+  padding:28px clamp(16px,3vw,40px) 90px;max-width:1720px;margin:0 auto;align-items:start}
+.sidebar,.rail{position:sticky;top:84px;max-height:calc(100vh - 108px);overflow-y:auto}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar a{display:block;padding:9px 10px;min-height:40px;border-radius:var(--r-sm);color:var(--text2);font-size:13.5px;border-left:2px solid transparent}
+.sidebar a:hover{color:var(--text);text-decoration:none;background:var(--panel)}
+.sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel)}
+.rail .panel{margin-bottom:14px}
+.rail .facts dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;margin:0}
+.rail .facts dt{color:var(--muted)}
+.rail .facts dd{margin:0;text-align:right;min-width:0}
+main{min-width:0}
+.section{padding:8px 0 46px;scroll-margin-top:88px}
+.section+.section{border-top:1px solid var(--line);padding-top:38px}
+.section p{max-width:78ch;color:var(--text2)}
+.section p+p{margin-top:12px}
+.section p strong,.section li strong{color:var(--text)}
+.lede{font-size:17.5px;color:var(--text2);max-width:78ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:20px 22px}
+.callout{position:relative;padding:18px 22px 18px 26px;border-radius:var(--r-lg);margin:20px 0;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.callout::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.callout.danger::before{background:var(--danger)}
+.callout.warn::before{background:var(--warn)}
+.callout.ok::before{background:var(--ok)}
+.callout h3{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 18px;min-width:132px;flex:1 1 132px}
+.stat b{display:block;font-size:clamp(22px,2.6vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-top:16px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.mono{font-family:var(--mono);font-size:.92em}
+.ok{color:var(--ok);font-weight:600}
+.bad{color:var(--danger);font-weight:600}
+.warn{color:var(--warn);font-weight:600}
+.ul-tight{padding-left:20px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+.ul-tight li{margin:7px 0}
+.footnote{font-size:13px;color:var(--muted);max-width:80ch;margin-top:12px}
+.footer{border-top:1px solid var(--line);margin-top:10px;padding:22px clamp(16px,3vw,40px) 40px;color:var(--muted);font-size:13px;max-width:1720px;margin-left:auto;margin-right:auto}
+@media (max-width:1280px){ .shell{grid-template-columns:230px minmax(0,1fr)} .rail{display:none} }
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:18px}
+  .sidebar{position:static;max-height:none;overflow:visible}
+  .sidebar nav{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .sidebar a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .sidebar a.active{border-left:0;border-bottom-color:var(--accent)}
+  table{min-width:520px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark"><b>Syntaxure</b> / EMS Mobile Responsive Pass</div>
+  <div class="top-meta">
+    <span class="chip">2026-10-05</span>
+    <span class="chip d">build &amp; lint green</span>
+    <span class="chip i">admin &middot; web &middot; super-admin</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav aria-label="Sections">
+      <a href="#s-tldr" class="active">TL;DR</a>
+      <a href="#s-broken">What was broken</a>
+      <a href="#s-changes">What changed</a>
+      <a href="#s-verify">Verification</a>
+      <a href="#s-incidental">Incidental fixes</a>
+      <a href="#s-followups">Follow-ups</a>
+    </nav>
+  </aside>
+
+  <main>
+    <section class="section" id="s-tldr">
+      <h1>All pages are mobile responsive</h1>
+      <p class="lede" style="margin-top:14px">Every page in <code>apps/admin</code>, <code>apps/web</code>, and <code>apps/super-admin</code> now renders without horizontal overflow from 320&nbsp;px up. Admin &mdash; the app in the reported screenshot &mdash; gained a hamburger top bar and slide-in navigation drawer, because below 960&nbsp;px its fixed sidebar previously just disappeared with no replacement.</p>
+
+      <div class="stat-row">
+        <div class="stat"><b>16/16</b><span>paginated routes checked: admin 10, web 5, super-admin 1 (login)</span></div>
+        <div class="stat"><b>320&ndash;960</b><span>px viewport range with zero page-level overflow</span></div>
+        <div class="stat"><b>3</b><span>apps built + linted green</span></div>
+      </div>
+
+      <div class="callout ok">
+        <h3>TL;DR</h3>
+        <ul class="ul-tight">
+          <li><strong>Admin:</strong> new <code>AdminShell</code> &mdash; mobile top bar, slide-in drawer with the existing grouped nav, overlay, Escape/close, and sign-out; login no longer inherits the 276&nbsp;px sidebar margin.</li>
+          <li><strong>Admin:</strong> tables scroll inside their panels, alert rows and checkbox/button rows wrap, stat cards go 2-up, and the Reports page&rsquo;s chart/filter CSS was repaired (a malformed nested block had disabled it on <em>all</em> viewports).</li>
+          <li><strong>Web:</strong> inline <code>gridTemplateColumns</code> removed from phases/sensors/relay so the existing breakpoints apply; history page segmented control no longer overflows.</li>
+          <li><strong>Verification:</strong> prerendered markup + Chrome DevTools device emulation at 320/375/768&nbsp;px; <code>scrollWidth == clientWidth</code> on every page (measured with the overflow guard disabled).</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="s-broken">
+      <h2>What was broken</h2>
+      <ul class="ul-tight">
+        <li><strong>No mobile navigation in admin.</strong> <code>.sidebar{display:none}</code> below 960&nbsp;px (<code>globals.css</code>) left phones with page content only &mdash; no way to reach another page except typing URLs.</li>
+        <li><strong>Dead CSS block.</strong> Reports selectors (<code>.report-chart-height</code>, <code>.reports-filter-row</code>, <code>.report-empty</code>, accent helpers) were accidentally nested inside <code>.sidebar-nav</code>, so the Reports chart wrapper had no height and filters rendered unstyled on desktop <em>and</em> mobile.</li>
+        <li><strong>Tables crushed instead of scrolling.</strong> Sensors (6 cols), relay logs (6 cols), and thresholds (3 cols) had <code>overflowX:auto</code> wrappers but no <code>min-width</code> strategy, so columns squeezed and action buttons compressed.</li>
+        <li><strong>Non-wrapping flex rows.</strong> Alert items (icon + long mono timestamps + Dismiss), relay checkbox rows with long explanatory text, and the PZEM auto/manual + source buttons all overflowed at 320&ndash;375&nbsp;px.</li>
+        <li><strong>Inline grids defeating media queries in web.</strong> <code>dashboard/phases</code>, <code>sensors</code>, and <code>relay</code> carried inline <code>repeat(3,1fr)</code> / <code>repeat(4,1fr)</code> / <code>gridColumn:"span 2"</code> that overrode the 900/768&nbsp;px breakpoints. History&rsquo;s metric segmented control couldn&rsquo;t shrink below four button min-contents (~91&nbsp;px each) and pushed the page to 394&nbsp;px wide at a 320&ndash;375&nbsp;px viewport.</li>
+      </ul>
+    </section>
+
+    <section class="section" id="s-changes">
+      <h2>What changed</h2>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Area</th><th>Files</th><th>Change</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Admin shell</strong></td>
+              <td class="mono">components/AdminShell.tsx (new)<br>components/Sidebar.tsx<br>app/layout.tsx</td>
+              <td>Client shell renders a sticky top bar (<code>AdminShell</code>), overlay, and the existing sidebar as a drawer. <code>Sidebar</code> accepts <code>open</code>/<code>onNavigate</code>, gets a close button, and closes on nav/Escape/overlay. Shell bypasses itself on <code>/login</code> (fixes the desktop 276&nbsp;px login offset).</td>
+            </tr>
+            <tr>
+              <td><strong>Admin CSS</strong></td>
+              <td class="mono">app/globals.css</td>
+              <td>Un-nested the dead Reports block; added <code>.admin-topbar</code>, <code>.admin-menu-btn</code>, <code>.sidebar-overlay</code>, drawer transform/transition, <code>.table-scroll</code> (+<code>--wide</code>), <code>.check-row</code>, <code>.btn-success</code>; <code>overflow-x:clip</code> + <code>min-width:0</code> guards; expanded the 960&nbsp;px query (topbar, off-canvas sidebar, 2-up stat grid, wrapping alerts, 260&nbsp;px chart, 16&nbsp;px form inputs to prevent iOS zoom, larger touch targets).</td>
+            </tr>
+            <tr>
+              <td><strong>Admin pages</strong></td>
+              <td class="mono">sensors, relay, thresholds, pzem, alerts, reports, billing</td>
+              <td>Tables use <code>.table-scroll</code>/<code>.table-scroll--wide</code>; relay checkbox and action rows wrap via <code>.check-row</code>; PZEM mode/source button rows wrap; alert rows wrap via CSS; Reports filter rows flex-wrap with fluid field widths; chart height restored (340&nbsp;px desktop / 260&nbsp;px mobile).</td>
+            </tr>
+            <tr>
+              <td><strong>Web</strong></td>
+              <td class="mono">app/globals.css<br>dashboard/phases/page.tsx<br>sensors/page.tsx</td>
+              <td>New <code>.summary-grid--three</code> and <code>.sensor-grid</code> classes replace inline grids; <code>.summary-grid &gt; *</code> neutralizes inline <code>span 2</code> in single-column mode; mobile segmented controls wrap; phases&rsquo; realtime-reading effect converted to React&rsquo;s render-time adjustment pattern (also clears a pre-existing lint error).</td>
+            </tr>
+            <tr>
+              <td><strong>Super-admin</strong></td>
+              <td class="mono">none</td>
+              <td>Verified only &mdash; login responsive at 320/375, and the two-route stub has no table/chart/nav risks.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">Compiled CSS (<code>globals-compiled.css</code>) is gitignored in all three apps; it is regenerated by <code>predev</code>/<code>prebuild</code>, and Vercel runs the same scripts. No Vercel config was touched.</p>
+    </section>
+
+    <section class="section" id="s-verify">
+      <h2>Verification</h2>
+      <p>Each app was built for production, then its prerendered HTML was loaded in headless Chrome with CDP device-metrics emulation at <strong>320, 375, and 768&nbsp;px</strong>. The probe force-enables <code>body{overflow-x:visible}</code> before measuring so the <code>overflow-x:clip</code> guard could not mask real overflow, then compares <code>documentElement.scrollWidth</code> to <code>clientWidth</code> and flags any element extending past the viewport outside a scroll container.</p>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>App</th><th>Routes checked</th><th>320&nbsp;px</th><th>375&nbsp;px</th><th>768&nbsp;px</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>admin</strong></td><td class="mono">/ /pzem /alerts /sensors /relay /thresholds /billing /reports /account /login</td><td class="ok">0 overflow</td><td class="ok">0 overflow</td><td class="ok">0 overflow</td></tr>
+            <tr><td><strong>web</strong></td><td class="mono">/login /dashboard /dashboard/phases /history /relay /reports /sensors /alerts /billing</td><td class="ok">0 overflow</td><td class="ok">0 overflow</td><td class="ok">0 overflow</td></tr>
+            <tr><td><strong>super-admin</strong></td><td class="mono">/login</td><td class="ok">0 overflow</td><td class="ok">0 overflow</td><td class="ok">&mdash;</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul class="ul-tight">
+        <li><code>pnpm --filter @energy/admin build</code> &mdash; pass (TypeScript + 15 routes).</li>
+        <li><code>pnpm --filter web build</code> &mdash; pass (TypeScript + 18 routes).</li>
+        <li><code>pnpm --filter @energy/super-admin build</code> &mdash; pass.</li>
+        <li><code>eslint</code> admin + web &mdash; <span class="ok">0 errors</span> (warnings only, pre-existing unused-vars).</li>
+      </ul>
+      <div class="callout warn">
+        <h3>Verification boundary</h3>
+        <p>The automated pass renders server prerender output. Authenticated, data-populated states (table rows, alert rows, relay checkbox rows, PZEM source buttons, report charts) should be spot-checked once on the Vercel preview on a real phone &mdash; the CSS paths for those states are the ones changed, but the automation cannot log in to exercise them.</p>
+      </div>
+    </section>
+
+    <section class="section" id="s-incidental">
+      <h2>Incidental fixes (approved in passing)</h2>
+      <ul class="ul-tight">
+        <li><strong>Reports CSS un-nested</strong> &mdash; the filter row, empty state, accent text, and 340&nbsp;px chart wrapper now actually apply (they were dead on all viewports).</li>
+        <li><strong><code>.btn-success</code> defined</strong> &mdash; relay&rsquo;s Reset button referenced a class that did not exist.</li>
+        <li><strong>Login offset fixed</strong> &mdash; the admin login no longer sits 276&nbsp;px right of centre on desktop.</li>
+        <li><strong>Lint cleanup</strong> &mdash; typed the account form state (removed an <code>any</code>), escaped two quotes in the billing copy, and converted the web phases realtime <code>useEffect</code> to a render-time state adjustment.</li>
+      </ul>
+    </section>
+
+    <section class="section" id="s-followups">
+      <h2>Follow-ups &amp; notes</h2>
+      <ul class="ul-tight">
+        <li><strong>On-device pass:</strong> after the branch push, open the admin Vercel preview on a phone and walk all eight drawer destinations once with live data.</li>
+        <li><strong>PDF export:</strong> Reports&rsquo; <code>html2canvas</code> export snapshots the current layout; exporting from a phone now produces the narrow single-column image rather than a clipped desktop one. Desktop export is unchanged.</li>
+        <li><strong>Drawer behaviour:</strong> no scroll lock while the drawer is open (matches the existing web app shell). Can be added later if desired.</li>
+        <li><strong>Branch:</strong> <code>fix/mobile-responsive</code>, stacked on <code>feat/rm11-rm12-auth-safeguards</code>; pushing the pair triggers the admin/web preview builds.</li>
+      </ul>
+    </section>
+  </main>
+
+  <aside class="rail">
+    <div class="panel facts">
+      <h3 style="margin-top:0">At a glance</h3>
+      <dl>
+        <dt>Date</dt><dd>2026-10-05</dd>
+        <dt>Branch</dt><dd class="mono">fix/mobile-responsive</dd>
+        <dt>Base</dt><dd class="mono">feat/rm11-rm12-auth-safeguards</dd>
+        <dt>Apps</dt><dd>admin, web, super-admin</dd>
+        <dt>Breakpoints</dt><dd>320 / 375 / 768 / 960</dd>
+        <dt>Status</dt><dd class="ok">built &amp; linted</dd>
+      </dl>
+    </div>
+  </aside>
+</div>
+
+<footer class="footer">
+  Energy Monitoring &mdash; mobile responsive pass, 2026-10-05. Prepared for the admin dashboard review thread.
+</footer>
+
+</body>
+</html>

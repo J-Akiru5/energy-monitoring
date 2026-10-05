@@ -70,7 +70,7 @@ export default function ThresholdsPage() {
               {saving ? "Saving..." : "Save Changes"}
             </button>
           </div>
-          <div style={{ overflowX: "auto" }}>
+          <div className="table-scroll">
             <table className="data-table">
               <thead>
                 <tr>

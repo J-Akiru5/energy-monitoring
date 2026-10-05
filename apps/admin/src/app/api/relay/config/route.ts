@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getRelayConfig, updateRelayConfig, lookupControllerByDevice } from "@energy/database";
-import { createClient, resolveAccess, AccessDeniedError, SUPER_ADMIN_CUSTOMER_ID } from "@energy/auth";
+import {
+  createClient,
+  resolveAccess,
+  AccessDeniedError,
+  assertDeviceInScopes,
+  DeviceAccessDeniedError,
+  SUPER_ADMIN_CUSTOMER_ID,
+} from "@energy/auth";
+import type { ResolvedAccess } from "@energy/auth";
 import { RelayConfigSchema } from "@energy/types";
 
 export const dynamic = "force-dynamic";
@@ -36,11 +44,11 @@ async function verifyDeviceOwnership(
 
 /**
  * Shared auth+ownership gate for GET and PUT.
- * Returns { customerId } on success, or sends an error response and returns null.
+ * Returns the resolved access on success, or sends an error response and returns null.
  */
 async function authenticateAndScope(
   req: NextRequest,
-): Promise<{ customerId: string } | null> {
+): Promise<ResolvedAccess | null> {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
@@ -49,10 +57,8 @@ async function authenticateAndScope(
     return null;
   }
 
-  let customerId: string;
   try {
-    const access = await resolveAccess(user.id, "control_relay");
-    customerId = access.customerId;
+    return await resolveAccess(user.id, "control_relay");
   } catch (err) {
     if (err instanceof AccessDeniedError) {
       noStoreJson({ error: err.message }, 403);
@@ -60,8 +66,25 @@ async function authenticateAndScope(
     }
     throw err;
   }
+}
 
-  return { customerId };
+/**
+ * RM-11 (decision #4): enforce the caller's membership scopes against the
+ * relay target. Returns a 403 response when out of scope, else null.
+ */
+async function enforceScopes(
+  access: ResolvedAccess,
+  deviceId: string,
+): Promise<NextResponse | null> {
+  try {
+    await assertDeviceInScopes(access, deviceId);
+    return null;
+  } catch (err) {
+    if (err instanceof DeviceAccessDeniedError) {
+      return noStoreJson({ error: err.message }, 403);
+    }
+    throw err;
+  }
 }
 
 /**
@@ -85,6 +108,9 @@ export async function GET(req: NextRequest) {
       return noStoreJson({ error: "Device not found or access denied" }, 403);
     }
 
+    const scopeDenied = await enforceScopes(auth, deviceId);
+    if (scopeDenied) return scopeDenied;
+
     const config = await getRelayConfig(deviceId);
     return noStoreJson({ config });
   } catch (err) {
@@ -106,6 +132,15 @@ export async function PUT(req: NextRequest) {
     const auth = await authenticateAndScope(req);
     if (!auth) return new NextResponse(null, { status: 401 });
 
+    // RM-12: temporary Super Admin grants are read-only — config updates
+    // are mutations.
+    if (auth.isTemporarySuperAdmin) {
+      return noStoreJson(
+        { error: "Temporary Super Admin grants are read-only" },
+        403
+      );
+    }
+
     const body = await req.json();
     const parsed = RelayConfigSchema.safeParse(body);
 
@@ -119,6 +154,9 @@ export async function PUT(req: NextRequest) {
     if (!(await verifyDeviceOwnership(parsed.data.deviceId, auth.customerId))) {
       return noStoreJson({ error: "Device not found or access denied" }, 403);
     }
+
+    const scopeDenied = await enforceScopes(auth, parsed.data.deviceId);
+    if (scopeDenied) return scopeDenied;
 
     const success = await updateRelayConfig(parsed.data);
     if (!success) {

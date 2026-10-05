@@ -12,7 +12,7 @@ import {
   getAlertThresholds,
 } from "@energy/database";
 import type { Permission } from "@energy/database";
-import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
+import { createClient, resolveAccess, AccessDeniedError, filterDevicesByScopes } from "@energy/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -31,10 +31,17 @@ export async function GET() {
     try {
       access = await resolveAccess(user.id, "manage_devices");
     } catch (err) {
-      if (err instanceof AccessDeniedError) {
-        return NextResponse.json({ error: err.message }, { status: 403 });
+      if (!(err instanceof AccessDeniedError)) throw err;
+      // RM-11: scoped delegates hold control_relay without manage_devices;
+      // they may list only their in-scope devices.
+      try {
+        access = await resolveAccess(user.id, "control_relay");
+      } catch (err2) {
+        if (err2 instanceof AccessDeniedError) {
+          return NextResponse.json({ error: err2.message }, { status: 403 });
+        }
+        throw err2;
       }
-      throw err;
     }
 
     // Super Admins see all devices; everyone else is scoped to the customer
@@ -43,6 +50,9 @@ export async function GET() {
     const devices = access.isSuperAdmin
       ? await listDevices()
       : await listDevices(access.customerId);
+
+    // RM-11: scope rows limit what a scoped membership can see.
+    const visible = await filterDevicesByScopes(access, devices);
 
     // Live status: the devices table has no last-seen column. Derive it from
     // the newest power_readings row per device and flag a device offline when
@@ -58,7 +68,7 @@ export async function GET() {
 
     const nowMs = Date.now();
     const withStatus = await Promise.all(
-      devices.map(async (device) => {
+      visible.map(async (device) => {
         const latest = await getLatestReading(
           device.id,
           access.isSuperAdmin ? undefined : access.customerId
@@ -119,6 +129,16 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: err.message }, { status: 403 });
       }
       throw err;
+    }
+
+    // RM-12: temporary Super Admin grants are read-only — every action on
+    // this route (deactivate, replace, decommission, redeploy, reassign)
+    // is a mutation.
+    if (access.isTemporarySuperAdmin) {
+      return NextResponse.json(
+        { error: "Temporary Super Admin grants are read-only" },
+        { status: 403 }
+      );
     }
 
     if (action === "deactivate") {

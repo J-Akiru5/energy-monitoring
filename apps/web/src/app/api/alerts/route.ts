@@ -82,13 +82,19 @@ export async function PATCH(req: NextRequest) {
     }
 
     // ── Resolve which customer this caller is authorized for ──
+    let access: Awaited<ReturnType<typeof resolveAccess>>;
     try {
-      await resolveAccess(user.id, "view_energy");
+      access = await resolveAccess(user.id, "view_energy");
     } catch (err) {
       if (err instanceof AccessDeniedError) {
         return noStoreJson({ error: err.message }, 403);
       }
       throw err;
+    }
+
+    // RM-12: temporary Super Admin grants are read-only.
+    if (access.isTemporarySuperAdmin) {
+      return noStoreJson({ error: "Temporary Super Admin grants are read-only" }, 403);
     }
 
     await markAlertRead(alertId);

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { listDevices } from "@energy/database";
-import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
+import { createClient, resolveAccess, AccessDeniedError, filterDevicesByScopes } from "@energy/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -39,19 +39,27 @@ export async function GET() {
     }
 
     // ── Resolve which customer this caller is authorized for ──
-    let customerId: string;
+    let access: Awaited<ReturnType<typeof resolveAccess>>;
     try {
-      const access = await resolveAccess(user.id, "view_energy");
-      customerId = access.customerId;
+      access = await resolveAccess(user.id, "view_energy");
     } catch (err) {
-      if (err instanceof AccessDeniedError) {
-        return noStoreJson({ error: err.message }, 403);
+      if (!(err instanceof AccessDeniedError)) throw err;
+      // RM-11: scoped delegates hold control_relay without view_energy;
+      // they may list only their in-scope devices.
+      try {
+        access = await resolveAccess(user.id, "control_relay");
+      } catch (err2) {
+        if (err2 instanceof AccessDeniedError) {
+          return noStoreJson({ error: err2.message }, 403);
+        }
+        throw err2;
       }
-      throw err;
     }
 
-    const devices = await listDevices(customerId);
-    return noStoreJson({ devices });
+    const devices = await listDevices(access.customerId);
+    // RM-11: scope rows limit what a scoped membership can see.
+    const visible = await filterDevicesByScopes(access, devices);
+    return noStoreJson({ devices: visible });
   } catch (err) {
     console.error("[/api/devices] Error:", err);
     return noStoreJson({ error: "Failed to fetch devices" }, 500);
