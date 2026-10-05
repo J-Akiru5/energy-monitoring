@@ -220,6 +220,21 @@ test("PUT super admin → 200, ownership lookup skipped", async () => {
   assert.deepEqual(updateConfigCalls, [[DEVICE_B, "auto", null]]);
 });
 
+test("PUT with a temporary Super Admin grant → 403, config write NEVER fires (RM-12)", async () => {
+  reset();
+  currentAccess = {
+    isSuperAdmin: true,
+    isTemporarySuperAdmin: true,
+    customerId: "*",
+    permissions: [],
+  };
+  const res = await PUT(putReq(DEVICE_B, { mode: "auto" }), ctx(DEVICE_B));
+  assert.equal(res.status, 403);
+  const json = await res.json();
+  assert.equal(json.error, "Temporary Super Admin grants are read-only");
+  assert.deepEqual(updateConfigCalls, [], "updatePzemConfig must not run");
+});
+
 test("PUT unauthenticated → 401, no config write", async () => {
   reset();
   currentUser = null;

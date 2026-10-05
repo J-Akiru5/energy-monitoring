@@ -389,7 +389,7 @@ export default function PzemStatusPage() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+              <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
                 <button
                   className="btn"
                   onClick={() => handleModeChange("auto")}
@@ -430,7 +430,7 @@ export default function PzemStatusPage() {
                   >
                     Select active source:
                   </div>
-                  <div style={{ display: "flex", gap: 12 }}>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                     {(["A", "B", "C"] as const).map((source) => {
                       const sourceHealth = health.find((h) => h.phase === source);
                       const isOffline = sourceHealth && !sourceHealth.healthy;

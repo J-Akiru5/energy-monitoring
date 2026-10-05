@@ -291,14 +291,7 @@ export default function SensorsPage() {
       </div>
 
       {/* ── 3 Sensor Cards ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 16,
-          marginBottom: 24,
-        }}
-      >
+      <div className="sensor-grid">
         {phases.map((phase) => (
           <SensorCard
             key={phase.id}
@@ -409,14 +402,7 @@ export default function SensorsPage() {
       </div>
 
       {/* ── Per-Sensor Energy Accumulators ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 16,
-          marginBottom: 24,
-        }}
-      >
+      <div className="sensor-grid">
         {phases.map((phase) => (
           <div
             key={phase.id}

@@ -127,14 +127,14 @@ export default function PhaseDetailsPage() {
     };
   }, [deviceId]);
 
-  // Update latest reading
-  useEffect(() => {
-    if (!latestReading) return;
-
-    const reading: Reading = { ...latestReading };
+  // Append the incoming realtime reading during render — React's
+  // "adjust state when props change" pattern — instead of an effect.
+  const [appliedReadingId, setAppliedReadingId] = useState<number | null>(null);
+  if (latestReading && latestReading.id !== appliedReadingId) {
+    setAppliedReadingId(latestReading.id);
     setChartData((prev) => {
-      const filtered = prev.filter((r) => r.id !== reading.id);
-      return [...filtered, reading].slice(-1000);
+      const filtered = prev.filter((r) => r.id !== latestReading.id);
+      return [...filtered, { ...latestReading }].slice(-1000);
     });
 
     setIs3Phase(
@@ -143,7 +143,7 @@ export default function PhaseDetailsPage() {
         latestReading.voltage_b !== null &&
         latestReading.voltage_b !== undefined
     );
-  }, [latestReading]);
+  }
 
   if (!is3Phase) {
     return (
@@ -184,7 +184,7 @@ export default function PhaseDetailsPage() {
       </section>
 
       {/* ── Phase Cards ── */}
-      <div className="summary-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+      <div className="summary-grid summary-grid--three">
         <PhaseDetailCard
           phase="A"
           color={PHASE_COLORS.A}
@@ -218,7 +218,7 @@ export default function PhaseDetailsPage() {
       </div>
 
       {/* ── Totals Row ── */}
-      <div className="summary-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginTop: 16 }}>
+      <div className="summary-grid" style={{ marginTop: 16 }}>
         <div className="summary-card">
           <div className="summary-label">Total Power</div>
           <div className="summary-value accent-cyan">

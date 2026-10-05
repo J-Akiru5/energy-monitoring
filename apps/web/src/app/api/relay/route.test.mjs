@@ -49,6 +49,7 @@ const CUSTOMER_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 let currentUser = { id: "user-1" };
 let currentAccess = null;
 let denyAccess = false;
+let denyPermissions = [];
 let stampByDevice = {};
 
 const lookupCalls = [];
@@ -100,12 +101,15 @@ mock.module("@energy/auth", {
     createClient: () => ({
       auth: { getUser: async () => ({ data: { user: currentUser } }) },
     }),
-    resolveAccess: async () => {
-      if (denyAccess) throw new AccessDeniedError("denied");
+    resolveAccess: async (_userId, permission) => {
+      if (denyAccess || denyPermissions.includes(permission)) {
+        throw new AccessDeniedError("denied");
+      }
       return currentAccess;
     },
     AccessDeniedError,
     assertDeviceOwnership: realOwnership.assertDeviceOwnership,
+    assertDeviceInScopes: realOwnership.assertDeviceInScopes,
     DeviceAccessDeniedError: realOwnership.DeviceAccessDeniedError,
   },
 });
@@ -117,6 +121,7 @@ function reset() {
   currentUser = { id: "user-1" };
   currentAccess = null;
   denyAccess = false;
+  denyPermissions = [];
   stampByDevice = {};
   lookupCalls.length = 0;
   relayStateCalls.length = 0;
@@ -245,6 +250,40 @@ test("session GET denied by resolveAccess → 403 (no regression)", async () => 
   assert.deepEqual(relayStateCalls, []);
 });
 
+// ──── RM-11: scoped delegate reads (control_relay fallback) ─────────────
+
+test("scoped delegate GET (no view_energy) in-scope → 200", async () => {
+  reset();
+  denyPermissions = ["view_energy"];
+  currentAccess = {
+    isSuperAdmin: false,
+    isTemporarySuperAdmin: false,
+    customerId: CUSTOMER_A,
+    permissions: ["control_relay"],
+    scopes: [{ type: "emu", id: "emu-a" }],
+  };
+  stampByDevice[DEVICE_A] = { customerId: CUSTOMER_A, emuId: "emu-a" };
+  const res = await GET(getReq(DEVICE_A));
+  assert.equal(res.status, 200);
+  assert.deepEqual(relayStateCalls, [DEVICE_A]);
+});
+
+test("scoped delegate GET (no view_energy) out-of-scope → 403, no state read", async () => {
+  reset();
+  denyPermissions = ["view_energy"];
+  currentAccess = {
+    isSuperAdmin: false,
+    isTemporarySuperAdmin: false,
+    customerId: CUSTOMER_A,
+    permissions: ["control_relay"],
+    scopes: [{ type: "emu", id: "emu-a" }],
+  };
+  stampByDevice[DEVICE_A] = { customerId: CUSTOMER_A, emuId: "emu-b" };
+  const res = await GET(getReq(DEVICE_A));
+  assert.equal(res.status, 403);
+  assert.deepEqual(relayStateCalls, []);
+});
+
 // ──── POST — session path + ownership (PR #18) ──────────────────────────
 
 test("POST same-customer RESET → 200, relay update fires", async () => {
@@ -256,6 +295,28 @@ test("POST same-customer RESET → 200, relay update fires", async () => {
   assert.deepEqual(lookupCalls, [DEVICE_A]);
   assert.deepEqual(relayConfigCalls, [DEVICE_A]);
   assert.deepEqual(updateCalls, [[DEVICE_A, false]]);
+});
+
+test("POST session path records the authenticated actor, not the client value (RM-11)", async () => {
+  reset();
+  currentUser = { id: "user-1", email: "operator@example.com" };
+  currentAccess = {
+    isSuperAdmin: false,
+    isTemporarySuperAdmin: false,
+    customerId: CUSTOMER_A,
+    permissions: ["control_relay"],
+    scopes: [],
+  };
+  stampByDevice[DEVICE_A] = { customerId: CUSTOMER_A };
+  // The client sends initiatedBy: "TEST"; the route must override it.
+  const res = await POST(postReq(command(DEVICE_A)));
+  assert.equal(res.status, 200);
+  assert.equal(logCalls.length, 1);
+  assert.equal(
+    logCalls[0][6],
+    "operator@example.com",
+    "actor identification must be stamped server-side"
+  );
 });
 
 test("POST cross-customer deviceId substitution → 403, NO relay action fires", async () => {
@@ -276,6 +337,85 @@ test("POST super admin → 200, ownership lookup skipped, action allowed", async
   assert.equal(res.status, 200);
   assert.deepEqual(lookupCalls, []);
   assert.deepEqual(updateCalls, [[DEVICE_B, false]]);
+});
+
+// ──── RM-12: temporary Super Admin grants are read-only ─────────────────
+
+test("POST with a temporary Super Admin grant → 403, NO relay action fires", async () => {
+  reset();
+  currentAccess = {
+    isSuperAdmin: true,
+    isTemporarySuperAdmin: true,
+    customerId: "*",
+    permissions: [],
+  };
+  const res = await POST(postReq(command(DEVICE_A, "MANUAL_TRIP")));
+  assert.equal(res.status, 403);
+  const json = await res.json();
+  assert.equal(json.error, "Temporary Super Admin grants are read-only");
+  assert.deepEqual(updateCalls, [], "updateRelayState must not run");
+  assert.deepEqual(logCalls, [], "logRelayAction must not run");
+});
+
+test("GET with a temporary Super Admin grant → 200 (reads stay allowed)", async () => {
+  reset();
+  currentAccess = {
+    isSuperAdmin: true,
+    isTemporarySuperAdmin: true,
+    customerId: "*",
+    permissions: [],
+  };
+  const res = await GET(getReq(DEVICE_B));
+  assert.equal(res.status, 200);
+  assert.deepEqual(relayStateCalls, [DEVICE_B]);
+});
+
+// ──── RM-11: membership scopes limit relay control ──────────────────────
+
+test("POST scoped delegate, in-scope EMU → 200, relay update fires", async () => {
+  reset();
+  currentAccess = {
+    isSuperAdmin: false,
+    isTemporarySuperAdmin: false,
+    customerId: CUSTOMER_A,
+    permissions: ["control_relay"],
+    scopes: [{ type: "emu", id: "emu-a" }],
+  };
+  stampByDevice[DEVICE_A] = { customerId: CUSTOMER_A, emuId: "emu-a" };
+  const res = await POST(postReq(command(DEVICE_A)));
+  assert.equal(res.status, 200);
+  assert.deepEqual(updateCalls, [[DEVICE_A, false]]);
+});
+
+test("POST scoped delegate, out-of-scope EMU → 403, NO relay action", async () => {
+  reset();
+  currentAccess = {
+    isSuperAdmin: false,
+    isTemporarySuperAdmin: false,
+    customerId: CUSTOMER_A,
+    permissions: ["control_relay"],
+    scopes: [{ type: "emu", id: "emu-a" }],
+  };
+  stampByDevice[DEVICE_A] = { customerId: CUSTOMER_A, emuId: "emu-b" };
+  const res = await POST(postReq(command(DEVICE_A, "MANUAL_TRIP")));
+  assert.equal(res.status, 403);
+  assert.deepEqual(updateCalls, [], "updateRelayState must not run");
+  assert.deepEqual(logCalls, [], "logRelayAction must not run");
+});
+
+test("POST unscoped member → 200 (empty scopes = customer-wide)", async () => {
+  reset();
+  currentAccess = {
+    isSuperAdmin: false,
+    isTemporarySuperAdmin: false,
+    customerId: CUSTOMER_A,
+    permissions: ["control_relay"],
+    scopes: [],
+  };
+  stampByDevice[DEVICE_A] = { customerId: CUSTOMER_A, emuId: "emu-a" };
+  const res = await POST(postReq(command(DEVICE_A)));
+  assert.equal(res.status, 200);
+  assert.deepEqual(updateCalls, [[DEVICE_A, false]]);
 });
 
 test("POST unauthenticated → 401, no relay action", async () => {

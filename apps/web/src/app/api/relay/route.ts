@@ -7,7 +7,7 @@ import {
   logRelayAction,
   validateDeviceToken,
 } from "@energy/database";
-import { createClient, resolveAccess, AccessDeniedError, assertDeviceOwnership, DeviceAccessDeniedError } from "@energy/auth";
+import { createClient, resolveAccess, AccessDeniedError, assertDeviceOwnership, assertDeviceInScopes, DeviceAccessDeniedError } from "@energy/auth";
 import { RelayCommandSchema } from "@energy/types";
 import type { RelayCommand } from "@energy/types";
 
@@ -117,15 +117,32 @@ export async function GET(req: NextRequest) {
     try {
       access = await resolveAccess(user.id, "view_energy");
     } catch (err) {
-      if (err instanceof AccessDeniedError) {
-        return noStoreJson({ error: err.message }, 403);
+      if (!(err instanceof AccessDeniedError)) throw err;
+      // RM-11: scoped delegates hold control_relay without view_energy;
+      // they may read relay state only for their in-scope devices.
+      try {
+        access = await resolveAccess(user.id, "control_relay");
+      } catch (err2) {
+        if (err2 instanceof AccessDeniedError) {
+          return noStoreJson({ error: err2.message }, 403);
+        }
+        throw err2;
       }
-      throw err;
     }
 
     // ── Verify the device belongs to that customer (IDOR guard) ──
     try {
       await assertDeviceOwnership(access, deviceId);
+    } catch (err) {
+      if (err instanceof DeviceAccessDeniedError) {
+        return noStoreJson({ error: err.message }, 403);
+      }
+      throw err;
+    }
+
+    // RM-11: scope rows limit what a scoped membership can see.
+    try {
+      await assertDeviceInScopes(access, deviceId);
     } catch (err) {
       if (err instanceof DeviceAccessDeniedError) {
         return noStoreJson({ error: err.message }, 403);
@@ -208,6 +225,12 @@ export async function POST(req: NextRequest) {
       throw err;
     }
 
+    // RM-12: temporary Super Admin grants are read-only — relay commands
+    // are mutations.
+    if (access.isTemporarySuperAdmin) {
+      return noStoreJson({ error: "Temporary Super Admin grants are read-only" }, 403);
+    }
+
     // Parse the command once, then verify device ownership BEFORE any relay
     // action is taken (IDOR guard).
     const parsed = await parseRelayCommand(req);
@@ -222,7 +245,23 @@ export async function POST(req: NextRequest) {
       throw err;
     }
 
-    return executeRelayCommand(parsed.command);
+    // RM-11 (decision #4): membership scopes limit which targets an
+    // external delegate may control.
+    try {
+      await assertDeviceInScopes(access, parsed.command.deviceId);
+    } catch (err) {
+      if (err instanceof DeviceAccessDeniedError) {
+        return noStoreJson({ error: err.message }, 403);
+      }
+      throw err;
+    }
+
+    // RM-11 (decision #4): actor identification — the authenticated user
+    // is stamped server-side; the client-supplied value is not trusted.
+    return executeRelayCommand({
+      ...parsed.command,
+      initiatedBy: user.email ?? user.id,
+    });
   } catch (err) {
     console.error("[/api/relay] POST Error:", err);
     return noStoreJson({ error: "Internal server error" }, 500);

@@ -134,8 +134,8 @@ export default function BillingPage() {
           <div className="panel-body" style={{ fontSize: 13, color: "var(--text-secondary)" }}>
             <p>
               The Philippine Electricity Market Corporation (PEMC) publishes hourly Wholesale Electricity
-              Spot Market (WESM) prices. For residential consumers, check your latest Meralco bill for
-              the "Generation Charge" component.
+              Spot Market (              WESM) prices. For residential consumers, check your latest Meralco bill for
+              the &quot;Generation Charge&quot; component.
             </p>
             <p style={{ marginTop: 8 }}>
               <strong>Typical range (2024–2025):</strong> ₱9.50 – ₱13.00 per kWh depending on supply/demand.

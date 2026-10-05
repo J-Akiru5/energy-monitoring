@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Monitoring — RM-12: Temporary Super Admin Scoping · 2026-10-05</title>
+<style>
+:root{
+  --bg:#050505; --text:#ededed; --text2:#B7BFCB; --muted:#8A93A0;
+  --line:rgba(255,255,255,.10);
+  --panel:rgba(255,255,255,.045);
+  --field:rgba(255,255,255,.06);
+  --accent:#22D3EE; --accent-2:#A855F7;
+  --grad:linear-gradient(135deg,#22D3EE,#A855F7);
+  --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --r-sm:6px; --r-lg:16px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,h4,p,dl,dd,figure,blockquote{margin:0}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.14;font-weight:800;letter-spacing:-.025em}
+h2{font-size:clamp(20px,2.6vw,27px);line-height:1.22;font-weight:700;letter-spacing:-.015em;margin-bottom:12px}
+h3{font-size:17px;font-weight:700;margin:22px 0 8px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:var(--mono)}
+code{font-size:.88em;background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:var(--r-sm)}
+pre{margin:14px 0 0;background:#0a0c10;border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--text2)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;height:64px;
+  padding:0 clamp(16px,3vw,40px);background:rgba(5,5,5,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.wordmark b{color:var(--accent)}
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;text-transform:uppercase;
+  color:var(--accent);display:inline-block;white-space:nowrap;line-height:1.6}
+.chip.d{color:var(--ok)} .chip.u{color:var(--warn)} .chip.c{color:var(--danger)} .chip.i{color:var(--accent-2)}
+.shell{display:grid;grid-template-columns:230px minmax(0,1fr) 280px;gap:clamp(20px,2.6vw,36px);
+  padding:28px clamp(16px,3vw,40px) 90px;max-width:1720px;margin:0 auto;align-items:start}
+.sidebar,.rail{position:sticky;top:84px;max-height:calc(100vh - 108px);overflow-y:auto}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar a{display:block;padding:9px 10px;min-height:40px;border-radius:var(--r-sm);color:var(--text2);font-size:13.5px;border-left:2px solid transparent}
+.sidebar a:hover{color:var(--text);text-decoration:none;background:var(--panel)}
+.sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel)}
+.rail .panel{margin-bottom:14px}
+.rail .facts dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;margin:0}
+.rail .facts dt{color:var(--muted)}
+.rail .facts dd{margin:0;text-align:right;min-width:0}
+.rail .quote{font-style:italic;font-size:13.5px;color:var(--text2)}
+main{min-width:0}
+.section{padding:8px 0 46px;scroll-margin-top:88px}
+.section+.section{border-top:1px solid var(--line);padding-top:38px}
+.section p{max-width:78ch;color:var(--text2)}
+.section p+p{margin-top:12px}
+.section p strong,.section li strong{color:var(--text)}
+.lede{font-size:17.5px;color:var(--text2);max-width:78ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:20px 22px}
+.callout{position:relative;padding:18px 22px 18px 26px;border-radius:var(--r-lg);margin:20px 0;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.callout::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.callout.danger::before{background:var(--danger)}
+.callout.warn::before{background:var(--warn)}
+.callout.ok::before{background:var(--ok)}
+.callout h3{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+.callout .tag{float:right;margin-left:12px}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 18px;min-width:132px;flex:1 1 132px}
+.stat b{display:block;font-size:clamp(22px,2.6vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-top:16px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.mono{font-family:var(--mono);font-size:.92em}
+.ok{color:var(--ok);font-weight:600}
+.bad{color:var(--danger);font-weight:600}
+.warn{color:var(--warn);font-weight:600}
+.ul-tight{padding-left:20px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+.ul-tight li{margin:7px 0}
+.footnote{font-size:13px;color:var(--muted);max-width:80ch;margin-top:12px}
+.footer{border-top:1px solid var(--line);margin-top:10px;padding:22px clamp(16px,3vw,40px) 40px;color:var(--muted);font-size:13px;max-width:1720px;margin-left:auto;margin-right:auto}
+@media (max-width:1280px){ .shell{grid-template-columns:230px minmax(0,1fr)} .rail{display:none} }
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:18px}
+  .sidebar{position:static;max-height:none;overflow:visible}
+  .sidebar nav{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .sidebar a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .sidebar a.active{border-left:0;border-bottom-color:var(--accent)}
+  table{min-width:520px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark"><b>Syntaxure</b> / EMS Super Admin · RM-12</div>
+  <div class="top-meta">
+    <span class="chip">2026-10-05</span>
+    <span class="chip d">live check passed</span>
+    <span class="chip u">held unpushed</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav aria-label="Sections">
+      <a href="#s-tldr" class="active">TL;DR</a>
+      <a href="#s-audit">The capability audit</a>
+      <a href="#s-mechanism">Mechanism</a>
+      <a href="#s-points">The nine entry points</a>
+      <a href="#s-evidence">Evidence</a>
+      <a href="#s-notes">Notes &amp; follow-ups</a>
+    </nav>
+  </aside>
+
+  <main>
+
+    <article class="section" id="s-tldr">
+      <h1>RM-12 — Temporary Super Admin Grants Are Read-Only</h1>
+      <p class="lede"><strong>Built and verified live.</strong> Jeff revisited OD-4 (originally "accept time-box + audit for now") and approved the action-blocklist: temporary Super Admin grants keep read access cross-customer, and every mutating entry point rejects them with a 403. Implemented as an <code>isTemporarySuperAdmin</code> flag on <code>ResolvedAccess</code>, enforced at <strong>nine mutating handlers</strong> across admin and web. Verified by unit tests (full suite <strong>98/98</strong>) and a live end-to-end check with a real temporary grant — reads returned 200, the mutation was blocked, and the grant was revoked immediately after.</p>
+
+      <div class="stat-row">
+        <div class="stat"><b>9</b><span>mutating entry points now blocked</span></div>
+        <div class="stat"><b>98/98</b><span>web tests pass (incl. new temp-grant cases)</span></div>
+        <div class="stat"><b>403</b><span>live mutation attempt blocked, reads allowed</span></div>
+        <div class="stat"><b>0</b><span>grants left active (revoked after the check)</span></div>
+      </div>
+    </article>
+
+    <article class="section" id="s-audit">
+      <h2>The capability audit — why this mattered</h2>
+      <p>Before building, the actual capability set was enumerated rather than assumed: a temporary grant receives <strong>all 9 permissions cross-customer</strong> via the <code>resolveAccess</code> super-admin bypass. Reachable mutations included deactivate/replace controllers (token issuance), decommission/redeploy/<strong>cross-customer reassign</strong> (the new RM-09 flow), relay commands + config, thresholds, and billing. Reads and mutations shared permission gates (e.g. the admin device list requires <code>manage_devices</code>), so a naive "strip permissions" read-only mode would have blinded reads too — action-level checks were the right shape.</p>
+    </article>
+
+    <article class="section" id="s-mechanism">
+      <h2>Mechanism</h2>
+      <ul class="ul-tight">
+        <li><code>resolveAccess()</code> now returns <code>isTemporarySuperAdmin: true</code> when the super-admin bypass came from an <code>expires_at</code> grant (decision #9) — permanent super admins and ordinary members are unaffected.</li>
+        <li>Mutating handlers reject the flag with <code>403 {"error":"Temporary Super Admin grants are read-only"}</code> <em>before</em> any work happens.</li>
+        <li>GET/read handlers are untouched — the student demo keeps full cross-customer visibility, which is all the demo actually shows today.</li>
+        <li>The existing audit log (<code>super_admin_access_log</code>) records every temporary-grant resolution, including the blocked-attempt window.</li>
+      </ul>
+    </article>
+
+    <article class="section" id="s-points">
+      <h2>The nine entry points</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>App</th><th>Route</th><th>Mutation blocked</th></tr></thead>
+          <tbody>
+            <tr><td>admin</td><td class="mono">/api/devices (PATCH)</td><td>deactivate, replace controller, decommission, redeploy, cross-customer reassign</td></tr>
+            <tr><td>admin</td><td class="mono">/api/relay (POST)</td><td>relay trip/reset commands</td></tr>
+            <tr><td>admin</td><td class="mono">/api/relay/config (PUT)</td><td>relay configuration writes</td></tr>
+            <tr><td>admin</td><td class="mono">/api/thresholds (PUT)</td><td>alert threshold writes</td></tr>
+            <tr><td>admin</td><td class="mono">/api/billing (PUT)</td><td>billing rate writes</td></tr>
+            <tr><td>admin</td><td class="mono">/api/alerts (PATCH)</td><td>mark-alert-read</td></tr>
+            <tr><td>web</td><td class="mono">/api/relay (POST, session path)</td><td>relay commands</td></tr>
+            <tr><td>web</td><td class="mono">/api/devices/:id/pzem-config (PUT)</td><td>phase-config writes</td></tr>
+            <tr><td>web</td><td class="mono">/api/alerts (PATCH)</td><td>mark-alert-read</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">Device-token paths (firmware) are machine-to-machine and unaffected. The super-admin app itself has no mutating routes.</p>
+    </article>
+
+    <article class="section" id="s-evidence">
+      <h2>Evidence</h2>
+      <div class="callout ok">
+        <span class="tag chip d">LIVE — PASSED</span>
+        <h3>Real temporary grant, real routes (local dev server, live DB)</h3>
+        <pre><code>GET  /api/devices   -> 200 (3 devices, cross-customer read allowed)
+PATCH /api/devices  -> 403 {"error":"Temporary Super Admin grants are read-only"}
+GET  /api/overview  -> 200 (activeDevices: 3)
+RM-12 LIVE CHECK PASSED</code></pre>
+        <p>The probe used a bogus device UUID so a hypothetical block failure could not have mutated anything. Grant created via the sanctioned script (30 min), revoked immediately after; <code>revoked_at</code> set, 7 temporary-grant resolutions recorded in the access log.</p>
+      </div>
+      <div class="callout">
+        <span class="tag chip">UNIT</span>
+        <h3>Route tests</h3>
+        <p>New cases in the relay suite (temp-grant POST → 403 with no relay action; temp-grant GET → 200) and the pzem-config suite (temp-grant PUT → 403 with no write). Full web suite: <strong>98/98</strong>.</p>
+      </div>
+    </article>
+
+    <article class="section" id="s-notes">
+      <h2>Notes &amp; follow-ups</h2>
+      <ul class="ul-tight">
+        <li><strong>Decision record:</strong> OD-4's original "accept time-box + audit for now" is superseded by Jeff's 2026-10-05 instruction to build the action-blocklist. Revisit trigger now: when a demo genuinely needs a mutation, decide whether that action gets an explicit exception.</li>
+        <li><strong>Activation:</strong> this ships when the branch is pushed and promoted — the held-unpushed state is per Jeff's deployment-frugality note. Live production still runs the old gate until then.</li>
+        <li><strong>Pre-existing quirk observed:</strong> the admin relay helper's denied path sends 403 but callers default to 401 when the helper returns null (pre-existing; not changed here).</li>
+      </ul>
+    </article>
+
+  </main>
+
+  <aside class="rail">
+    <div class="panel facts">
+      <h3>Key facts</h3>
+      <dl>
+        <dt>Flag</dt><dd class="mono">isTemporarySuperAdmin</dd>
+        <dt>Entry points</dt><dd>9 (admin + web)</dd>
+        <dt>Unit tests</dt><dd class="ok">98/98</dd>
+        <dt>Live check</dt><dd class="ok">passed</dd>
+        <dt>Grant after test</dt><dd class="ok">revoked</dd>
+        <dt>Branch</dt><dd class="mono">feat/rm11-rm12-auth-safeguards</dd>
+      </dl>
+    </div>
+    <blockquote class="panel quote">The demo shows the platform. It does not get to run the platform.</blockquote>
+  </aside>
+</div>
+
+<div class="footer">
+  Energy Monitoring · RM-12 temporary-grant scoping · 2026-10-05 · 9 entry points · 98/98 tests · live check passed · held unpushed
+</div>
+
+</body>
+</html>

@@ -7,11 +7,12 @@ import {
   replaceController,
   decommissionEmu,
   redeployEmu,
+  reassignEmuCrossCustomer,
   getLatestReading,
   getAlertThresholds,
 } from "@energy/database";
 import type { Permission } from "@energy/database";
-import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
+import { createClient, resolveAccess, AccessDeniedError, filterDevicesByScopes } from "@energy/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -30,10 +31,17 @@ export async function GET() {
     try {
       access = await resolveAccess(user.id, "manage_devices");
     } catch (err) {
-      if (err instanceof AccessDeniedError) {
-        return NextResponse.json({ error: err.message }, { status: 403 });
+      if (!(err instanceof AccessDeniedError)) throw err;
+      // RM-11: scoped delegates hold control_relay without manage_devices;
+      // they may list only their in-scope devices.
+      try {
+        access = await resolveAccess(user.id, "control_relay");
+      } catch (err2) {
+        if (err2 instanceof AccessDeniedError) {
+          return NextResponse.json({ error: err2.message }, { status: 403 });
+        }
+        throw err2;
       }
-      throw err;
     }
 
     // Super Admins see all devices; everyone else is scoped to the customer
@@ -42,6 +50,9 @@ export async function GET() {
     const devices = access.isSuperAdmin
       ? await listDevices()
       : await listDevices(access.customerId);
+
+    // RM-11: scope rows limit what a scoped membership can see.
+    const visible = await filterDevicesByScopes(access, devices);
 
     // Live status: the devices table has no last-seen column. Derive it from
     // the newest power_readings row per device and flag a device offline when
@@ -57,7 +68,7 @@ export async function GET() {
 
     const nowMs = Date.now();
     const withStatus = await Promise.all(
-      devices.map(async (device) => {
+      visible.map(async (device) => {
         const latest = await getLatestReading(
           device.id,
           access.isSuperAdmin ? undefined : access.customerId
@@ -97,12 +108,18 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const { deviceId, action, siteId, buildingId } = await req.json();
+    const { deviceId, action, siteId, buildingId, targetCustomerId } = await req.json();
 
-    // Replacement is its own permission in the role model; everything else
-    // in this route is device management.
+    // Replacement is its own permission in the role model; reassignment
+    // (RM-09) is too: both the operational path (redeploy_emu) and the
+    // commercial path (reassign_emu_cross_customer) require the dedicated
+    // "reassign_emu" permission — not the general manage_devices.
     const requiredPermission: Permission =
-      action === "replace_controller" ? "replace_device" : "manage_devices";
+      action === "replace_controller"
+        ? "replace_device"
+        : action === "redeploy_emu" || action === "reassign_emu_cross_customer"
+          ? "reassign_emu"
+          : "manage_devices";
 
     let access: Awaited<ReturnType<typeof resolveAccess>>;
     try {
@@ -112,6 +129,16 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: err.message }, { status: 403 });
       }
       throw err;
+    }
+
+    // RM-12: temporary Super Admin grants are read-only — every action on
+    // this route (deactivate, replace, decommission, redeploy, reassign)
+    // is a mutation.
+    if (access.isTemporarySuperAdmin) {
+      return NextResponse.json(
+        { error: "Temporary Super Admin grants are read-only" },
+        { status: 403 }
+      );
     }
 
     if (action === "deactivate") {
@@ -241,6 +268,64 @@ export async function PATCH(req: NextRequest) {
           ) {
             return NextResponse.json(
               { error: "EMU cannot be redeployed in its current state" },
+              { status: 409 }
+            );
+          }
+        }
+        throw err;
+      }
+    }
+
+    if (action === "reassign_emu_cross_customer") {
+      // Commercial reassignment is Super Admin only (decision #2, RM-09):
+      // a customer-scoped caller — even an Owner — cannot move an EMU
+      // into another customer's tenancy.
+      if (!access.isSuperAdmin) {
+        return NextResponse.json(
+          { error: "Cross-customer reassignment is restricted to Super Admins" },
+          { status: 403 }
+        );
+      }
+
+      if (!targetCustomerId || !siteId || !buildingId) {
+        return NextResponse.json(
+          { error: "targetCustomerId, siteId and buildingId are required to reassign" },
+          { status: 400 }
+        );
+      }
+
+      try {
+        const result = await reassignEmuCrossCustomer(
+          deviceId,
+          targetCustomerId,
+          siteId,
+          buildingId
+        );
+        return NextResponse.json({
+          status: "reassigned",
+          installationId: result.installationId,
+          emuId: result.emuId,
+          customerId: result.customerId,
+        });
+      } catch (err) {
+        if (err instanceof Error) {
+          if (
+            /target customer not found|target site not found|target building not found|does not belong|is the EMU's current customer/.test(
+              err.message
+            )
+          ) {
+            return NextResponse.json(
+              { error: "Invalid reassign target for this EMU" },
+              { status: 400 }
+            );
+          }
+          if (
+            /not decommissioned|no ACTIVE controller|already has an active installation/.test(
+              err.message
+            )
+          ) {
+            return NextResponse.json(
+              { error: "EMU cannot be reassigned in its current state" },
               { status: 409 }
             );
           }

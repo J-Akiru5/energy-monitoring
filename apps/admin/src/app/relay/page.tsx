@@ -292,7 +292,7 @@ export default function RelayPage() {
         <div className="panel">
           <div className="panel-header">
             <h3>Current Relay State</h3>
-            <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <button
                 className="btn btn-danger"
                 onClick={() => handleRelayAction("MANUAL_TRIP")}
@@ -372,7 +372,7 @@ export default function RelayPage() {
             {config && (
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 {/* Master Enable */}
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div className="check-row">
                   <input
                     type="checkbox"
                     id="relayEnabled"
@@ -389,7 +389,7 @@ export default function RelayPage() {
                 </div>
 
                 {/* Auto-Trip Enable */}
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div className="check-row">
                   <input
                     type="checkbox"
                     id="autoTripEnabled"
@@ -407,7 +407,7 @@ export default function RelayPage() {
                 </div>
 
                 {/* Trip Triggers */}
-                <div style={{ marginLeft: 32, display: "flex", flexDirection: "column", gap: 12 }}>
+                <div className="check-row-indent" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-secondary)" }}>
                     Trip on these conditions:
                   </div>
@@ -452,7 +452,7 @@ export default function RelayPage() {
                 </div>
 
                 {/* Auto-Reset */}
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div className="check-row">
                   <input
                     type="checkbox"
                     id="autoResetEnabled"
@@ -470,7 +470,7 @@ export default function RelayPage() {
                 </div>
 
                 {config.autoResetEnabled && (
-                  <div style={{ marginLeft: 32, display: "flex", alignItems: "center", gap: 12 }}>
+                  <div className="check-row check-row-indent">
                     <label style={{ fontSize: 13 }}>Reset delay:</label>
                     <input
                       type="number"
@@ -529,7 +529,7 @@ export default function RelayPage() {
           <div className="panel-header">
             <h3>Recent Relay Actions</h3>
           </div>
-          <div style={{ overflowX: "auto" }}>
+          <div className="table-scroll table-scroll--wide">
             <table className="data-table">
               <thead>
                 <tr>

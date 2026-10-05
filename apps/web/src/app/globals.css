@@ -461,8 +461,19 @@ select {
   margin-bottom: 20px;
 }
 
+.summary-grid--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .compact-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.sensor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
 }
 
 .summary-card,
@@ -975,6 +986,11 @@ select {
     grid-template-columns: 1fr 1fr;
   }
 
+  .summary-grid--three,
+  .sensor-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .report-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -1005,13 +1021,27 @@ select {
     grid-template-columns: 1fr;
   }
 
+  .summary-grid--three,
+  .sensor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Neutralize inline gridColumn spans (e.g. "span 2") in single-column grids */
+  .summary-grid > *,
+  .compact-grid > * {
+    grid-column: auto !important;
+  }
+
   .segmented-control {
     width: 100%;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 
   .segmented-control-btn {
-    flex: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 10px 12px;
   }
 
   .field-input {
