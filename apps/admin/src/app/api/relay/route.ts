@@ -57,7 +57,7 @@ async function verifyDeviceOwnership(
 async function authenticateAndScope(
   req: NextRequest,
   permission: "view_energy" | "control_relay",
-): Promise<ResolvedAccess | null> {
+): Promise<{ access: ResolvedAccess; actor: string } | null> {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
@@ -67,7 +67,9 @@ async function authenticateAndScope(
   }
 
   try {
-    return await resolveAccess(user.id, permission);
+    const access = await resolveAccess(user.id, permission);
+    // RM-11 (decision #4): actor identification — stamped server-side.
+    return { access, actor: user.email ?? user.id };
   } catch (err) {
     if (err instanceof AccessDeniedError) {
       noStoreJson({ error: err.message }, 403);
@@ -113,11 +115,11 @@ export async function GET(req: NextRequest) {
     const auth = await authenticateAndScope(req, "control_relay");
     if (!auth) return new NextResponse(null, { status: 401 });
 
-    if (!(await verifyDeviceOwnership(deviceId, auth.customerId))) {
+    if (!(await verifyDeviceOwnership(deviceId, auth.access.customerId))) {
       return noStoreJson({ error: "Device not found or access denied" }, 403);
     }
 
-    const scopeDenied = await enforceScopes(auth, deviceId);
+    const scopeDenied = await enforceScopes(auth.access, deviceId);
     if (scopeDenied) return scopeDenied;
 
     const state = await getRelayState(deviceId);
@@ -144,7 +146,7 @@ export async function POST(req: NextRequest) {
 
     // RM-12: temporary Super Admin grants are read-only — relay commands
     // are mutations.
-    if (auth.isTemporarySuperAdmin) {
+    if (auth.access.isTemporarySuperAdmin) {
       return noStoreJson(
         { error: "Temporary Super Admin grants are read-only" },
         403
@@ -163,11 +165,11 @@ export async function POST(req: NextRequest) {
 
     const command = parsed.data;
 
-    if (!(await verifyDeviceOwnership(command.deviceId, auth.customerId))) {
+    if (!(await verifyDeviceOwnership(command.deviceId, auth.access.customerId))) {
       return noStoreJson({ error: "Device not found or access denied" }, 403);
     }
 
-    const scopeDenied = await enforceScopes(auth, command.deviceId);
+    const scopeDenied = await enforceScopes(auth.access, command.deviceId);
     if (scopeDenied) return scopeDenied;
 
     const config = await getRelayConfig(command.deviceId);
@@ -195,7 +197,7 @@ export async function POST(req: NextRequest) {
           undefined,
           undefined,
           undefined,
-          command.initiatedBy,
+          auth.actor,
           command.notes
         );
         break;
@@ -210,7 +212,7 @@ export async function POST(req: NextRequest) {
           undefined,
           undefined,
           undefined,
-          command.initiatedBy,
+          auth.actor,
           command.notes
         );
         break;

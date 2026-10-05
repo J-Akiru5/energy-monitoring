@@ -259,6 +259,28 @@ test("POST same-customer RESET → 200, relay update fires", async () => {
   assert.deepEqual(updateCalls, [[DEVICE_A, false]]);
 });
 
+test("POST session path records the authenticated actor, not the client value (RM-11)", async () => {
+  reset();
+  currentUser = { id: "user-1", email: "operator@example.com" };
+  currentAccess = {
+    isSuperAdmin: false,
+    isTemporarySuperAdmin: false,
+    customerId: CUSTOMER_A,
+    permissions: ["control_relay"],
+    scopes: [],
+  };
+  stampByDevice[DEVICE_A] = { customerId: CUSTOMER_A };
+  // The client sends initiatedBy: "TEST"; the route must override it.
+  const res = await POST(postReq(command(DEVICE_A)));
+  assert.equal(res.status, 200);
+  assert.equal(logCalls.length, 1);
+  assert.equal(
+    logCalls[0][6],
+    "operator@example.com",
+    "actor identification must be stamped server-side"
+  );
+});
+
 test("POST cross-customer deviceId substitution → 403, NO relay action fires", async () => {
   reset();
   currentAccess = { isSuperAdmin: false, customerId: CUSTOMER_A, permissions: [] };

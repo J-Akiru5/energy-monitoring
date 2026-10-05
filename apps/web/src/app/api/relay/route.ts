@@ -239,7 +239,12 @@ export async function POST(req: NextRequest) {
       throw err;
     }
 
-    return executeRelayCommand(parsed.command);
+    // RM-11 (decision #4): actor identification — the authenticated user
+    // is stamped server-side; the client-supplied value is not trusted.
+    return executeRelayCommand({
+      ...parsed.command,
+      initiatedBy: user.email ?? user.id,
+    });
   } catch (err) {
     console.error("[/api/relay] POST Error:", err);
     return noStoreJson({ error: "Internal server error" }, 500);
