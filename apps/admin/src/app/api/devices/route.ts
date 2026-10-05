@@ -8,15 +8,12 @@ import {
   decommissionEmu,
   redeployEmu,
   reassignEmuCrossCustomer,
-  getLatestReading,
-  getAlertThresholds,
 } from "@energy/database";
 import type { Permission } from "@energy/database";
 import { createClient, resolveAccess, AccessDeniedError, filterDevicesByScopes } from "@energy/auth";
+import { attachLiveStatus, resolveOfflineSeconds } from "@/lib/liveStatus";
 
 export const dynamic = "force-dynamic";
-
-const DEFAULT_OFFLINE_SECONDS = 60;
 
 export async function GET() {
   try {
@@ -58,33 +55,11 @@ export async function GET() {
     // the newest power_readings row per device and flag a device offline when
     // telemetry is older than the alerting threshold — the same clock the
     // DEVICE_OFFLINE alert uses, so the badge and the alerts agree.
-    let offlineSeconds = DEFAULT_OFFLINE_SECONDS;
-    try {
-      const thresholds = await getAlertThresholds();
-      offlineSeconds = Number(thresholds?.device_offline_seconds ?? DEFAULT_OFFLINE_SECONDS);
-    } catch (err) {
-      console.error("[/api/devices] thresholds lookup failed:", (err as Error).message);
-    }
-
-    const nowMs = Date.now();
-    const withStatus = await Promise.all(
-      visible.map(async (device) => {
-        const latest = await getLatestReading(
-          device.id,
-          access.isSuperAdmin ? undefined : access.customerId
-        );
-        const lastSeenMs = latest ? new Date(latest.recorded_at).getTime() : null;
-        const isOnline =
-          Boolean(device.is_active) &&
-          lastSeenMs !== null &&
-          nowMs - lastSeenMs <= offlineSeconds * 1000;
-
-        return {
-          ...device,
-          last_seen_at: latest?.recorded_at ?? null,
-          is_online: isOnline,
-        };
-      })
+    const offlineSeconds = await resolveOfflineSeconds();
+    const withStatus = await attachLiveStatus(
+      visible,
+      offlineSeconds,
+      access.isSuperAdmin ? undefined : access.customerId
     );
 
     return NextResponse.json({

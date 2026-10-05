@@ -7,19 +7,39 @@ interface Stats {
   activeDevices: number;
   totalReadings: number;
   unreadAlerts: number;
+  systemStatus: "online" | "offline";
 }
+
+const REFRESH_INTERVAL_MS = 15_000;
 
 export default function OverviewPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/overview")
-      .then((r) => r.json())
-      .then((d) => setStats(d))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    let isMounted = true;
+
+    const loadStats = () =>
+      fetch("/api/overview", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d) => {
+          if (isMounted) setStats(d);
+        })
+        .catch(console.error)
+        .finally(() => {
+          if (isMounted) setLoading(false);
+        });
+
+    loadStats();
+    const interval = setInterval(loadStats, REFRESH_INTERVAL_MS);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
+
+  const isSystemOnline = stats?.systemStatus === "online";
 
   return (
     <>
@@ -61,8 +81,11 @@ export default function OverviewPage() {
 
           <div className="stat-card">
             <div className="stat-label">System Status</div>
-            <div className="stat-value" style={{ color: "var(--accent-green)" }}>
-              {loading ? "—" : "Online"}
+            <div
+              className="stat-value"
+              style={{ color: isSystemOnline ? "var(--accent-green)" : "var(--accent-rose)" }}
+            >
+              {loading ? "—" : isSystemOnline ? "Online" : "Offline"}
             </div>
           </div>
         </div>
