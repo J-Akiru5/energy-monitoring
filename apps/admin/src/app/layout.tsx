@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals-compiled.css";
-import { Sidebar } from "./components/Sidebar";
+import { AdminShell } from "./components/AdminShell";
 
 export const metadata: Metadata = {
   title: "Energy Monitor — Admin",
@@ -15,8 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <Sidebar />
-        <main className="main-content">{children}</main>
+        <AdminShell>{children}</AdminShell>
       </body>
     </html>
   );
