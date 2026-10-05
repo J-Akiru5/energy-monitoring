@@ -106,7 +106,7 @@ td strong{color:var(--text)}
   <div class="wordmark"><b>Syntaxure</b> / EMS Delegates · RM-11</div>
   <div class="top-meta">
     <span class="chip">2026-10-05</span>
-    <span class="chip d">applied + verified 9/9</span>
+    <span class="chip d">applied + verified 10/10</span>
     <span class="chip u">held unpushed</span>
   </div>
 </header>
@@ -127,12 +127,12 @@ td strong{color:var(--text)}
 
     <article class="section" id="s-tldr">
       <h1>RM-11 — External-Delegate <code>control_relay</code> Safeguards</h1>
-      <p class="lede"><strong>Built and verified 9/9 against live.</strong> Decision #4's safeguards — limited scope, limited duration — are now real: a membership can carry scope rows (<code>customer | site | building | emu</code>) that restrict which devices it may control, and permission grants can carry an <code>expires_at</code> that fails closed once past. The mechanism reuses exactly what the phase-3a schema anticipated (<code>memberships.is_external</code>, <code>membership_scopes</code>) — the only new schema is one nullable column.</p>
+      <p class="lede"><strong>Built and verified 10/10 against live.</strong> Decision #4's safeguards — limited scope, limited duration — are now real: a membership can carry scope rows (<code>customer | site | building | emu</code>) that restrict which devices it may control, and permission grants can carry an <code>expires_at</code> that fails closed once past. The mechanism reuses exactly what the phase-3a schema anticipated (<code>memberships.is_external</code>, <code>membership_scopes</code>) — the only new schema is one nullable column.</p>
 
       <div class="stat-row">
         <div class="stat"><b>1</b><span>new column (<code>expires_at</code>) — everything else reused</span></div>
         <div class="stat"><b>4</b><span>scope types enforced: customer / site / building / emu</span></div>
-        <div class="stat"><b>9/9</b><span>live delegate checks passed</span></div>
+        <div class="stat"><b>10/10</b><span>live delegate checks passed</span></div>
         <div class="stat"><b>0</b><span>fixture state left behind (grant + scopes removed)</span></div>
       </div>
     </article>
@@ -181,7 +181,7 @@ td strong{color:var(--text)}
     <article class="section" id="s-evidence">
       <h2>Evidence</h2>
       <div class="callout ok">
-        <span class="tag chip d">LIVE — 9/9</span>
+        <span class="tag chip d">LIVE — 10/10</span>
         <h3>Delegate fixture against the real database</h3>
         <pre><code>PASS future grant resolves and includes control_relay
 PASS resolveAccess returns the emu scope row
@@ -192,17 +192,18 @@ PASS no scope rows = customer-wide (empty scopes)
 PASS customer-wide member passes scope check
 PASS site scope passes for a device at that site
 PASS site scope denies a device at another site
-9/9 — cleanup: temporary grant + scope rows removed</code></pre>
+PASS scoped device list keeps only in-scope devices
+10/10 — cleanup: temporary grant + scope rows removed</code></pre>
       </div>
-      <p class="footnote">Migration <code>20261005000002_rm11_delegate_access.sql</code> dry-ran inside <code>BEGIN</code>/<code>ROLLBACK</code>, then was applied with Jeff's confirmation. Route-level scope cases are covered in the relay suite (full web suite 98/98).</p>
+      <p class="footnote">Migration <code>20261005000002_rm11_delegate_access.sql</code> dry-ran inside <code>BEGIN</code>/<code>ROLLBACK</code>, then was applied with Jeff's confirmation. Route-level scope + read-filtering cases are covered in the web suites (full web suite 106/106).</p>
     </article>
 
     <article class="section" id="s-notes">
       <h2>Notes &amp; follow-ups</h2>
       <ul class="ul-tight">
         <li><strong>Decision record:</strong> OD-3's original "defer with trigger" is superseded by Jeff's 2026-10-05 instruction to build now, reusing the existing foundations.</li>
-        <li><strong>Not included — read-path scoping:</strong> scope rows currently limit relay control, not general reads (the delegate could still <em>view</em> their customer's data through read routes). If delegates should be view-scoped too, that's a follow-up across the read paths.</li>
-        <li><strong>Not included — server-side actor identification:</strong> relay logs record <code>initiatedBy</code> from the client-supplied command body; stamping the authenticated user id server-side is a small follow-up worth doing before a real delegate ships.</li>
+        <li><strong>Relay-facing read scoping — done:</strong> the device lists (web + admin) and relay state/logs/config reads accept a scoped <code>control_relay</code> caller and filter to in-scope devices; a scoped member holding view_energy is filtered too. Reports/history/alerts/overview remain permission-gated — full read scoping is a larger follow-up if a delegate ever needs it.</li>
+        <li><strong>Actor identification — done:</strong> relay-log actors are stamped server-side from the authenticated session (<code>user.email ?? user.id</code>); the client-supplied label is ignored on user paths.</li>
         <li><strong>Activation:</strong> held unpushed per Jeff's deployment-frugality note; the <code>expires_at</code> column is live in the DB, the code ships on push.</li>
       </ul>
     </article>
@@ -217,7 +218,7 @@ PASS site scope denies a device at another site
         <dt>New column</dt><dd class="mono">membership_permissions.expires_at</dd>
         <dt>Reused</dt><dd>is_external + membership_scopes</dd>
         <dt>Applied</dt><dd class="ok">yes (confirmed)</dd>
-        <dt>Verified</dt><dd class="ok">9/9 live</dd>
+        <dt>Verified</dt><dd class="ok">10/10 live</dd>
         <dt>Branch</dt><dd class="mono">feat/rm11-rm12-auth-safeguards</dd>
       </dl>
     </div>
@@ -226,7 +227,7 @@ PASS site scope denies a device at another site
 </div>
 
 <div class="footer">
-  Energy Monitoring · RM-11 delegate safeguards · 2026-10-05 · expires_at + scopes · live 9/9 · reuse of phase-3a foundations · held unpushed
+  Energy Monitoring · RM-11 delegate safeguards · 2026-10-05 · expires_at + scopes · live 10/10 · reuse of phase-3a foundations · held unpushed
 </div>
 
 </body>

@@ -117,15 +117,32 @@ export async function GET(req: NextRequest) {
     try {
       access = await resolveAccess(user.id, "view_energy");
     } catch (err) {
-      if (err instanceof AccessDeniedError) {
-        return noStoreJson({ error: err.message }, 403);
+      if (!(err instanceof AccessDeniedError)) throw err;
+      // RM-11: scoped delegates hold control_relay without view_energy;
+      // they may read relay state only for their in-scope devices.
+      try {
+        access = await resolveAccess(user.id, "control_relay");
+      } catch (err2) {
+        if (err2 instanceof AccessDeniedError) {
+          return noStoreJson({ error: err2.message }, 403);
+        }
+        throw err2;
       }
-      throw err;
     }
 
     // ── Verify the device belongs to that customer (IDOR guard) ──
     try {
       await assertDeviceOwnership(access, deviceId);
+    } catch (err) {
+      if (err instanceof DeviceAccessDeniedError) {
+        return noStoreJson({ error: err.message }, 403);
+      }
+      throw err;
+    }
+
+    // RM-11: scope rows limit what a scoped membership can see.
+    try {
+      await assertDeviceInScopes(access, deviceId);
     } catch (err) {
       if (err instanceof DeviceAccessDeniedError) {
         return noStoreJson({ error: err.message }, 403);

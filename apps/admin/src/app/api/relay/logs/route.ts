@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getSupabaseAdmin, getRelayLogs } from "@energy/database";
-import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
+import {
+  createClient,
+  resolveAccess,
+  AccessDeniedError,
+  assertDeviceInScopes,
+  DeviceAccessDeniedError,
+} from "@energy/auth";
+import type { ResolvedAccess } from "@energy/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -45,23 +52,37 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    let customerId: string;
-    let isSuperAdmin: boolean;
+    let access: ResolvedAccess;
     try {
-      const access = await resolveAccess(user.id, "view_energy");
-      customerId = access.customerId;
-      isSuperAdmin = access.isSuperAdmin;
+      access = await resolveAccess(user.id, "view_energy");
     } catch (err) {
-      if (err instanceof AccessDeniedError) {
+      if (!(err instanceof AccessDeniedError)) throw err;
+      // RM-11: scoped delegates hold control_relay without view_energy;
+      // they may read relay logs only for their in-scope devices.
+      try {
+        access = await resolveAccess(user.id, "control_relay");
+      } catch (err2) {
+        if (err2 instanceof AccessDeniedError) {
+          return NextResponse.json({ error: err2.message }, { status: 403 });
+        }
+        throw err2;
+      }
+    }
+
+    // RM-11: scope rows limit what a scoped membership can see.
+    try {
+      await assertDeviceInScopes(access, deviceId);
+    } catch (err) {
+      if (err instanceof DeviceAccessDeniedError) {
         return NextResponse.json({ error: err.message }, { status: 403 });
       }
       throw err;
     }
 
     // Super Admins see all relay logs for the device; normal users are scoped to their customer.
-    const logs = isSuperAdmin
+    const logs = access.isSuperAdmin
       ? (await getSupabaseAdmin().from("relay_logs").select("*").eq("device_id", deviceId).order("created_at", { ascending: false }).limit(limit)).data
-      : await getRelayLogs(deviceId, customerId, limit);
+      : await getRelayLogs(deviceId, access.customerId, limit);
     return NextResponse.json({ logs });
   } catch (err) {
     console.error("[/api/relay/logs] GET Error:", err);

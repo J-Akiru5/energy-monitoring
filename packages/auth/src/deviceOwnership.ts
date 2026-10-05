@@ -43,6 +43,32 @@ export async function assertDeviceOwnership(
 }
 
 /**
+ * Boolean form of the RM-11 scope check: true when the caller's membership
+ * scopes allow acting on / seeing `deviceId`. Super Admins and memberships
+ * without scope rows are customer-wide (always true).
+ */
+export async function isDeviceInScopes(
+  access: ResolvedAccess,
+  deviceId: string
+): Promise<boolean> {
+  if (access.isSuperAdmin) return true;
+  if (!access.scopes || access.scopes.length === 0) return true; // customer-wide
+
+  const stamp = await lookupControllerByDevice(deviceId);
+  if (!stamp) return false;
+
+  return access.scopes.some((scope) => {
+    if (scope.type === "customer") return scope.id === stamp.customerId;
+    if (scope.type === "emu") return scope.id === stamp.emuId;
+    if (scope.type === "site") return stamp.siteId != null && scope.id === stamp.siteId;
+    if (scope.type === "building") {
+      return stamp.buildingId != null && scope.id === stamp.buildingId;
+    }
+    return false;
+  });
+}
+
+/**
  * Verify that the caller's membership scopes allow acting on `deviceId`
  * (RM-11, decision #4 — external-delegate safeguards).
  *
@@ -56,21 +82,28 @@ export async function assertDeviceInScopes(
   access: ResolvedAccess,
   deviceId: string
 ): Promise<void> {
-  if (access.isSuperAdmin) return;
-  if (!access.scopes || access.scopes.length === 0) return; // customer-wide
+  if (!(await isDeviceInScopes(access, deviceId))) {
+    throw new DeviceAccessDeniedError();
+  }
+}
 
-  const stamp = await lookupControllerByDevice(deviceId);
-  if (!stamp) throw new DeviceAccessDeniedError();
+/**
+ * Filter a device list down to the caller's scopes (RM-11). Returns the
+ * list unchanged for Super Admins and customer-wide memberships; scoped
+ * memberships see only in-scope devices (fail-closed on unknown devices).
+ */
+export async function filterDevicesByScopes<T extends { id: string }>(
+  access: ResolvedAccess,
+  devices: T[]
+): Promise<T[]> {
+  if (access.isSuperAdmin) return devices;
+  if (!access.scopes || access.scopes.length === 0) return devices;
 
-  const allowed = access.scopes.some((scope) => {
-    if (scope.type === "customer") return scope.id === stamp.customerId;
-    if (scope.type === "emu") return scope.id === stamp.emuId;
-    if (scope.type === "site") return stamp.siteId != null && scope.id === stamp.siteId;
-    if (scope.type === "building") {
-      return stamp.buildingId != null && scope.id === stamp.buildingId;
-    }
-    return false;
-  });
-
-  if (!allowed) throw new DeviceAccessDeniedError();
+  const checks = await Promise.all(
+    devices.map(async (device) => ({
+      device,
+      inScope: await isDeviceInScopes(access, device.id),
+    }))
+  );
+  return checks.filter((c) => c.inScope).map((c) => c.device);
 }

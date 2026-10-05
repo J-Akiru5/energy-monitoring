@@ -49,6 +49,7 @@ const CUSTOMER_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 let currentUser = { id: "user-1" };
 let currentAccess = null;
 let denyAccess = false;
+let denyPermissions = [];
 let stampByDevice = {};
 
 const lookupCalls = [];
@@ -100,8 +101,10 @@ mock.module("@energy/auth", {
     createClient: () => ({
       auth: { getUser: async () => ({ data: { user: currentUser } }) },
     }),
-    resolveAccess: async () => {
-      if (denyAccess) throw new AccessDeniedError("denied");
+    resolveAccess: async (_userId, permission) => {
+      if (denyAccess || denyPermissions.includes(permission)) {
+        throw new AccessDeniedError("denied");
+      }
       return currentAccess;
     },
     AccessDeniedError,
@@ -118,6 +121,7 @@ function reset() {
   currentUser = { id: "user-1" };
   currentAccess = null;
   denyAccess = false;
+  denyPermissions = [];
   stampByDevice = {};
   lookupCalls.length = 0;
   relayStateCalls.length = 0;
@@ -241,6 +245,40 @@ test("session GET super admin → 200, ownership lookup skipped", async () => {
 test("session GET denied by resolveAccess → 403 (no regression)", async () => {
   reset();
   denyAccess = true;
+  const res = await GET(getReq(DEVICE_A));
+  assert.equal(res.status, 403);
+  assert.deepEqual(relayStateCalls, []);
+});
+
+// ──── RM-11: scoped delegate reads (control_relay fallback) ─────────────
+
+test("scoped delegate GET (no view_energy) in-scope → 200", async () => {
+  reset();
+  denyPermissions = ["view_energy"];
+  currentAccess = {
+    isSuperAdmin: false,
+    isTemporarySuperAdmin: false,
+    customerId: CUSTOMER_A,
+    permissions: ["control_relay"],
+    scopes: [{ type: "emu", id: "emu-a" }],
+  };
+  stampByDevice[DEVICE_A] = { customerId: CUSTOMER_A, emuId: "emu-a" };
+  const res = await GET(getReq(DEVICE_A));
+  assert.equal(res.status, 200);
+  assert.deepEqual(relayStateCalls, [DEVICE_A]);
+});
+
+test("scoped delegate GET (no view_energy) out-of-scope → 403, no state read", async () => {
+  reset();
+  denyPermissions = ["view_energy"];
+  currentAccess = {
+    isSuperAdmin: false,
+    isTemporarySuperAdmin: false,
+    customerId: CUSTOMER_A,
+    permissions: ["control_relay"],
+    scopes: [{ type: "emu", id: "emu-a" }],
+  };
+  stampByDevice[DEVICE_A] = { customerId: CUSTOMER_A, emuId: "emu-b" };
   const res = await GET(getReq(DEVICE_A));
   assert.equal(res.status, 403);
   assert.deepEqual(relayStateCalls, []);

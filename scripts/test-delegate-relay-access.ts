@@ -51,8 +51,13 @@ try {
 }
 
 const { getSupabaseAdmin } = await import("@energy/database");
-const { resolveAccess, AccessDeniedError, assertDeviceInScopes, DeviceAccessDeniedError } =
-  await import("@energy/auth");
+const {
+  resolveAccess,
+  AccessDeniedError,
+  assertDeviceInScopes,
+  filterDevicesByScopes,
+  DeviceAccessDeniedError,
+} = await import("@energy/auth");
 
 const FIXTURE_USER_ID = "39dfe8f1-7cb8-4811-a54c-fd2dbc2455c6"; // test-rls-verification
 const DEVICE_A_NAME = "TEST Device — RLS Verification (safe to delete)";
@@ -235,6 +240,17 @@ async function main() {
         "site scope denies a device at another site",
         () => assertDeviceInScopes(siteAccess, deviceB.id),
         DeviceAccessDeniedError
+      );
+
+      // ── 6. Scoped device-list filtering (real stamps) ─────────
+      const filtered = await filterDevicesByScopes(siteAccess, [
+        { id: deviceA.id },
+        { id: deviceB.id },
+      ]);
+      check(
+        "scoped device list keeps only in-scope devices",
+        filtered.length === 1 && filtered[0].id === deviceA.id,
+        `kept=${filtered.map((d) => d.id).join(",") || "(none)"}`
       );
     }
   } finally {
