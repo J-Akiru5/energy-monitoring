@@ -23,6 +23,12 @@ registerHooks({
         shortCircuit: true,
       };
     }
+    if (specifier.startsWith("@/")) {
+      return {
+        url: new URL(`../../../${specifier.slice(2)}.ts`, import.meta.url).href,
+        shortCircuit: true,
+      };
+    }
     if (specifier.startsWith(".") && !/\.[a-z]+$/i.test(specifier)) {
       try {
         return nextResolve(specifier, context);
@@ -49,9 +55,13 @@ const READING_COUNT = 92987;
 const GLOBAL_ALERT_ROWS = Array.from({ length: 50 }, (_, i) => ({ id: i }));
 const SCOPED_ALERT_ROWS = [{ id: "a1" }, { id: "a2" }, { id: "a3" }];
 const DEVICES = [
-  { id: "d566ef3b", name: "ESP32-CICT-001" },
-  { id: "test-1", name: "TEST Device" },
+  { id: "d566ef3b", name: "ESP32-CICT-001", is_active: true },
+  { id: "test-1", name: "TEST Device", is_active: true },
 ];
+
+// deviceId → recorded_at ISO string (or null for "never reported")
+let readingsByDevice = {};
+const latestCalls = [];
 
 function makeClient() {
   return {
@@ -96,6 +106,12 @@ mock.module("@energy/database", {
       listCalls.push(args);
       return DEVICES;
     },
+    getAlertThresholds: async () => ({ device_offline_seconds: 60 }),
+    getLatestReading: async (deviceId, customerId) => {
+      latestCalls.push([deviceId, customerId]);
+      const recordedAt = readingsByDevice[deviceId];
+      return recordedAt ? { recorded_at: recordedAt } : null;
+    },
   },
 });
 
@@ -122,6 +138,11 @@ function reset() {
   unreadCalls.length = 0;
   readingsFilters.length = 0;
   globalAlertsQueryUsed = false;
+  latestCalls.length = 0;
+  readingsByDevice = {};
+  for (const device of DEVICES) {
+    readingsByDevice[device.id] = new Date().toISOString();
+  }
 }
 
 test("Super Admin → global devices, unfiltered readings, global alerts", async () => {
@@ -133,10 +154,16 @@ test("Super Admin → global devices, unfiltered readings, global alerts", async
   assert.deepEqual(readingsFilters, [], "super admin readings count must be unfiltered");
   assert.equal(globalAlertsQueryUsed, true);
   assert.deepEqual(unreadCalls, [], "super admin must not use the scoped alerts helper");
+  assert.deepEqual(
+    latestCalls.map(([, customerId]) => customerId),
+    [undefined, undefined],
+    "super admin telemetry lookup must be unscoped"
+  );
   const json = await res.json();
-  assert.equal(json.activeDevices, DEVICES.length);
+  assert.equal(json.activeDevices, DEVICES.length, "all devices report fresh telemetry");
   assert.equal(json.totalReadings, READING_COUNT);
   assert.equal(json.unreadAlerts, GLOBAL_ALERT_ROWS.length);
+  assert.equal(json.systemStatus, "online");
 });
 
 test("normal customer user → scoped devices, readings, and alerts", async () => {
@@ -148,10 +175,28 @@ test("normal customer user → scoped devices, readings, and alerts", async () =
   assert.deepEqual(readingsFilters, [["customer_id", WVSU]], "readings count must be customer-filtered");
   assert.deepEqual(unreadCalls, [WVSU]);
   assert.equal(globalAlertsQueryUsed, false);
+  assert.deepEqual(
+    latestCalls.map(([, customerId]) => customerId),
+    [WVSU, WVSU],
+    "customer user telemetry lookup must be customer-scoped"
+  );
   const json = await res.json();
   assert.equal(json.activeDevices, DEVICES.length);
   assert.equal(json.totalReadings, READING_COUNT);
   assert.equal(json.unreadAlerts, SCOPED_ALERT_ROWS.length);
+  assert.equal(json.systemStatus, "online");
+});
+
+test("stale/absent telemetry → activeDevices counts only online, systemStatus offline", async () => {
+  reset();
+  currentAccess = { isSuperAdmin: false, customerId: WVSU, permissions: ["view_energy"] };
+  readingsByDevice[DEVICES[0].id] = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  readingsByDevice[DEVICES[1].id] = null;
+  const res = await GET();
+  assert.equal(res.status, 200);
+  const json = await res.json();
+  assert.equal(json.activeDevices, 0, "powered-off devices must not count as active");
+  assert.equal(json.systemStatus, "offline");
 });
 
 test("unauthenticated → 401", async () => {
