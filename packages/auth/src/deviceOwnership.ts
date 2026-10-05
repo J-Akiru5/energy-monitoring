@@ -41,3 +41,36 @@ export async function assertDeviceOwnership(
     throw new DeviceAccessDeniedError();
   }
 }
+
+/**
+ * Verify that the caller's membership scopes allow acting on `deviceId`
+ * (RM-11, decision #4 — external-delegate safeguards).
+ *
+ * Scope semantics (matching roles.ts): a membership with scope rows is
+ * limited to those targets; no scope rows = customer-wide access. This is
+ * enforced on control_relay routes (relay commands + relay config) — the
+ * delegate use case the decision covers. General read-path scoping is a
+ * separate work item.
+ */
+export async function assertDeviceInScopes(
+  access: ResolvedAccess,
+  deviceId: string
+): Promise<void> {
+  if (access.isSuperAdmin) return;
+  if (!access.scopes || access.scopes.length === 0) return; // customer-wide
+
+  const stamp = await lookupControllerByDevice(deviceId);
+  if (!stamp) throw new DeviceAccessDeniedError();
+
+  const allowed = access.scopes.some((scope) => {
+    if (scope.type === "customer") return scope.id === stamp.customerId;
+    if (scope.type === "emu") return scope.id === stamp.emuId;
+    if (scope.type === "site") return stamp.siteId != null && scope.id === stamp.siteId;
+    if (scope.type === "building") {
+      return stamp.buildingId != null && scope.id === stamp.buildingId;
+    }
+    return false;
+  });
+
+  if (!allowed) throw new DeviceAccessDeniedError();
+}

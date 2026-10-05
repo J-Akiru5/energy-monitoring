@@ -46,13 +46,22 @@ export async function PATCH(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
+    let access: Awaited<ReturnType<typeof resolveAccess>>;
     try {
-      await resolveAccess(user.id, "view_energy");
+      access = await resolveAccess(user.id, "view_energy");
     } catch (err) {
       if (err instanceof AccessDeniedError) {
         return NextResponse.json({ error: err.message }, { status: 403 });
       }
       throw err;
+    }
+
+    // RM-12: temporary Super Admin grants are read-only.
+    if (access.isTemporarySuperAdmin) {
+      return NextResponse.json(
+        { error: "Temporary Super Admin grants are read-only" },
+        { status: 403 }
+      );
     }
 
     const { alertId } = await req.json();

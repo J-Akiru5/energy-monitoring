@@ -11,6 +11,9 @@ export interface TenantStamp {
   installationId: string | null;
   controllerId:   string | null;
   phaseConfig:    string | null;
+  /** Location of the EMU's current installation (RM-11 scope checks). */
+  siteId:         string | null;
+  buildingId:     string | null;
 }
 
 /**
@@ -47,7 +50,9 @@ export async function lookupControllerByDevice(
         ),
         emu_installations (
           id,
-          ended_at
+          ended_at,
+          site_id,
+          building_id
         )
       )
     `)
@@ -60,7 +65,12 @@ export async function lookupControllerByDevice(
   const emus = data.emus as unknown as {
     owner_customer_id: string;
     emu_configurations: Array<{ phase_mode: string; ended_at: string | null }> | null;
-    emu_installations: Array<{ id: string; ended_at: string | null }> | null;
+    emu_installations: Array<{
+      id: string;
+      ended_at: string | null;
+      site_id: string | null;
+      building_id: string | null;
+    }> | null;
   } | null;
 
   // Extract the current installation (ended_at IS NULL)
@@ -77,5 +87,7 @@ export async function lookupControllerByDevice(
     installationId: currentInstallation?.id ?? null,
     controllerId:   data.id ?? null,
     phaseConfig:    currentConfig?.phase_mode ?? null,
+    siteId:         currentInstallation?.site_id ?? null,
+    buildingId:     currentInstallation?.building_id ?? null,
   };
 }

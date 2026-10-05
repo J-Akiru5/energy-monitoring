@@ -121,6 +121,16 @@ export async function PATCH(req: NextRequest) {
       throw err;
     }
 
+    // RM-12: temporary Super Admin grants are read-only — every action on
+    // this route (deactivate, replace, decommission, redeploy, reassign)
+    // is a mutation.
+    if (access.isTemporarySuperAdmin) {
+      return NextResponse.json(
+        { error: "Temporary Super Admin grants are read-only" },
+        { status: 403 }
+      );
+    }
+
     if (action === "deactivate") {
       // Super Admins may manage any device (no ownership check); ordinary
       // users must own the device through their authorized customer.
