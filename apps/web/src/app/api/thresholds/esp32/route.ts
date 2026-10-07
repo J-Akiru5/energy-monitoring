@@ -52,13 +52,18 @@ export async function GET(req: NextRequest) {
     // Fetch device-specific relay config to check if auto-trip (local safety) is enabled
     const relayConfig = await getRelayConfig(deviceId);
 
-    // Return thresholds for ESP32 local hardware override
+    // Return thresholds for ESP32 local hardware override.
+    // The per-condition trip flags mirror relay_config so the firmware's
+    // local safety matrix matches the cloud auto-trip matrix exactly.
     return NextResponse.json({
       overvoltage: thresholds?.overvoltage ?? 250,
       undervoltage: thresholds?.undervoltage ?? 200,
       overcurrent: thresholds?.overcurrent ?? 80,
       // Local safety follows the autoTripEnabled setting
       localSafetyEnabled: relayConfig?.autoTripEnabled ?? true,
+      tripOnOvervoltage: relayConfig?.tripOnOvervoltage ?? true,
+      tripOnUndervoltage: relayConfig?.tripOnUndervoltage ?? true,
+      tripOnOvercurrent: relayConfig?.tripOnOvercurrent ?? true,
     });
   } catch (err) {
     console.error("[/api/thresholds/esp32] Error:", err);

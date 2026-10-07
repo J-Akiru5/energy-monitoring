@@ -15,7 +15,11 @@ extern unsigned long lastNtpSyncTime;
 extern int wifiRetryCount;
 extern float localOvervoltageThreshold;
 extern float localUndervoltageThreshold;
+extern float localOvercurrentThreshold;
 extern bool localSafetyEnabled;
+extern bool localTripOnOvervoltage;
+extern bool localTripOnUndervoltage;
+extern bool localTripOnOvercurrent;
 extern bool backendReachable;
 
 // ──── WiFi CONNECTION ─────────────────────────────────────
@@ -187,14 +191,23 @@ void fetchThresholdsFromCloud() {
     DeserializationError error = deserializeJson(doc, response);
 
     if (!error) {
-      localOvervoltageThreshold = doc["overvoltage"] | DEFAULT_OVERVOLTAGE_THRESHOLD;
+      localOvervoltageThreshold  = doc["overvoltage"]  | DEFAULT_OVERVOLTAGE_THRESHOLD;
       localUndervoltageThreshold = doc["undervoltage"] | DEFAULT_UNDERVOLTAGE_THRESHOLD;
-      localSafetyEnabled = doc["localSafetyEnabled"] | true;
+      localOvercurrentThreshold  = doc["overcurrent"]  | DEFAULT_OVERCURRENT_THRESHOLD;
+      localSafetyEnabled         = doc["localSafetyEnabled"] | true;
+      // Per-condition flags: local safety must honor the same trip matrix
+      // the cloud auto-trip path uses (default on when absent).
+      localTripOnOvervoltage  = doc["tripOnOvervoltage"]  | true;
+      localTripOnUndervoltage = doc["tripOnUndervoltage"] | true;
+      localTripOnOvercurrent  = doc["tripOnOvercurrent"]  | true;
 
       Serial.println("[THRESHOLDS] Thresholds fetched successfully:");
       Serial.printf("[THRESHOLDS]   Overvoltage:  %.1fV\n", localOvervoltageThreshold);
       Serial.printf("[THRESHOLDS]   Undervoltage: %.1fV\n", localUndervoltageThreshold);
+      Serial.printf("[THRESHOLDS]   Overcurrent:  %.1fA\n", localOvercurrentThreshold);
       Serial.printf("[THRESHOLDS]   Local Safety: %s\n", localSafetyEnabled ? "ENABLED" : "DISABLED");
+      Serial.printf("[THRESHOLDS]   Trip matrix: OV=%d UV=%d OC=%d\n",
+                    localTripOnOvervoltage, localTripOnUndervoltage, localTripOnOvercurrent);
       backendReachable = true;
     } else {
       Serial.printf("[THRESHOLDS] JSON parse error: %s\n", error.c_str());

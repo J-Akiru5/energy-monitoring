@@ -63,9 +63,12 @@ export async function PUT(req: NextRequest) {
 
     const client = getSupabaseAdmin();
 
+    // Same deterministic row selection as getAlertThresholds(): always the
+    // lowest id, so reads and writes agree on which row is canonical.
     const { data: existing, error: fetchError } = await client
       .from("alert_thresholds")
       .select("id")
+      .order("id", { ascending: true })
       .limit(1)
       .single();
 

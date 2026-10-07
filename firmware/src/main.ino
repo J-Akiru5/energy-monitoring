@@ -80,10 +80,17 @@ int wifiRetryCount = 0;
 // ── Relay ──
 bool relayState = false;
 
-// ── Local safety thresholds (overwritten from cloud on boot) ──
+// ── Local safety thresholds (fetched from cloud at boot + refreshed) ──
 float localOvervoltageThreshold  = DEFAULT_OVERVOLTAGE_THRESHOLD;
 float localUndervoltageThreshold = DEFAULT_UNDERVOLTAGE_THRESHOLD;
+float localOvercurrentThreshold  = DEFAULT_OVERCURRENT_THRESHOLD;
 bool localSafetyEnabled = true;
+bool localTripOnOvervoltage  = true;
+bool localTripOnUndervoltage = true;
+bool localTripOnOvercurrent  = true;
+
+// ── Config refresh timing ──
+unsigned long lastConfigRefreshTime = 0;
 
 // ── Backend reachability ──
 bool backendReachable = false;
@@ -97,7 +104,7 @@ void setup() {
   Serial.begin(115200, SERIAL_8N1, 3, 1);
   delay(100);
   Serial.println("\n=====================================");
-  Serial.println(" EMU Firmware v4.0 — Production");
+  Serial.printf(" EMU Firmware v%s — Production\n", FW_VERSION);
   Serial.println("=====================================\n");
 
   // Initialize PZEM serial interfaces now that the debug console is up.
@@ -175,8 +182,18 @@ void setup() {
   bool bootTripped = false;
   bool stateResolved = false;
 
-  // 8a. Try cloud first (most authoritative)
-  if (WiFi.status() == WL_CONNECTED) {
+  // 8a. An unacknowledged local safety trip outranks the cloud row: if the
+  // trip report never landed, the backend may still say NORMAL. Stay tripped
+  // and keep re-announcing until the cloud confirms.
+  if (loadLocalTripPending()) {
+    bootTripped = true;
+    stateResolved = true;
+    Serial.printf("[RELAY-BOOT] Local trip pending cloud ack (%s) — staying TRIPPED\n",
+                  localTripPendingReason);
+  }
+
+  // 8b. Try cloud first (most authoritative)
+  if (!stateResolved && WiFi.status() == WL_CONNECTED) {
     int8_t cloudState = fetchRelayStateFromCloud();
     if (cloudState >= 0) {
       bootTripped = (cloudState == 1);
@@ -185,7 +202,7 @@ void setup() {
     }
   }
 
-  // 8b. Fall back to NVS if cloud was unreachable
+  // 8c. Fall back to NVS if cloud was unreachable
   if (!stateResolved) {
     bool nvsTripped = false;
     if (loadRelayStateFromNVS(nvsTripped)) {
@@ -195,7 +212,7 @@ void setup() {
     }
   }
 
-  // 8c. First boot — no cloud record, no NVS record
+  // 8d. First boot — no cloud record, no NVS record
   if (!stateResolved) {
     Serial.println("[RELAY-BOOT] No cloud or NVS state (first boot). Defaulting to power-ON.");
   }
@@ -256,6 +273,15 @@ void loop() {
   bool syncNeeded = rtcNeedSync || (now - lastNtpSyncTime >= NTP_RESYNC_INTERVAL_MS);
   if (syncNeeded && WiFi.status() == WL_CONNECTED) {
     syncNTP();
+  }
+
+  // Refresh safety thresholds + relay trip flags periodically so
+  // relay_config changes take effect without a power-cycle.
+  if (WiFi.status() == WL_CONNECTED &&
+      now - lastConfigRefreshTime >= CONFIG_REFRESH_INTERVAL_MS) {
+    lastConfigRefreshTime = now;
+    Serial.println("[CONFIG] Periodic safety-config refresh...");
+    fetchThresholdsFromCloud();
   }
 
   // Read sensors and upload at the configured interval

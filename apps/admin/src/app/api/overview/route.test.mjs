@@ -61,6 +61,8 @@ const DEVICES = [
 
 // deviceId → recorded_at ISO string (or null for "never reported")
 let readingsByDevice = {};
+// deviceId → { isTripped, tripReason } (absent = no relay record)
+let relayStatesByDevice = {};
 const latestCalls = [];
 
 function makeClient() {
@@ -112,6 +114,7 @@ mock.module("@energy/database", {
       const recordedAt = readingsByDevice[deviceId];
       return recordedAt ? { recorded_at: recordedAt } : null;
     },
+    getRelayState: async (deviceId) => relayStatesByDevice[deviceId] ?? null,
   },
 });
 
@@ -140,6 +143,7 @@ function reset() {
   globalAlertsQueryUsed = false;
   latestCalls.length = 0;
   readingsByDevice = {};
+  relayStatesByDevice = {};
   for (const device of DEVICES) {
     readingsByDevice[device.id] = new Date().toISOString();
   }
@@ -185,6 +189,19 @@ test("normal customer user → scoped devices, readings, and alerts", async () =
   assert.equal(json.totalReadings, READING_COUNT);
   assert.equal(json.unreadAlerts, SCOPED_ALERT_ROWS.length);
   assert.equal(json.systemStatus, "online");
+});
+
+test("tripped relay → devices counted offline even with fresh telemetry", async () => {
+  reset();
+  currentAccess = { isSuperAdmin: false, customerId: WVSU, permissions: ["view_energy"] };
+  for (const device of DEVICES) {
+    relayStatesByDevice[device.id] = { isTripped: true, tripReason: "OVERVOLTAGE" };
+  }
+  const res = await GET();
+  assert.equal(res.status, 200);
+  const json = await res.json();
+  assert.equal(json.activeDevices, 0, "a power-cut device must not count as active");
+  assert.equal(json.systemStatus, "offline");
 });
 
 test("stale/absent telemetry → activeDevices counts only online, systemStatus offline", async () => {
