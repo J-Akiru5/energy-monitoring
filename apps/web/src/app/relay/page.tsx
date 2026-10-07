@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { usePrimaryDevice } from "@/hooks/usePrimaryDevice";
+import { formatTripReason } from "@/lib/relayReason";
 
 type RelayState = {
   deviceId: string;
@@ -113,20 +114,6 @@ export default function RelayPage() {
       dateStyle: "medium",
       timeStyle: "short",
     });
-  };
-
-  const formatTripReason = (reason: string | null) => {
-    if (!reason) return "Unknown";
-    const map: Record<string, string> = {
-      OVERVOLTAGE: "Overvoltage",
-      UNDERVOLTAGE: "Undervoltage",
-      OVERCURRENT: "Overcurrent",
-      BLACKOUT: "Blackout",
-      MANUAL: "Manual Trip",
-      LOCAL_OVERVOLTAGE: "Local Safety: Overvoltage",
-      LOCAL_UNDERVOLTAGE: "Local Safety: Undervoltage",
-    };
-    return map[reason] || reason;
   };
 
   if (deviceLoading || loading) {

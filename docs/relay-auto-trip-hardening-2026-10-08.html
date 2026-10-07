@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Monitoring &mdash; Relay Auto-Trip Hardening &amp; Firmware v4.1.0 &mdash; 2026-10-08</title>
+<style>
+:root{
+  --bg:#050505; --text:#ededed; --text2:#B7BFCB; --muted:#8A93A0;
+  --line:rgba(255,255,255,.10);
+  --panel:rgba(255,255,255,.045);
+  --field:rgba(255,255,255,.06);
+  --accent:#22D3EE; --accent-2:#A855F7;
+  --grad:linear-gradient(135deg,#22D3EE,#A855F7);
+  --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --r-sm:6px; --r-lg:16px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,h4,p,dl,dd,figure,blockquote{margin:0}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.14;font-weight:800;letter-spacing:-.025em}
+h2{font-size:clamp(20px,2.6vw,27px);line-height:1.22;font-weight:700;letter-spacing:-.015em;margin-bottom:12px}
+h3{font-size:17px;font-weight:700;margin:22px 0 8px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:var(--mono)}
+code{font-size:.88em;background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:var(--r-sm)}
+pre{margin:14px 0 0;background:#0a0c10;border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--text2)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;height:64px;
+  padding:0 clamp(16px,3vw,40px);background:rgba(5,5,5,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.wordmark b{color:var(--accent)}
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;text-transform:uppercase;
+  color:var(--accent);display:inline-block;white-space:nowrap;line-height:1.6}
+.chip.d{color:var(--ok)} .chip.u{color:var(--warn)} .chip.c{color:var(--danger)} .chip.i{color:var(--accent-2)}
+.shell{display:grid;grid-template-columns:230px minmax(0,1fr) 280px;gap:clamp(20px,2.6vw,36px);
+  padding:28px clamp(16px,3vw,40px) 90px;max-width:1720px;margin:0 auto;align-items:start}
+.sidebar,.rail{position:sticky;top:84px;max-height:calc(100vh - 108px);overflow-y:auto}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar a{display:block;padding:9px 10px;min-height:40px;border-radius:var(--r-sm);color:var(--text2);font-size:13.5px;border-left:2px solid transparent}
+.sidebar a:hover{color:var(--text);text-decoration:none;background:var(--panel)}
+.sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel)}
+.rail .panel{margin-bottom:14px}
+.rail .facts dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;margin:0}
+.rail .facts dt{color:var(--muted)}
+.rail .facts dd{margin:0;text-align:right;min-width:0}
+main{min-width:0}
+.section{padding:8px 0 46px;scroll-margin-top:88px}
+.section+.section{border-top:1px solid var(--line);padding-top:38px}
+.section p{max-width:78ch;color:var(--text2)}
+.section p+p{margin-top:12px}
+.section p strong,.section li strong{color:var(--text)}
+.lede{font-size:17.5px;color:var(--text2);max-width:78ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:20px 22px}
+.callout{position:relative;padding:18px 22px 18px 26px;border-radius:var(--r-lg);margin:20px 0;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.callout::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.callout.danger::before{background:var(--danger)}
+.callout.warn::before{background:var(--warn)}
+.callout.ok::before{background:var(--ok)}
+.callout h3{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 18px;min-width:132px;flex:1 1 132px}
+.stat b{display:block;font-size:clamp(22px,2.6vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-top:16px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.mono{font-family:var(--mono);font-size:.92em}
+.ok{color:var(--ok);font-weight:600}
+.bad{color:var(--danger);font-weight:600}
+.warn{color:var(--warn);font-weight:600}
+.ul-tight{padding-left:20px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+.ul-tight li{margin:7px 0}
+.footnote{font-size:13px;color:var(--muted);max-width:80ch;margin-top:12px}
+.footer{border-top:1px solid var(--line);margin-top:10px;padding:22px clamp(16px,3vw,40px) 40px;color:var(--muted);font-size:13px;max-width:1720px;margin-left:auto;margin-right:auto}
+@media (max-width:1280px){ .shell{grid-template-columns:230px minmax(0,1fr)} .rail{display:none} }
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:18px}
+  .sidebar{position:static;max-height:none;overflow:visible}
+  .sidebar nav{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .sidebar a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .sidebar a.active{border-left:0;border-bottom-color:var(--accent)}
+  table{min-width:520px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark"><b>Syntaxure</b> / EMS Relay Auto-Trip &amp; Firmware v4.1.0</div>
+  <div class="top-meta">
+    <span class="chip">2026-10-08</span>
+    <span class="chip u">reflash required</span>
+    <span class="chip d">24/24 tests</span>
+    <span class="chip i">firmware built</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <nav aria-label="Sections">
+      <a href="#s-tldr" class="active">TL;DR</a>
+      <a href="#s-why">Why a reflash</a>
+      <a href="#s-changes">What changed</a>
+      <a href="#s-verify">Verification</a>
+      <a href="#s-rollout">Rollout runbook</a>
+      <a href="#s-notes">Risks &amp; notes</a>
+    </nav>
+  </aside>
+
+  <main>
+    <section class="section" id="s-tldr">
+      <h1>Threshold breach now cuts power &mdash; and the dashboard says so</h1>
+      <p class="lede" style="margin-top:14px">The relay auto-trip path is complete for overvoltage, undervoltage, and overcurrent, both cloud-side (within ~2&nbsp;s) and on the ESP32 itself (no network needed). A tripped device now shows a distinct <strong>&ldquo;Power cut &mdash; relay tripped&rdquo;</strong> state in the admin and user dashboards and is counted offline &mdash; because the PZEM taps sit upstream of the relay, telemetry keeps flowing after a cut and freshness alone can never reveal it.</p>
+
+      <div class="stat-row">
+        <div class="stat"><b>Yes</b><span>the ESP32 needs a reflash before cloud trips can physically actuate</span></div>
+        <div class="stat"><b>v4.1.0</b><span>enhanced firmware bundle compiled and ready to flash</span></div>
+        <div class="stat"><b>24/24</b><span>route tests passing (ingest 9, admin 15)</span></div>
+      </div>
+
+      <div class="callout ok">
+        <h3>TL;DR</h3>
+        <ul class="ul-tight">
+          <li><strong>Reflash:</strong> the unit&rsquo;s last verified flash (2026-09-12) predates the HTTPS relay-polling transport (2026-09-13). On that build the backend writes <code>is_tripped</code> but the relay never actuates. Current firmware source already polls; the new v4.1.0 bundle adds the safety fixes below.</li>
+          <li><strong>Server:</strong> auto-trip now respects the relay master switch, re-trips on the next reading after a manual reset while the fault persists, classifies local trips correctly, and is covered by tests (previously zero).</li>
+          <li><strong>Dashboards:</strong> admin Sensors/Overview and the web app (topbar + banner on every page) show the power-cut state with a human-readable reason.</li>
+          <li><strong>Still manual:</strong> relay reset. Auto-reset and blackout-trip remain unimplemented and their UI controls are now disabled and labeled as such.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="s-why">
+      <h2>Why a reflash is required</h2>
+      <ul class="ul-tight">
+        <li>Cloud auto-trip writes <code>relay_state.is_tripped = true</code>; the device learns about it by polling <code>GET /api/relay</code> every 2&nbsp;s. That polling transport landed <strong>2026-09-13</strong> (<span class="mono">d632619</span>, <span class="mono">51fc323</span>, <span class="mono">fabbe3d</span>), one day after the last verified flash &mdash; which relied on the removed, unreliable Realtime path.</li>
+        <li>There is <strong>no OTA</strong>: flashing requires PlatformIO and a USB laptop at the site.</li>
+        <li>The firmware previously read thresholds and trip flags <strong>only at boot</strong>; v4.1.0 refreshes them every 15&nbsp;minutes, so config changes no longer require a power-cycle.</li>
+        <li>Cannot be fixed by configuration alone: local OC trip, per-condition flags, and the trip-acknowledgment logic only exist in v4.1.0.</li>
+      </ul>
+      <div class="callout warn">
+        <h3>Order matters &mdash; fix the live config before enabling trips</h3>
+        <p>The live <code>alert_thresholds</code> table has historically contained duplicate rows (one with OV=200, below a normal 220&nbsp;V supply) and reads previously had no <code>ORDER BY</code>, so the effective threshold could flip. Code now selects the lowest id deterministically, but the duplicate rows must still be collapsed before auto-trip is enabled, or the site could trip on normal voltage.</p>
+      </div>
+    </section>
+
+    <section class="section" id="s-changes">
+      <h2>What changed</h2>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Area</th><th>Files</th><th>Change</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Threshold determinism</strong></td>
+              <td class="mono">packages/database/src/queries/alerts.ts<br>apps/admin/.../api/thresholds/route.ts</td>
+              <td><code>getAlertThresholds()</code> and the admin PUT now order by <code>id</code> before <code>limit(1)</code>, so reads and writes agree on one canonical row.</td>
+            </tr>
+            <tr>
+              <td><strong>Cloud auto-trip</strong></td>
+              <td class="mono">apps/web/src/app/api/ingest/route.ts</td>
+              <td>Gated by <code>relayEnabled</code> <em>and</em> <code>autoTripEnabled</code>; trips on every faulted reading (not only alert onset) so a reset under a persistent fault re-trips; local-trip handling is idempotent (safe re-announcements) and classifies phase-suffixed reasons correctly; logs firmware version changes.</td>
+            </tr>
+            <tr>
+              <td><strong>Firmware v4.1.0</strong></td>
+              <td class="mono">firmware/src/{config.h,main.ino,monitor.cpp,network.cpp,relay.{h,cpp}}</td>
+              <td>Periodic safety-config refresh (15&nbsp;min); honors per-condition trip flags; adds local overcurrent trip; local-trip acknowledgment prevents the 2&nbsp;s poll from re-closing the relay before the cloud records the trip (fixes flapping); pending trips persist across reboots; <code>firmwareVersion</code> in every payload.</td>
+            </tr>
+            <tr>
+              <td><strong>Device config endpoint</strong></td>
+              <td class="mono">apps/web/.../api/thresholds/esp32/route.ts<br>packages/types/src/sensor.ts</td>
+              <td>Serves <code>tripOnOvervoltage/Undervoltage/Overcurrent</code>; telemetry schema accepts <code>firmwareVersion</code>.</td>
+            </tr>
+            <tr>
+              <td><strong>Admin dashboards</strong></td>
+              <td class="mono">apps/admin/src/lib/liveStatus.ts<br>.../api/devices, .../api/overview<br>.../sensors/page.tsx, globals.css</td>
+              <td>Status derivation consults <code>relay_state</code>: tripped devices are offline with <code>relay_tripped</code>/<code>relay_trip_reason</code>; the Sensors badge shows &ldquo;Power cut&rdquo; (rose) with the reason in the tooltip; Overview counts them offline.</td>
+            </tr>
+            <tr>
+              <td><strong>Web dashboards</strong></td>
+              <td class="mono">src/hooks/useRelayState.ts (new)<br>src/lib/relayReason.ts (new)<br>src/components/AppShell.tsx<br>src/app/relay/page.tsx, globals.css</td>
+              <td>Topbar status shows <strong>Power cut</strong> (amber dot + reason) and a banner appears on every authenticated page; trip reasons render human-readable for all phase-suffixed variants.</td>
+            </tr>
+            <tr>
+              <td><strong>Honest config UI</strong></td>
+              <td class="mono">apps/admin/src/app/relay/page.tsx</td>
+              <td>Auto-reset and blackout-trip controls are disabled and labeled &ldquo;not implemented yet&rdquo;; the stale Realtime copy now describes the HTTPS 2&nbsp;s polling transport.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section" id="s-verify">
+      <h2>Verification</h2>
+      <ul class="ul-tight">
+        <li>Ingest route tests: <span class="ok">9/9</span> &mdash; auto-trip onset, master-switch gate, per-condition flag gate, re-trip after reset under persistent fault, local OV/OC classification.</li>
+        <li>Admin route tests: <span class="ok">15/15</span> &mdash; including new &ldquo;tripped relay &rarr; offline with fresh telemetry&rdquo; cases for <code>/api/overview</code>.</li>
+        <li><code>pnpm --filter web build</code> and <code>pnpm --filter @energy/admin build</code> &mdash; pass; eslint 0 errors on both.</li>
+        <li>Firmware: <code>pio run</code> &mdash; <span class="ok">SUCCESS</span>, RAM 14.9%, flash 78.4% (headroom for future additions); artifact at <code>firmware/.pio/build/esp32dev/firmware.bin</code>.</li>
+      </ul>
+      <div class="callout warn">
+        <h3>Not yet verified (requires the site visit)</h3>
+        <p>Physical actuation, the electrician&rsquo;s variac fault test, cloud trip latency, and dashboard behavior with live data. The server behavior is unit-tested; the wire behavior can only be proven on the unit.</p>
+      </div>
+    </section>
+
+    <section class="section" id="s-rollout">
+      <h2>Rollout runbook</h2>
+      <ol class="ul-tight">
+        <li><strong>Live DB (needs explicit go-ahead):</strong> collapse <code>alert_thresholds</code> to one canonical row (suggest OV 250 / UV 200 / OC 80), then set <code>relay_config</code>: <code>auto_trip_enabled=true</code>, desired per-condition flags, <code>auto_reset_enabled=false</code>, <code>trip_on_blackout=false</code>.</li>
+        <li><strong>Flash v4.1.0</strong> (USB, laptop at site):
+<pre><code>cd firmware
+pio run -t upload</code></pre></li>
+        <li><strong>Power-cycle</strong> the unit after flashing (boot-time reconciliation logs the loaded state and pending-trip status).</li>
+        <li><strong>Field test</strong> (electrician, variac): local OV cut with the network disconnected; cloud OV/OC trip within ~2&nbsp;s; dashboard shows the power-cut state; manual reset under a persistent fault re-trips; no flapping.</li>
+        <li><strong>Confirm the flash remotely:</strong> Vercel logs show <code>[Ingest] Device &lt;id&gt; firmware 4.1.0</code> on first telemetry after the flash.</li>
+      </ol>
+    </section>
+
+    <section class="section" id="s-notes">
+      <h2>Risks &amp; notes</h2>
+      <ul class="ul-tight">
+        <li><strong>Voltage stays live after a trip</strong> &mdash; the PZEM taps are upstream of the relay, so the cut is a software state, not a measurement. This is why the UI says &ldquo;Power cut&rdquo; rather than plain &ldquo;Offline&rdquo;, and why the banner notes the load is disconnected.</li>
+        <li><strong>Re-trip semantics:</strong> the relay re-trips within one 5&nbsp;s telemetry cycle if it is reset while the fault persists. This is deliberate &mdash; the load must not stay powered under an active fault.</li>
+        <li><strong>Out of scope, observed:</strong> web <code>GET /api/relay/config</code> still lacks the ownership/scope check its comment claims; <code>HIGH_POWER</code>, blackout-trip, and auto-reset remain alert-only/disabled per the agreed scope.</li>
+        <li><strong>No OTA:</strong> every future firmware change needs another USB flash; the version-in-payload addition exists to make that verifiable remotely.</li>
+      </ul>
+    </section>
+  </main>
+
+  <aside class="rail">
+    <div class="panel facts">
+      <h3 style="margin-top:0">At a glance</h3>
+      <dl>
+        <dt>Date</dt><dd>2026-10-08</dd>
+        <dt>Branch</dt><dd class="mono">feat/relay-auto-trip-hardening</dd>
+        <dt>Firmware</dt><dd class="mono">v4.1.0</dd>
+        <dt>Trip matrix</dt><dd>OV / UV / OC</dd>
+        <dt>Reset</dt><dd>manual only</dd>
+        <dt>Tests</dt><dd class="ok">24/24</dd>
+        <dt>Flash</dt><dd class="warn">USB required</dd>
+      </dl>
+    </div>
+  </aside>
+</div>
+
+<footer class="footer">
+  Energy Monitoring &mdash; relay auto-trip hardening, 2026-10-08. Reported from the field: &ldquo;when a threshold is exceeded the relay should trip and the dashboard should show the system offline.&rdquo;
+</footer>
+
+</body>
+</html>

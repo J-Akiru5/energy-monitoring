@@ -15,7 +15,11 @@ extern PZEM004Tv30* pzemC;
 extern bool relayState;
 extern float localOvervoltageThreshold;
 extern float localUndervoltageThreshold;
+extern float localOvercurrentThreshold;
 extern bool localSafetyEnabled;
+extern bool localTripOnOvervoltage;
+extern bool localTripOnUndervoltage;
+extern bool localTripOnOvercurrent;
 
 // ──── PER-PHASE HEALTH STATE ──────────────────────────────
 // Each phase has its own offline/healthy state machine.
@@ -206,6 +210,7 @@ void readAndUpload() {
     doc["timestamp"] = getTimestamp();
     doc["sensorOffline"] = true;
     doc["phaseMode"] = phaseMode;
+    doc["firmwareVersion"] = FW_VERSION;
 
     String payload;
     serializeJson(doc, payload);
@@ -278,11 +283,13 @@ void readAndUpload() {
   Serial.println("--------------------------------------------");
 
   // ── LOCAL HARDWARE SAFETY OVERRIDE ──
-  // In 1-phase mode, only check the active source.
+  // In 1-phase mode, only check the active source. Honors the same
+  // per-condition trip matrix as the cloud auto-trip path (overvoltage /
+  // undervoltage / overcurrent), refreshed from relay_config periodically.
   bool localTrip = false;
   const char* localTripReason = nullptr;
   char localTripReasonBuf[40];
-  float tripVoltage = 0;
+  float tripValue = 0;
 
   if (localSafetyEnabled && !relayState) {
     if (phaseMode == 1) {
@@ -294,58 +301,81 @@ void readAndUpload() {
             case PZEM_SOURCE_C: src = &rawC; phaseLetter = "C"; break;
         }
         if (src && !src->offline) {
-            if (src->voltage > localOvervoltageThreshold) {
+            if (localTripOnOvervoltage && src->voltage > localOvervoltageThreshold) {
                 localTrip = true;
                 snprintf(localTripReasonBuf, sizeof(localTripReasonBuf),
                          "LOCAL_OVERVOLTAGE_PHASE_%c", phaseLetter[0]);
-                tripVoltage = src->voltage;
-            } else if (src->voltage < localUndervoltageThreshold && src->voltage > 0) {
+                tripValue = src->voltage;
+            } else if (localTripOnUndervoltage && src->voltage < localUndervoltageThreshold && src->voltage > 0) {
                 localTrip = true;
                 snprintf(localTripReasonBuf, sizeof(localTripReasonBuf),
                          "LOCAL_UNDERVOLTAGE_PHASE_%c", phaseLetter[0]);
-                tripVoltage = src->voltage;
+                tripValue = src->voltage;
+            } else if (localTripOnOvercurrent && src->current > localOvercurrentThreshold) {
+                localTrip = true;
+                snprintf(localTripReasonBuf, sizeof(localTripReasonBuf),
+                         "LOCAL_OVERCURRENT_PHASE_%c", phaseLetter[0]);
+                tripValue = src->current;
             }
             if (localTrip) {
                 localTripReason = localTripReasonBuf;
             }
         }
     } else {
-        if (!rawA.offline && rawA.voltage > localOvervoltageThreshold) {
-            localTrip = true;
-            localTripReason = "LOCAL_OVERVOLTAGE_PHASE_A";
-            tripVoltage = rawA.voltage;
-        } else if (!rawB.offline && rawB.voltage > localOvervoltageThreshold) {
-            localTrip = true;
-            localTripReason = "LOCAL_OVERVOLTAGE_PHASE_B";
-            tripVoltage = rawB.voltage;
-        } else if (!rawC.offline && rawC.voltage > localOvervoltageThreshold) {
-            localTrip = true;
-            localTripReason = "LOCAL_OVERVOLTAGE_PHASE_C";
-            tripVoltage = rawC.voltage;
-        } else if (!rawA.offline && rawA.voltage < localUndervoltageThreshold && rawA.voltage > 0) {
-            localTrip = true;
-            localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_A";
-            tripVoltage = rawA.voltage;
-        } else if (!rawB.offline && rawB.voltage < localUndervoltageThreshold && rawB.voltage > 0) {
-            localTrip = true;
-            localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_B";
-            tripVoltage = rawB.voltage;
-        } else if (!rawC.offline && rawC.voltage < localUndervoltageThreshold && rawC.voltage > 0) {
-            localTrip = true;
-            localTripReason = "LOCAL_UNDERVOLTAGE_PHASE_C";
-            tripVoltage = rawC.voltage;
+        const PhaseReading* phases[3] = {&rawA, &rawB, &rawC};
+        const char letters[3] = {'A', 'B', 'C'};
+
+        if (localTripOnOvervoltage) {
+            for (int i = 0; i < 3; i++) {
+                if (!phases[i]->offline && phases[i]->voltage > localOvervoltageThreshold) {
+                    localTrip = true;
+                    snprintf(localTripReasonBuf, sizeof(localTripReasonBuf),
+                             "LOCAL_OVERVOLTAGE_PHASE_%c", letters[i]);
+                    tripValue = phases[i]->voltage;
+                    break;
+                }
+            }
+        }
+        if (!localTrip && localTripOnUndervoltage) {
+            for (int i = 0; i < 3; i++) {
+                if (!phases[i]->offline && phases[i]->voltage < localUndervoltageThreshold && phases[i]->voltage > 0) {
+                    localTrip = true;
+                    snprintf(localTripReasonBuf, sizeof(localTripReasonBuf),
+                             "LOCAL_UNDERVOLTAGE_PHASE_%c", letters[i]);
+                    tripValue = phases[i]->voltage;
+                    break;
+                }
+            }
+        }
+        if (!localTrip && localTripOnOvercurrent) {
+            for (int i = 0; i < 3; i++) {
+                if (!phases[i]->offline && phases[i]->current > localOvercurrentThreshold) {
+                    localTrip = true;
+                    snprintf(localTripReasonBuf, sizeof(localTripReasonBuf),
+                             "LOCAL_OVERCURRENT_PHASE_%c", letters[i]);
+                    tripValue = phases[i]->current;
+                    break;
+                }
+            }
+        }
+        if (localTrip) {
+            localTripReason = localTripReasonBuf;
         }
     }
 
     if (localTrip) {
       Serial.println("==================================================");
-      Serial.println("[ALERT] LOCAL HARDWARE OVERRIDE: DANGEROUS VOLTAGE! Killing Power...");
-      Serial.printf("[ALERT]   Reason: %s  Voltage: %.2fV\n", localTripReason, tripVoltage);
+      Serial.println("[ALERT] LOCAL HARDWARE OVERRIDE: DANGEROUS CONDITION! Killing Power...");
+      Serial.printf("[ALERT]   Reason: %s  Value: %.2f\n", localTripReason, tripValue);
       Serial.println("==================================================");
 
       relayState = true;
       digitalWrite(RELAY_PIN, LOW);
       saveRelayStateToNVS(true);
+      // Persist the pending trip so the 2s cloud poll cannot re-close the
+      // relay before the backend records it, and so the reason is
+      // re-announced in telemetry until acknowledged.
+      setLocalTripPending(localTripReason);
       Serial.println("[RELAY] LOCAL TRIP EXECUTED -- Power disconnected.");
     }
   }
@@ -355,6 +385,7 @@ void readAndUpload() {
   JsonDocument doc;
   doc["deviceId"] = deviceId;
   doc["phaseMode"] = phaseMode;
+  doc["firmwareVersion"] = FW_VERSION;
 
   JsonObject threePhase = doc["threePhase"].to<JsonObject>();
   addPhaseJson(threePhase, "phase_a", rawA);
@@ -373,6 +404,11 @@ void readAndUpload() {
   if (localTrip && localTripReason) {
     doc["localTrip"] = true;
     doc["localTripReason"] = localTripReason;
+  } else if (localTripPending && localTripPendingReason[0] != '\0') {
+    // Unacknowledged local trip: keep re-announcing it every cycle until the
+    // cloud relay_state confirms isTripped (pollRelayState clears the flag).
+    doc["localTrip"] = true;
+    doc["localTripReason"] = localTripPendingReason;
   }
 
   // All phases at 0V means mains AC power is cut

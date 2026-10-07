@@ -47,8 +47,9 @@ export const TelemetryPayloadSchema = z
     timestamp: z.string().datetime({ offset: true }),
     blackout: z.boolean().optional(),
     localTrip: z.boolean().optional(), // ESP32 local safety override triggered
-    localTripReason: z.string().optional(), // "LOCAL_OVERVOLTAGE" or "LOCAL_UNDERVOLTAGE"
+    localTripReason: z.string().optional(), // e.g. "LOCAL_OVERVOLTAGE_PHASE_A"
     sensorOffline: z.boolean().optional(), // ESP32 alive but PZEM returns NaN
+    firmwareVersion: z.string().optional(), // reported by the ESP32 for remote flash verification
     // ── PZEM source-failover fields (sent by firmware in 1-phase mode) ──
     pzemSourceMode: z.enum(["AUTO", "MANUAL"]).optional(),
     pzemActiveSource: z.enum(["A", "B", "C"]).optional(),

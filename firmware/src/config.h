@@ -76,9 +76,19 @@ constexpr int DAYLIGHT_OFFSET_SEC = 0;
 const char* const NTP_SERVER = "pool.ntp.org";
 const char* const TZ_OFFSET_STR = "+08:00";
 
-// ──── SAFETY THRESHOLDS (defaults — overwritten from cloud on boot) ──
-constexpr float DEFAULT_OVERVOLTAGE_THRESHOLD = 250.0;
+// ──── FIRMWARE VERSION ────────────────────────────────────
+// Reported in every telemetry payload (firmwareVersion) so the deployed
+// build can be identified remotely — there is no OTA to query otherwise.
+#define FW_VERSION "4.1.0"
+
+// ──── SAFETY THRESHOLDS (defaults — refreshed from cloud periodically) ──
+constexpr float DEFAULT_OVERVOLTAGE_THRESHOLD  = 250.0;
 constexpr float DEFAULT_UNDERVOLTAGE_THRESHOLD = 200.0;
+constexpr float DEFAULT_OVERCURRENT_THRESHOLD  = 80.0;
+
+// Refresh interval for safety thresholds + relay trip flags. Config changes
+// no longer require a power-cycle just to be picked up.
+constexpr uint32_t CONFIG_REFRESH_INTERVAL_MS = 15UL * 60 * 1000; // 15 minutes
 
 // ──── PZEM HEALTH STATE MACHINE ──────────────────────────
 // These thresholds mirror the backend's dual-track incident engine:

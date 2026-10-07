@@ -62,6 +62,7 @@ mock.module("@energy/database", {
     listDevices: async () => [],
     getAlertThresholds: async () => ({ device_offline_seconds: 60 }),
     getLatestReading: async () => null,
+    getRelayState: async () => null,
     deactivateDevice: async () => {},
     lookupControllerByDevice: async (deviceId) => {
       lookupCalls.push(deviceId);
