@@ -8,6 +8,7 @@ import {
   promoteAlertToIncident,
   getAlertThresholds,
   getRelayConfig,
+  getRelayState,
   updateRelayState,
   logRelayAction,
   getDeviceBlackoutState,
@@ -23,6 +24,10 @@ import {
 
 // ──── Rate limiting (in-memory, per device) ────────────────────────────
 const lastPostTime = new Map<string, number>();
+
+// Last firmware version reported per device — logged on change so a reflash
+// can be confirmed remotely (no OTA, no version column).
+const lastFirmwareVersion = new Map<string, string>();
 
 // ──── PZEM Offline Alert Helper ────────────────────────────────────────
 async function firePzemOfflineAlerts(
@@ -109,6 +114,17 @@ export async function POST(req: NextRequest) {
         { error: "Device token does not match payload deviceId" },
         { status: 401 }
       );
+    }
+
+    if (payload.firmwareVersion) {
+      const previousVersion = lastFirmwareVersion.get(payload.deviceId);
+      if (previousVersion !== payload.firmwareVersion) {
+        lastFirmwareVersion.set(payload.deviceId, payload.firmwareVersion);
+        console.log(
+          `[Ingest] Device ${payload.deviceId} firmware ${payload.firmwareVersion}` +
+            (previousVersion ? ` (was ${previousVersion})` : "")
+        );
+      }
     }
 
     const now = Date.now();
@@ -341,7 +357,13 @@ async function checkThreePhaseThresholds(
     if (!thresholds) return;
 
     const relayConfig   = await getRelayConfig(deviceId);
-    const shouldAutoTrip = relayConfig?.autoTripEnabled ?? false;
+    const relayState    = await getRelayState(deviceId);
+    let relayTripped    = relayState?.isTripped ?? false;
+    // The master switch gates auto-trip exactly like it gates the manual
+    // routes — a relay that is administratively disabled must not be tripped
+    // by the alert engine either.
+    const shouldAutoTrip =
+      Boolean(relayConfig?.relayEnabled) && Boolean(relayConfig?.autoTripEnabled);
 
     const activeStates = await getAllActiveAlertStates(deviceId);
 
@@ -368,47 +390,71 @@ async function checkThreePhaseThresholds(
         continue;
       }
 
+      const ovFault = phase.data.voltage > thresholds.overvoltage;
       const ovRes = await processFaultCondition({
         deviceId,
         type:        "OVERVOLTAGE",
         phase:       phase.name,
-        isFault:     phase.data.voltage > thresholds.overvoltage,
+        isFault:     ovFault,
         faultValue:  phase.data.voltage,
         threshold:   thresholds.overvoltage,
         message:     `Phase ${phase.name} overvoltage: ${phase.data.voltage}V (threshold: ${thresholds.overvoltage}V)`,
         activeStates,
       });
-      if (ovRes.alert && shouldAutoTrip && relayConfig?.tripOnOvervoltage) {
-        await triggerRelayTrip(deviceId, `OVERVOLTAGE_PHASE_${phase.name}`, phase.data.voltage, thresholds.overvoltage, ovRes.alert.id);
-      }
+      relayTripped = await maybeAutoTrip({
+        deviceId, relayTripped, shouldAutoTrip,
+        conditionEnabled: relayConfig?.tripOnOvervoltage,
+        isFault:    ovFault,
+        trigger:    `OVERVOLTAGE_PHASE_${phase.name}`,
+        value:      phase.data.voltage,
+        threshold:  thresholds.overvoltage,
+        alertId:    ovRes.alert?.id ?? activeStates.get(`OVERVOLTAGE:${phase.name}`)?.currentAlertId ?? undefined,
+        note:       ovRes.alert ? undefined : "Auto-trip re-applied — fault still present",
+      });
 
+      const uvFault = phase.data.voltage < thresholds.undervoltage;
       const uvRes = await processFaultCondition({
         deviceId,
         type:        "UNDERVOLTAGE",
         phase:       phase.name,
-        isFault:     phase.data.voltage < thresholds.undervoltage,
+        isFault:     uvFault,
         faultValue:  phase.data.voltage,
         threshold:   thresholds.undervoltage,
         message:     `Phase ${phase.name} undervoltage: ${phase.data.voltage}V (threshold: ${thresholds.undervoltage}V)`,
         activeStates,
       });
-      if (uvRes.alert && shouldAutoTrip && relayConfig?.tripOnUndervoltage) {
-        await triggerRelayTrip(deviceId, `UNDERVOLTAGE_PHASE_${phase.name}`, phase.data.voltage, thresholds.undervoltage, uvRes.alert.id);
-      }
+      relayTripped = await maybeAutoTrip({
+        deviceId, relayTripped, shouldAutoTrip,
+        conditionEnabled: relayConfig?.tripOnUndervoltage,
+        isFault:    uvFault,
+        trigger:    `UNDERVOLTAGE_PHASE_${phase.name}`,
+        value:      phase.data.voltage,
+        threshold:  thresholds.undervoltage,
+        alertId:    uvRes.alert?.id ?? activeStates.get(`UNDERVOLTAGE:${phase.name}`)?.currentAlertId ?? undefined,
+        note:       uvRes.alert ? undefined : "Auto-trip re-applied — fault still present",
+      });
 
+      const ocFault = phase.data.current > thresholds.overcurrent;
       const ocRes = await processFaultCondition({
         deviceId,
         type:        "OVERCURRENT",
         phase:       phase.name,
-        isFault:     phase.data.current > thresholds.overcurrent,
+        isFault:     ocFault,
         faultValue:  phase.data.current,
         threshold:   thresholds.overcurrent,
         message:     `Phase ${phase.name} overcurrent: ${phase.data.current}A (threshold: ${thresholds.overcurrent}A)`,
         activeStates,
       });
-      if (ocRes.alert && shouldAutoTrip && relayConfig?.tripOnOvercurrent) {
-        await triggerRelayTrip(deviceId, `OVERCURRENT_PHASE_${phase.name}`, phase.data.current, thresholds.overcurrent, ocRes.alert.id);
-      }
+      relayTripped = await maybeAutoTrip({
+        deviceId, relayTripped, shouldAutoTrip,
+        conditionEnabled: relayConfig?.tripOnOvercurrent,
+        isFault:    ocFault,
+        trigger:    `OVERCURRENT_PHASE_${phase.name}`,
+        value:      phase.data.current,
+        threshold:  thresholds.overcurrent,
+        alertId:    ocRes.alert?.id ?? activeStates.get(`OVERCURRENT:${phase.name}`)?.currentAlertId ?? undefined,
+        note:       ocRes.alert ? undefined : "Auto-trip re-applied — fault still present",
+      });
     }
 
     // Total Power — active source only in 1-phase mode
@@ -451,42 +497,64 @@ async function checkThresholds(
     if (!thresholds) return;
 
     const relayConfig   = await getRelayConfig(deviceId);
-    const shouldAutoTrip = relayConfig?.autoTripEnabled ?? false;
+    const relayState    = await getRelayState(deviceId);
+    let relayTripped    = relayState?.isTripped ?? false;
+    // Master switch gates auto-trip, same as the manual routes.
+    const shouldAutoTrip =
+      Boolean(relayConfig?.relayEnabled) && Boolean(relayConfig?.autoTripEnabled);
 
     const activeStates = await getAllActiveAlertStates(deviceId);
 
+    const ovFault = reading.voltage > thresholds.overvoltage;
     const ovRes = await processFaultCondition({
       deviceId, type: "OVERVOLTAGE", phase: "",
-      isFault: reading.voltage > thresholds.overvoltage,
+      isFault: ovFault,
       faultValue: reading.voltage, threshold: thresholds.overvoltage,
       message: `High voltage detected: ${reading.voltage}V (threshold: ${thresholds.overvoltage}V)`,
       activeStates,
     });
-    if (ovRes.alert && shouldAutoTrip && relayConfig?.tripOnOvervoltage) {
-      await triggerRelayTrip(deviceId, "OVERVOLTAGE", reading.voltage, thresholds.overvoltage, ovRes.alert.id);
-    }
+    relayTripped = await maybeAutoTrip({
+      deviceId, relayTripped, shouldAutoTrip,
+      conditionEnabled: relayConfig?.tripOnOvervoltage,
+      isFault: ovFault, trigger: "OVERVOLTAGE",
+      value: reading.voltage, threshold: thresholds.overvoltage,
+      alertId: ovRes.alert?.id ?? activeStates.get("OVERVOLTAGE:")?.currentAlertId ?? undefined,
+      note: ovRes.alert ? undefined : "Auto-trip re-applied — fault still present",
+    });
 
+    const uvFault = reading.voltage < thresholds.undervoltage;
     const uvRes = await processFaultCondition({
       deviceId, type: "UNDERVOLTAGE", phase: "",
-      isFault: reading.voltage < thresholds.undervoltage,
+      isFault: uvFault,
       faultValue: reading.voltage, threshold: thresholds.undervoltage,
       message: `Low voltage detected: ${reading.voltage}V (threshold: ${thresholds.undervoltage}V)`,
       activeStates,
     });
-    if (uvRes.alert && shouldAutoTrip && relayConfig?.tripOnUndervoltage) {
-      await triggerRelayTrip(deviceId, "UNDERVOLTAGE", reading.voltage, thresholds.undervoltage, uvRes.alert.id);
-    }
+    relayTripped = await maybeAutoTrip({
+      deviceId, relayTripped, shouldAutoTrip,
+      conditionEnabled: relayConfig?.tripOnUndervoltage,
+      isFault: uvFault, trigger: "UNDERVOLTAGE",
+      value: reading.voltage, threshold: thresholds.undervoltage,
+      alertId: uvRes.alert?.id ?? activeStates.get("UNDERVOLTAGE:")?.currentAlertId ?? undefined,
+      note: uvRes.alert ? undefined : "Auto-trip re-applied — fault still present",
+    });
 
+    const ocFault = reading.current > thresholds.overcurrent;
     const ocRes = await processFaultCondition({
       deviceId, type: "OVERCURRENT", phase: "",
-      isFault: reading.current > thresholds.overcurrent,
+      isFault: ocFault,
       faultValue: reading.current, threshold: thresholds.overcurrent,
       message: `High current detected: ${reading.current}A (threshold: ${thresholds.overcurrent}A)`,
       activeStates,
     });
-    if (ocRes.alert && shouldAutoTrip && relayConfig?.tripOnOvercurrent) {
-      await triggerRelayTrip(deviceId, "OVERCURRENT", reading.current, thresholds.overcurrent, ocRes.alert.id);
-    }
+    await maybeAutoTrip({
+      deviceId, relayTripped, shouldAutoTrip,
+      conditionEnabled: relayConfig?.tripOnOvercurrent,
+      isFault: ocFault, trigger: "OVERCURRENT",
+      value: reading.current, threshold: thresholds.overcurrent,
+      alertId: ocRes.alert?.id ?? activeStates.get("OVERCURRENT:")?.currentAlertId ?? undefined,
+      note: ocRes.alert ? undefined : "Auto-trip re-applied — fault still present",
+    });
 
     await processFaultCondition({
       deviceId, type: "HIGH_POWER", phase: "",
@@ -505,12 +573,47 @@ async function checkThresholds(
 // Relay Helpers
 // ══════════════════════════════════════════════════════════════════════════
 
+/**
+ * Trip the relay when a fault is active and the configuration allows it.
+ * Returns the (possibly updated) tripped flag so subsequent condition checks
+ * in the same reading do not log duplicate trips.
+ *
+ * Unlike the old behavior, this fires on every reading while the fault is
+ * present — not only when a brand-new alert is created — so a relay that is
+ * manually reset while the fault persists is re-tripped on the next reading.
+ */
+async function maybeAutoTrip(opts: {
+  deviceId:         string;
+  relayTripped:     boolean;
+  shouldAutoTrip:   boolean;
+  conditionEnabled: boolean | undefined;
+  isFault:          boolean;
+  trigger:          string;
+  value:            number;
+  threshold:        number;
+  alertId?:         string;
+  note?:            string;
+}): Promise<boolean> {
+  const {
+    deviceId, relayTripped, shouldAutoTrip, conditionEnabled,
+    isFault, trigger, value, threshold, alertId, note,
+  } = opts;
+
+  if (!isFault || !shouldAutoTrip || !conditionEnabled || relayTripped) {
+    return relayTripped;
+  }
+
+  await triggerRelayTrip(deviceId, trigger, value, threshold, alertId, note);
+  return true;
+}
+
 async function triggerRelayTrip(
-  deviceId: string, trigger: string, value: number, threshold: number, alertId?: string
+  deviceId: string, trigger: string, value: number, threshold: number, alertId?: string,
+  note: string = "Auto-trip triggered by alert"
 ) {
   try {
     await updateRelayState(deviceId, true, trigger, alertId);
-    await logRelayAction(deviceId, "TRIP", trigger, value, threshold, alertId, "SYSTEM", "Auto-trip triggered by alert");
+    await logRelayAction(deviceId, "TRIP", trigger, value, threshold, alertId, "SYSTEM", note);
     console.log(`[Relay] Auto-tripped relay for device ${deviceId} due to ${trigger}`);
   } catch (err) {
     console.error("[Relay] Failed to trip relay:", err);
@@ -522,21 +625,45 @@ async function handleLocalTrip(payload: {
   reading: { voltage: number; current: number; power: number };
 }) {
   try {
-    const thresholds     = await getAlertThresholds();
-    const isOvervoltage  = payload.localTripReason === "LOCAL_OVERVOLTAGE";
-    const alertType      = isOvervoltage ? "OVERVOLTAGE" : "UNDERVOLTAGE";
+    // The firmware re-announces an unacknowledged local trip every telemetry
+    // cycle until the cloud relay_state confirms it. Recording it is
+    // idempotent: once tripped with the same reason, do nothing (no duplicate
+    // alerts or audit rows).
+    const currentState = await getRelayState(payload.deviceId);
+    if (currentState?.isTripped && currentState.tripReason === payload.localTripReason) {
+      return;
+    }
+
+    const thresholds = await getAlertThresholds();
+
+    // The firmware always suffixes local trip reasons with the phase
+    // (e.g. LOCAL_OVERVOLTAGE_PHASE_A), so exact equality against the
+    // bare "LOCAL_OVERVOLTAGE" string misclassified every local overvoltage
+    // trip as an undervoltage event. Classify by prefix instead.
+    const isOvervoltage = payload.localTripReason.startsWith("LOCAL_OVERVOLTAGE");
+    const isOvercurrent = payload.localTripReason.startsWith("LOCAL_OVERCURRENT");
+    const alertType: AlertType = isOvervoltage
+      ? "OVERVOLTAGE"
+      : isOvercurrent
+        ? "OVERCURRENT"
+        : "UNDERVOLTAGE";
+    const measuredValue  = isOvercurrent ? payload.reading.current : payload.reading.voltage;
     const thresholdValue = isOvervoltage
       ? thresholds?.overvoltage  ?? 250
-      : thresholds?.undervoltage ?? 200;
+      : isOvercurrent
+        ? thresholds?.overcurrent  ?? 80
+        : thresholds?.undervoltage ?? 200;
+    const label = isOvervoltage ? "Overvoltage" : isOvercurrent ? "Overcurrent" : "Undervoltage";
+    const unit  = isOvercurrent ? "A" : "V";
 
     await logRelayAction(payload.deviceId, "LOCAL_TRIP", payload.localTripReason,
-      payload.reading.voltage, thresholdValue, undefined, "ESP32_LOCAL",
+      measuredValue, thresholdValue, undefined, "ESP32_LOCAL",
       "Automatic local hardware safety override by ESP32");
     await updateRelayState(payload.deviceId, true, payload.localTripReason, undefined);
     await createAlert({
-      deviceId: payload.deviceId, type: alertType as AlertType,
-      value: payload.reading.voltage, threshold: thresholdValue,
-      message: `ESP32 LOCAL SAFETY TRIP: ${isOvervoltage ? "Overvoltage" : "Undervoltage"} detected (${payload.reading.voltage}V). Power cut locally by hardware override.`,
+      deviceId: payload.deviceId, type: alertType,
+      value: measuredValue, threshold: thresholdValue,
+      message: `ESP32 LOCAL SAFETY TRIP: ${label} detected (${measuredValue}${unit}). Power cut locally by hardware override.`,
     });
 
     console.log(`[Ingest] Local safety trip logged for device ${payload.deviceId}: ${payload.localTripReason}`);

@@ -444,9 +444,12 @@ export default function RelayPage() {
                         type="checkbox"
                         checked={config.tripOnBlackout}
                         onChange={(e) => setConfig({ ...config, tripOnBlackout: e.target.checked })}
-                        disabled={!config.autoTripEnabled}
+                        disabled
                       />
                       Blackout
+                      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                        (not implemented yet)
+                      </span>
                     </label>
                   </div>
                 </div>
@@ -458,14 +461,14 @@ export default function RelayPage() {
                     id="autoResetEnabled"
                     checked={config.autoResetEnabled}
                     onChange={(e) => setConfig({ ...config, autoResetEnabled: e.target.checked })}
-                    disabled={!config.relayEnabled}
+                    disabled
                     style={{ width: 20, height: 20 }}
                   />
                   <label htmlFor="autoResetEnabled" style={{ fontWeight: 500 }}>
                     Enable Auto-Reset
                   </label>
                   <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                    (Automatically reset relay after delay - use with caution!)
+                    (not implemented yet — relay reset is manual only)
                   </span>
                 </div>
 
@@ -481,9 +484,12 @@ export default function RelayPage() {
                       }
                       min={60}
                       max={3600}
+                      disabled
                       style={{ width: 100 }}
                     />
-                    <span style={{ fontSize: 13, color: "var(--text-muted)" }}>seconds (min: 60, max: 3600)</span>
+                    <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                      seconds (saved but not used — auto-reset is not implemented)
+                    </span>
                   </div>
                 )}
               </div>
@@ -518,8 +524,9 @@ export default function RelayPage() {
               investigation and reset is recommended.
             </p>
             <p style={{ marginTop: 8 }}>
-              <strong>WebSocket latency:</strong> Relay commands are delivered via Supabase Realtime with {"<"}1
-              second latency. Ensure your ESP32 is connected to WiFi and subscribed to the relay_state table.
+              <strong>Command latency:</strong> Relay commands are delivered over HTTPS polling — the ESP32
+              checks the server every 2 seconds (requires firmware v4.1.0+). Cloud auto-trips apply within
+              that window; the ESP32 also trips locally, without a network, when thresholds are exceeded.
             </p>
           </div>
         </div>

@@ -419,6 +419,11 @@ a {
   color: #fbbf24;
 }
 
+.status-badge.tripped {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;

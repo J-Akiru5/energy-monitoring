@@ -5,7 +5,9 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { usePolling } from "@/hooks/usePolling";
 import { usePrimaryDevice } from "@/hooks/usePrimaryDevice";
+import { useRelayState } from "@/hooks/useRelayState";
 import { APP_NAV_ITEMS, MOBILE_PRIMARY_NAV } from "@/lib/navigation";
+import { formatTripReason } from "@/lib/relayReason";
 import { logout } from "@/app/actions";
 
 function isActivePath(pathname: string, href: string) {
@@ -16,6 +18,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { deviceId } = usePrimaryDevice();
   const { latestReading, isConnected } = usePolling(deviceId);
+  const relayState = useRelayState(deviceId);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [alertsCount, setAlertsCount] = useState(0);
 
@@ -59,6 +62,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       })
     : null;
 
+  // A tripped relay keeps reporting voltage (taps sit upstream of the relay),
+  // so telemetry freshness alone would still show "Live". The relay state is
+  // the authoritative "power cut" signal.
+  const relayTripped = relayState?.isTripped === true;
+
   return (
     <>
       <header className="app-shell-topbar">
@@ -100,9 +108,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="app-shell-status">
-          <span className={`status-dot ${isConnected ? "online" : "offline"}`} />
-          <span>{isConnected ? "Live" : "Offline"}</span>
-          {!isConnected && lastSeen && (
+          <span className={`status-dot ${relayTripped ? "tripped" : isConnected ? "online" : "offline"}`} />
+          <span>{relayTripped ? "Power cut" : isConnected ? "Live" : "Offline"}</span>
+          {relayTripped && (
+            <span className="app-shell-status-muted">
+              Relay tripped{relayState?.tripReason ? ` — ${formatTripReason(relayState.tripReason)}` : ""}
+            </span>
+          )}
+          {!relayTripped && !isConnected && lastSeen && (
             <span className="app-shell-status-muted">Last seen {lastSeen}</span>
           )}
           {alertsCount > 0 && <span className="alert-badge">{alertsCount}</span>}
@@ -163,6 +176,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </form>
         </div>
       </aside>
+
+      {relayTripped && (
+        <div className="power-cut-banner" role="alert">
+          <span className="power-cut-banner-icon" aria-hidden="true">⚡</span>
+          <div>
+            <strong>Power cut — relay tripped.</strong>{" "}
+            {relayState?.tripReason
+              ? `Reason: ${formatTripReason(relayState.tripReason)}. `
+              : ""}
+            The load is disconnected and the device is counted offline until the relay is reset.
+          </div>
+        </div>
+      )}
 
       <main className="app-shell-main">{children}</main>
 

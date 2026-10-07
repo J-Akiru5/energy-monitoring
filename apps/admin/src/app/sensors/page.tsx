@@ -10,6 +10,8 @@ interface Device {
   is_online: boolean;
   last_seen_at: string | null;
   created_at: string;
+  relay_tripped?: boolean;
+  relay_trip_reason?: string | null;
 }
 
 const REFRESH_INTERVAL_MS = 30_000;
@@ -69,6 +71,9 @@ export default function SensorsPage() {
     if (!device.is_active) {
       return { className: "inactive", label: "Inactive" };
     }
+    if (device.relay_tripped) {
+      return { className: "tripped", label: "Power cut" };
+    }
     if (device.is_online) {
       return { className: "active", label: "Online" };
     }
@@ -125,7 +130,14 @@ export default function SensorsPage() {
                         </td>
                         <td>{device.location || "—"}</td>
                         <td>
-                          <span className={`status-badge ${status.className}`}>
+                          <span
+                            className={`status-badge ${status.className}`}
+                            title={
+                              device.relay_tripped
+                                ? `Relay tripped${device.relay_trip_reason ? `: ${device.relay_trip_reason}` : ""}`
+                                : undefined
+                            }
+                          >
                             ● {status.label}
                           </span>
                         </td>

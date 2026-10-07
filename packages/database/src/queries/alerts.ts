@@ -117,9 +117,14 @@ export async function markAlertRead(alertId: string) {
 export async function getAlertThresholds() {
   const supabase = getSupabaseAdmin();
 
+  // Deterministic row selection: the live table has historically contained
+  // duplicate rows, and without an ORDER BY the row in effect could flip
+  // between reads (including which threshold the auto-trip path compares
+  // against). Always take the lowest id.
   const { data, error } = await supabase
     .from("alert_thresholds")
     .select("*")
+    .order("id", { ascending: true })
     .limit(1)
     .single();
 
