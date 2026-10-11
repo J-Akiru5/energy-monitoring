@@ -7,7 +7,7 @@ import { usePolling } from "@/hooks/usePolling";
 import { usePrimaryDevice } from "@/hooks/usePrimaryDevice";
 import { useRelayState } from "@/hooks/useRelayState";
 import { APP_NAV_ITEMS, MOBILE_PRIMARY_NAV } from "@/lib/navigation";
-import { formatTripReason } from "@/lib/relayReason";
+import { formatTripReason } from "@energy/ui";
 import { logout } from "@/app/actions";
 
 function isActivePath(pathname: string, href: string) {
