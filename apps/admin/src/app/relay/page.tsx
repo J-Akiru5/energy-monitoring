@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { formatTripReason } from "@energy/ui";
 import { createInitialLoad, createPollTick, createPostSaveReload } from "./pollingSchedule";
 
 interface RelayConfig {
@@ -337,7 +338,7 @@ export default function RelayPage() {
               <div>
                 <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Trip Reason</div>
                 <div style={{ fontSize: 16, fontWeight: 500, color: "var(--text-primary)" }}>
-                  {state?.tripReason || "—"}
+                  {state?.tripReason ? formatTripReason(state.tripReason) : "—"}
                 </div>
               </div>
               <div>
@@ -560,7 +561,7 @@ export default function RelayPage() {
                     <tr key={log.id}>
                       <td style={{ fontSize: 12, color: "var(--text-muted)" }}>{formatDate(log.createdAt)}</td>
                       <td style={{ fontWeight: 500, color: getActionColor(log.action) }}>{log.action}</td>
-                      <td>{log.triggerType || "—"}</td>
+                      <td>{log.triggerType ? formatTripReason(log.triggerType) : "—"}</td>
                       <td className="mono">
                         {log.triggerValue !== null ? `${log.triggerValue} / ${log.thresholdValue}` : "—"}
                       </td>

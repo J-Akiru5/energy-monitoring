@@ -7,6 +7,8 @@ const TRIP_REASON_LABELS: Record<string, string> = {
   LOCAL_OVERVOLTAGE: "Local safety: overvoltage",
   LOCAL_UNDERVOLTAGE: "Local safety: undervoltage",
   LOCAL_OVERCURRENT: "Local safety: overcurrent",
+  AUTO_RESET: "Auto reset",
+  STATUS_CHECK: "Status check",
 };
 
 const PHASE_LABELS: Record<string, string> = {

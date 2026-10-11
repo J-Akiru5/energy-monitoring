@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { usePrimaryDevice } from "@/hooks/usePrimaryDevice";
-import { formatTripReason } from "@/lib/relayReason";
+import { formatTripReason } from "@energy/ui";
 
 type RelayState = {
   deviceId: string;

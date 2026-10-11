@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatTripReason } from "@energy/ui";
 
 interface Device {
   id: string;
@@ -134,7 +135,7 @@ export default function SensorsPage() {
                             className={`status-badge ${status.className}`}
                             title={
                               device.relay_tripped
-                                ? `Relay tripped${device.relay_trip_reason ? `: ${device.relay_trip_reason}` : ""}`
+                                ? `Relay tripped${device.relay_trip_reason ? `: ${formatTripReason(device.relay_trip_reason)}` : ""}`
                                 : undefined
                             }
                           >
