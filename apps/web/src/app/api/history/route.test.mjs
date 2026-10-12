@@ -200,3 +200,107 @@ test("total uses the shared monotonic delta across a counter reset", async () =>
     `expected 22 kWh across the reset, got ${json.summary.totalKwh}`
   );
 });
+
+// ── Live-sample statistics and voltage/current charts ──────────────────────
+
+function dayReq(metric, date = "2026-10-08") {
+  return new NextRequest(
+    `http://localhost/api/history?deviceId=dev-1&period=day&date=${date}&metric=${metric}`
+  );
+}
+
+function sampleRow(i, overrides = {}) {
+  return {
+    id: i + 1,
+    device_id: "dev-1",
+    customer_id: "cust-1",
+    // 2026-10-08 PH day = 2026-10-07T16:00Z .. 2026-10-08T16:00Z
+    recorded_at: new Date(Date.parse("2026-10-07T17:00:00.000Z") + i * 60 * 1000).toISOString(),
+    voltage: null,
+    current_amp: null,
+    power_w: null,
+    energy_kwh: 50 + i * 0.01,
+    ...overrides,
+  };
+}
+
+test("averages ignore offline/zero samples and fall back to the energised phase", async () => {
+  const rows = [
+    // Legacy (phase A) tap energised
+    sampleRow(0, { voltage: 230, current_amp: 2, power_w: 400 }),
+    // Legacy tap reads 0 but phase B carries the load — must still count
+    sampleRow(1, { voltage: 0, current_amp: 0, power_w: 500, voltage_b: 240, current_b: 3 }),
+    // Offline samples: zeros and NULLs carry no measurement
+    sampleRow(2, { voltage: 0, current_amp: 0, power_w: 0 }),
+    sampleRow(3, { voltage: null, current_amp: null, power_w: null }),
+    sampleRow(4, { voltage: 0, current_amp: 0, power_w: 0, voltage_a: 0, voltage_b: 0, voltage_c: 0 }),
+  ];
+  fake = makeFakeDatabase({ power_readings: rows, alerts: [] });
+
+  const res = await GET(dayReq("energy_kwh"));
+  assert.equal(res.status, 200);
+  const { summary, sampleCount } = await res.json();
+
+  assert.equal(sampleCount, 5);
+  assert.equal(summary.liveSampleCount, 2);
+  assert.equal(summary.averageVoltage, 235); // (230 + 240) / 2, not 94
+  assert.equal(summary.averageCurrent, 2.5); // (2 + 3) / 2, not 1
+  assert.equal(summary.averagePower, 450); // (400 + 500) / 2
+  assert.equal(summary.peakPower, 500);
+  assert.equal(summary.minVoltage, 230, "min voltage must not report the 0 V offline samples");
+  assert.equal(summary.maxVoltage, 240);
+});
+
+test("voltage and current charts plot recorded readings, not flat-zero offline rows", async () => {
+  const rows = [
+    sampleRow(0, { voltage: 230, current_amp: 2, power_w: 400 }),
+    sampleRow(1, { voltage: 0, current_amp: 0, power_w: 500, voltage_c: 238, current_c: 1.5 }),
+    sampleRow(2, { voltage: 0, current_amp: 0, power_w: 0 }),
+  ];
+  fake = makeFakeDatabase({ power_readings: rows, alerts: [] });
+
+  const voltage = await (await GET(dayReq("voltage"))).json();
+  assert.deepEqual(
+    voltage.chartPoints.map((p) => p.value),
+    [230, 238]
+  );
+
+  const current = await (await GET(dayReq("current_amp"))).json();
+  assert.deepEqual(
+    current.chartPoints.map((p) => p.value),
+    [2, 1.5]
+  );
+
+  // The energy meter reading still plots every row
+  const energy = await (await GET(dayReq("energy_kwh"))).json();
+  assert.equal(energy.chartPoints.length, 3);
+});
+
+test("a window with no live samples returns an empty voltage chart and zeroed stats", async () => {
+  fake = makeFakeDatabase({
+    power_readings: [sampleRow(0, { voltage: 0, current_amp: 0, power_w: 0 })],
+    alerts: [],
+  });
+
+  const json = await (await GET(dayReq("voltage"))).json();
+  assert.equal(json.chartPoints.length, 0);
+  assert.equal(json.summary.liveSampleCount, 0);
+  assert.equal(json.summary.minVoltage, 0);
+  assert.equal(json.summary.averageVoltage, 0);
+});
+
+test("month voltage chart averages only live samples per day", async () => {
+  const rows = [
+    sampleRow(0, { voltage: 220, current_amp: 1 }),
+    sampleRow(1, { voltage: 0, current_amp: 0 }),
+    sampleRow(2, { voltage: 240, current_amp: 3 }),
+  ];
+  fake = makeFakeDatabase({ power_readings: rows, alerts: [] });
+
+  const req = new NextRequest(
+    "http://localhost/api/history?deviceId=dev-1&period=month&date=2026-10-15&metric=voltage"
+  );
+  const json = await (await GET(req)).json();
+  assert.equal(json.chartPoints.length, 1);
+  assert.equal(json.chartPoints[0].value, 230); // (220 + 240) / 2, offline row excluded
+});

@@ -517,6 +517,22 @@ select {
   min-width: 0;
 }
 
+/* Metric selector lives in the chart header, directly above the plot */
+.history-metric-control {
+  flex-shrink: 0;
+}
+
+.history-chart-empty {
+  margin-top: 16px;
+}
+
+.summary-hint {
+  margin: -6px 0 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .panel-header-row,
 .stack-card-head {
   display: flex;

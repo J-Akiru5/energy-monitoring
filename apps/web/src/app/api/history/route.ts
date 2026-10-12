@@ -5,6 +5,9 @@ import { createClient, resolveAccess, AccessDeniedError } from "@energy/auth";
 import {
   fetchAllPagesDescending,
   monotonicEnergyDelta,
+  resolveReading,
+  type PhaseReadingFields,
+  type ResolvedReading,
 } from "../../../lib/energy";
 
 export const dynamic = "force-dynamic";
@@ -25,14 +28,14 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 type HistoryPeriod = "day" | "week" | "month";
 type HistoryMetric = "energy_kwh" | "power_w" | "current_amp" | "voltage";
 
-type ReadingRow = {
+type ReadingRow = PhaseReadingFields & {
   id: number;
-  voltage: number | string | null;
-  current_amp: number | string | null;
-  power_w: number | string | null;
   energy_kwh: number | string | null;
   recorded_at: string;
 };
+
+const READING_COLUMNS =
+  "id, voltage, current_amp, power_w, energy_kwh, total_power, voltage_a, voltage_b, voltage_c, current_a, current_b, current_c, recorded_at";
 
 function toNumber(value: number | string | null | undefined) {
   return Number(value ?? 0);
@@ -103,10 +106,17 @@ function roundForMetric(value: number, metric: HistoryMetric) {
   return round(value, 2);
 }
 
-function toMetricValue(row: ReadingRow, metric: HistoryMetric) {
-  if (metric === "power_w") return toNumber(row.power_w);
-  if (metric === "current_amp") return toNumber(row.current_amp);
-  if (metric === "voltage") return toNumber(row.voltage);
+type ChartPoint = {
+  label: string;
+  value: number;
+  recordedAt: string;
+  secondaryValue: number;
+};
+
+function toMetricValue(row: ReadingRow, resolved: ResolvedReading, metric: HistoryMetric) {
+  if (metric === "power_w") return resolved.power;
+  if (metric === "current_amp") return resolved.current;
+  if (metric === "voltage") return resolved.voltage;
   return toNumber(row.energy_kwh);
 }
 
@@ -117,34 +127,51 @@ function computeSummary(readings: ReadingRow[], ratePhpPerKwh: number) {
     readings.map((row) => toNumber(row.energy_kwh))
   );
 
-  const divisor = Math.max(1, readings.length);
-  const averageVoltage = readings.reduce((sum, row) => sum + toNumber(row.voltage), 0) / divisor;
-  const averageCurrent = readings.reduce((sum, row) => sum + toNumber(row.current_amp), 0) / divisor;
-  const averagePower = readings.reduce((sum, row) => sum + toNumber(row.power_w), 0) / divisor;
-  const peakPower = readings.reduce((max, row) => Math.max(max, toNumber(row.power_w)), 0);
-  const voltageValues = readings.map((row) => toNumber(row.voltage));
-  const minVoltage = voltageValues.length > 0 ? Math.min(...voltageValues) : 0;
-  const maxVoltage = voltageValues.length > 0 ? Math.max(...voltageValues) : 0;
+  // Averages and min/max use only samples where the circuit was energised.
+  // Offline / blackout / NULL samples carry no measurement; counting them as 0
+  // dragged every average toward zero (e.g. a 29 V "average" on a 230 V supply).
+  const live = readings.map(resolveReading).filter((reading) => reading.live);
+  const mean = (pick: (reading: ResolvedReading) => number) =>
+    live.length > 0 ? live.reduce((sum, reading) => sum + pick(reading), 0) / live.length : 0;
+
+  // reduce, not Math.min(...spread): month windows can exceed the argument limit
+  const minVoltage = live.length > 0
+    ? live.reduce((min, reading) => Math.min(min, reading.voltage), Infinity)
+    : 0;
+  const maxVoltage = live.reduce((max, reading) => Math.max(max, reading.voltage), 0);
+  const peakPower = live.reduce((max, reading) => Math.max(max, reading.power), 0);
 
   return {
     totalKwh: round(totalKwh, 4),
     estimatedCostPhp: round(totalKwh * ratePhpPerKwh, 2),
-    averageVoltage: round(averageVoltage, 2),
-    averageCurrent: round(averageCurrent, 3),
-    averagePower: round(averagePower, 2),
+    averageVoltage: round(mean((reading) => reading.voltage), 2),
+    averageCurrent: round(mean((reading) => reading.current), 3),
+    averagePower: round(mean((reading) => reading.power), 2),
     peakPower: round(peakPower, 2),
     minVoltage: round(minVoltage, 2),
     maxVoltage: round(maxVoltage, 2),
+    liveSampleCount: live.length,
   };
 }
 
 function buildDayChart(readings: ReadingRow[], metric: HistoryMetric) {
-  return readings.map((row) => ({
-    label: phTimeLabel(new Date(row.recorded_at)),
-    value: roundForMetric(toMetricValue(row, metric), metric),
-    recordedAt: row.recorded_at,
-    secondaryValue: round(toNumber(row.power_w), 2),
-  }));
+  const points: ChartPoint[] = [];
+
+  for (const row of readings) {
+    const resolved = resolveReading(row);
+    // Power / voltage / current plot only recorded (live) samples instead of
+    // flat-lining offline rows at 0. The energy meter reading is always plotted.
+    if (metric !== "energy_kwh" && !resolved.live) continue;
+
+    points.push({
+      label: phTimeLabel(new Date(row.recorded_at)),
+      value: roundForMetric(toMetricValue(row, resolved, metric), metric),
+      recordedAt: row.recorded_at,
+      secondaryValue: round(resolved.power, 2),
+    });
+  }
+
+  return points;
 }
 
 function buildBucketedChart(readings: ReadingRow[], metric: HistoryMetric) {
@@ -153,7 +180,7 @@ function buildBucketedChart(readings: ReadingRow[], metric: HistoryMetric) {
     {
       energies: number[];
       latestAt: string;
-      sampleCount: number;
+      liveCount: number;
       sumPower: number;
       sumCurrent: number;
       sumVoltage: number;
@@ -162,27 +189,29 @@ function buildBucketedChart(readings: ReadingRow[], metric: HistoryMetric) {
 
   for (const row of readings) {
     const key = phDateKey(new Date(row.recorded_at));
-    const energy = toNumber(row.energy_kwh);
-    const existing = buckets.get(key);
+    const resolved = resolveReading(row);
 
-    if (!existing) {
-      buckets.set(key, {
-        energies: [energy],
+    let bucket = buckets.get(key);
+    if (!bucket) {
+      bucket = {
+        energies: [],
         latestAt: row.recorded_at,
-        sampleCount: 1,
-        sumPower: toNumber(row.power_w),
-        sumCurrent: toNumber(row.current_amp),
-        sumVoltage: toNumber(row.voltage),
-      });
-      continue;
+        liveCount: 0,
+        sumPower: 0,
+        sumCurrent: 0,
+        sumVoltage: 0,
+      };
+      buckets.set(key, bucket);
     }
 
-    existing.energies.push(energy);
-    existing.latestAt = row.recorded_at;
-    existing.sampleCount += 1;
-    existing.sumPower += toNumber(row.power_w);
-    existing.sumCurrent += toNumber(row.current_amp);
-    existing.sumVoltage += toNumber(row.voltage);
+    bucket.energies.push(toNumber(row.energy_kwh));
+    bucket.latestAt = row.recorded_at;
+    if (resolved.live) {
+      bucket.liveCount += 1;
+      bucket.sumPower += resolved.power;
+      bucket.sumCurrent += resolved.current;
+      bucket.sumVoltage += resolved.voltage;
+    }
   }
 
   // Buckets are day boundaries; each day's energy delta must include the
@@ -190,27 +219,35 @@ function buildBucketedChart(readings: ReadingRow[], metric: HistoryMetric) {
   // (the boundary jump), otherwise the daily values don't sum back to the
   // window total.
   let carryEnergy: number | null = null;
-  return Array.from(buckets.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([label, bucket]) => {
-      const series =
-        carryEnergy === null ? bucket.energies : [carryEnergy, ...bucket.energies];
-      carryEnergy = bucket.energies[bucket.energies.length - 1] ?? carryEnergy;
+  const points: ChartPoint[] = [];
+  const orderedBuckets = Array.from(buckets.entries()).sort(([a], [b]) => a.localeCompare(b));
 
-      return {
-        // week/month timelines are bucketed by day for readability
-        label,
-        value: metric === "energy_kwh"
-          ? round(monotonicEnergyDelta(series), 4)
-          : metric === "power_w"
-            ? roundForMetric(bucket.sumPower / Math.max(1, bucket.sampleCount), metric)
-            : metric === "current_amp"
-              ? roundForMetric(bucket.sumCurrent / Math.max(1, bucket.sampleCount), metric)
-              : roundForMetric(bucket.sumVoltage / Math.max(1, bucket.sampleCount), metric),
-        recordedAt: bucket.latestAt,
-        secondaryValue: round(bucket.energies[bucket.energies.length - 1] ?? 0, 4),
-      };
+  for (const [label, bucket] of orderedBuckets) {
+    const series =
+      carryEnergy === null ? bucket.energies : [carryEnergy, ...bucket.energies];
+    carryEnergy = bucket.energies[bucket.energies.length - 1] ?? carryEnergy;
+
+    // Days with no live samples have nothing to average for power / voltage /
+    // current — leave them off the chart rather than plotting a false 0.
+    if (metric !== "energy_kwh" && bucket.liveCount === 0) continue;
+
+    const dailyAverage = (sum: number) => sum / Math.max(1, bucket.liveCount);
+    points.push({
+      // week/month timelines are bucketed by day for readability
+      label,
+      value: metric === "energy_kwh"
+        ? round(monotonicEnergyDelta(series), 4)
+        : metric === "power_w"
+          ? roundForMetric(dailyAverage(bucket.sumPower), metric)
+          : metric === "current_amp"
+            ? roundForMetric(dailyAverage(bucket.sumCurrent), metric)
+            : roundForMetric(dailyAverage(bucket.sumVoltage), metric),
+      recordedAt: bucket.latestAt,
+      secondaryValue: round(bucket.energies[bucket.energies.length - 1] ?? 0, 4),
     });
+  }
+
+  return points;
 }
 
 /**
@@ -279,7 +316,7 @@ export async function GET(req: NextRequest) {
         async (from, to) => {
           const { data, error } = await serviceSupabase
             .from("power_readings")
-            .select("id, voltage, current_amp, power_w, energy_kwh, recorded_at")
+            .select(READING_COLUMNS)
             .eq("device_id", deviceId)
             .eq("customer_id", customerId)
             .gte("recorded_at", start.toISOString())

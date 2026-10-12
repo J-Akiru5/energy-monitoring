@@ -9,6 +9,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  type YAxisProps,
 } from "recharts";
 import { usePrimaryDevice } from "@/hooks/usePrimaryDevice";
 import {
@@ -41,6 +42,7 @@ type HistoryResponse = {
     peakPower: number;
     minVoltage: number;
     maxVoltage: number;
+    liveSampleCount: number;
   };
   alerts: Array<{
     id: string;
@@ -122,6 +124,16 @@ const METRIC_OPTIONS: Array<{
     digits: 1,
   },
 ];
+
+/**
+ * Power is an instantaneous rate (W), not energy — kWh would be the wrong
+ * unit. Large values switch to kW so they stay readable.
+ */
+function formatPower(watts: number) {
+  return Math.abs(watts) >= 1000
+    ? `${(watts / 1000).toFixed(2)} kW`
+    : `${watts.toFixed(1)} W`;
+}
 
 export default function HistoryPage() {
   const { deviceId, isLoading: isDeviceLoading } = usePrimaryDevice();
@@ -216,7 +228,11 @@ export default function HistoryPage() {
     };
   }, [deviceId, period, selectedDate]);
 
-  const selectedMetric = METRIC_OPTIONS.find((option) => option.key === metric) ?? METRIC_OPTIONS[0];
+  // Chart title, units and axis follow the metric the loaded data was fetched
+  // for, so switching metrics never draws the previous series on the new axis.
+  const selectedMetric =
+    METRIC_OPTIONS.find((option) => option.key === (history?.chartMetric ?? metric)) ??
+    METRIC_OPTIONS[0];
   const timelineTitle = selectedMetric.key === "energy_kwh"
     ? period === "day"
       ? "Energy Timeline"
@@ -231,6 +247,32 @@ export default function HistoryPage() {
       : `daily average ${selectedMetric.label.toLowerCase()}`;
 
   const chartWidth = Math.max(860, (history?.chartPoints.length ?? 1) * (period === "day" ? 18 : 78));
+
+  const liveSampleCount = history?.summary.liveSampleCount ?? 0;
+  const hasLiveSamples = liveSampleCount > 0;
+  const chartMax = (history?.chartPoints ?? []).reduce((max, point) => Math.max(max, point.value), 0);
+  const powerInKw = selectedMetric.key === "power_w" && chartMax >= 1000;
+  const axisUnit = powerInKw ? " kW" : selectedMetric.yAxisUnit;
+  const formatAxisValue = (value: number) =>
+    String(
+      powerInKw
+        ? Number((value / 1000).toFixed(1))
+        : selectedMetric.key === "voltage"
+          ? Math.round(value)
+          : value
+    );
+  const formatTooltipValue = (value: number) =>
+    powerInKw
+      ? `${(value / 1000).toFixed(2)} kW`
+      : `${value.toFixed(selectedMetric.digits)}${selectedMetric.yAxisUnit}`;
+  // Voltage barely moves (≈220–240 V); a zero-based axis flattens it into a line.
+  const yAxisDomain: YAxisProps["domain"] =
+    selectedMetric.key === "voltage"
+      ? [
+          (min: number) => Math.floor((min - 2) / 10) * 10,
+          (max: number) => Math.ceil((max + 2) / 10) * 10,
+        ]
+      : [0, "auto"];
 
   return (
     <div className="page-shell">
@@ -256,19 +298,6 @@ export default function HistoryPage() {
               }}
             >
               {option}
-            </button>
-          ))}
-        </div>
-
-        <div className="segmented-control" aria-label="Timeline metric selector">
-          {METRIC_OPTIONS.map((option) => (
-            <button
-              key={option.key}
-              type="button"
-              className={`segmented-control-btn ${metric === option.key ? "active" : ""}`}
-              onClick={() => setMetric(option.key)}
-            >
-              {option.label}
             </button>
           ))}
         </div>
@@ -301,29 +330,47 @@ export default function HistoryPage() {
             </article>
             <article className="summary-card">
               <div className="summary-label">Average Voltage</div>
-              <div className="summary-value">{history.summary.averageVoltage.toFixed(1)} V</div>
+              <div className="summary-value">
+                {hasLiveSamples ? `${history.summary.averageVoltage.toFixed(1)} V` : "—"}
+              </div>
             </article>
             <article className="summary-card">
               <div className="summary-label">Average Current</div>
-              <div className="summary-value">{history.summary.averageCurrent.toFixed(3)} A</div>
+              <div className="summary-value">
+                {hasLiveSamples ? `${history.summary.averageCurrent.toFixed(3)} A` : "—"}
+              </div>
             </article>
             <article className="summary-card">
               <div className="summary-label">Average Power</div>
-              <div className="summary-value">{history.summary.averagePower.toFixed(1)} W</div>
+              <div className="summary-value">
+                {hasLiveSamples ? formatPower(history.summary.averagePower) : "—"}
+              </div>
             </article>
             <article className="summary-card">
               <div className="summary-label">Peak Power</div>
-              <div className="summary-value accent-cyan">{history.summary.peakPower.toFixed(1)} W</div>
+              <div className="summary-value accent-cyan">
+                {hasLiveSamples ? formatPower(history.summary.peakPower) : "—"}
+              </div>
             </article>
             <article className="summary-card">
               <div className="summary-label">Min Voltage</div>
-              <div className="summary-value">{history.summary.minVoltage.toFixed(1)} V</div>
+              <div className="summary-value">
+                {hasLiveSamples ? `${history.summary.minVoltage.toFixed(1)} V` : "—"}
+              </div>
             </article>
             <article className="summary-card">
               <div className="summary-label">Max Voltage</div>
-              <div className="summary-value">{history.summary.maxVoltage.toFixed(1)} V</div>
+              <div className="summary-value">
+                {hasLiveSamples ? `${history.summary.maxVoltage.toFixed(1)} V` : "—"}
+              </div>
             </article>
           </section>
+
+          <p className="summary-hint">
+            Voltage, current and power statistics use the {liveSampleCount} of {history.sampleCount} recorded
+            samples with live voltage; offline and blackout samples are excluded. Power is instantaneous
+            (W / kW) — cumulative energy is the Total kWh above.
+          </p>
 
           {history.rangeStart && history.rangeEnd && (
             <div className="panel-copy" style={{ marginTop: 10 }}>
@@ -350,13 +397,36 @@ export default function HistoryPage() {
                     )}
                   </div>
                 </div>
+
+                <div
+                  className="segmented-control history-metric-control"
+                  role="group"
+                  aria-label="Timeline metric selector"
+                >
+                  {METRIC_OPTIONS.map((option) => (
+                    <button
+                      key={option.key}
+                      type="button"
+                      aria-pressed={metric === option.key}
+                      className={`segmented-control-btn ${metric === option.key ? "active" : ""}`}
+                      onClick={() => setMetric(option.key)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <div className="history-chart-scroll">
+              {history.chartPoints.length === 0 ? (
+                <div className="page-empty compact history-chart-empty">
+                  No live {selectedMetric.label.toLowerCase()} readings were recorded for this {period}.
+                </div>
+              ) : (
+              <div className="history-chart-scroll" style={{ opacity: isLoading ? 0.55 : 1 }}>
                 <div className="history-chart-frame">
-                  <AreaChart 
-                    width={chartWidth} 
-                    height={340} 
+                  <AreaChart
+                    width={chartWidth}
+                    height={340}
                     data={history.chartPoints}
                     onClick={(state) => {
                       if (period === "day" || !state || !state.activePayload) return;
@@ -380,7 +450,14 @@ export default function HistoryPage() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                       <XAxis dataKey="label" stroke="#64748B" tick={{ fontSize: 11 }} minTickGap={24} />
-                      <YAxis stroke="#64748B" tick={{ fontSize: 11 }} unit={selectedMetric.yAxisUnit} />
+                      <YAxis
+                        stroke="#64748B"
+                        tick={{ fontSize: 11 }}
+                        unit={axisUnit}
+                        domain={yAxisDomain}
+                        allowDecimals={selectedMetric.key !== "voltage"}
+                        tickFormatter={formatAxisValue}
+                      />
                       <Tooltip
                         contentStyle={{
                           background: "#0F172A",
@@ -388,7 +465,7 @@ export default function HistoryPage() {
                           borderRadius: 10,
                         }}
                         formatter={(value: number) => [
-                          value.toFixed(selectedMetric.digits),
+                          formatTooltipValue(value),
                           history.chartMetric === "energy_kwh"
                             ? period === "day"
                               ? "Meter energy"
@@ -403,11 +480,12 @@ export default function HistoryPage() {
                         stroke="#06B6D4"
                         strokeWidth={2}
                         fill="url(#historyGrad)"
-                        dot={false}
+                        dot={history.chartPoints.length <= 2 ? { r: 3 } : false}
                       />
                     </AreaChart>
                 </div>
               </div>
+              )}
             </article>
 
             <article className="history-panel">
