@@ -444,8 +444,8 @@ export default function HistoryPage() {
                   >
                       <defs>
                         <linearGradient id="historyGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#06B6D4" stopOpacity={0.35} />
-                          <stop offset="95%" stopColor="#06B6D4" stopOpacity={0.02} />
+                          <stop offset="5%" stopColor="var(--accent-cyan)" stopOpacity={0.35} />
+                          <stop offset="95%" stopColor="var(--accent-cyan)" stopOpacity={0.02} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
@@ -460,8 +460,8 @@ export default function HistoryPage() {
                       />
                       <Tooltip
                         contentStyle={{
-                          background: "#0F172A",
-                          border: "1px solid #475569",
+                          background: "var(--tooltip-bg)",
+                          border: "1px solid var(--tooltip-border)",
                           borderRadius: 10,
                         }}
                         formatter={(value: number) => [
@@ -477,7 +477,7 @@ export default function HistoryPage() {
                       <Area
                         type="monotone"
                         dataKey="value"
-                        stroke="#06B6D4"
+                        stroke="var(--accent-cyan)"
                         strokeWidth={2}
                         fill="url(#historyGrad)"
                         dot={history.chartPoints.length <= 2 ? { r: 3 } : false}

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ThemeToggle } from "@energy/ui";
 import { logout } from "../actions";
 
 const NAV_GROUPS = [
@@ -99,6 +100,10 @@ export function Sidebar({ open = false, onNavigate }: SidebarProps) {
       </div>
 
       <div className="sidebar-signout-section">
+        <div className="sidebar-theme-row">
+          <span className="sidebar-theme-label">Theme</span>
+          <ThemeToggle />
+        </div>
         <form action={logout}>
           <button
             type="submit"

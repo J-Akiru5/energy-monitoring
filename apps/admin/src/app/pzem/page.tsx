@@ -33,9 +33,9 @@ function formatOngoingDuration(startedAt: string): string {
 }
 
 const PHASE_COLORS: Record<string, string> = {
-  A: "#fb7185",
-  B: "#F59E0B",
-  C: "#06B6D4",
+  A: "var(--phase-a)",
+  B: "var(--phase-b)",
+  C: "var(--phase-c)",
 };
 
 export default function PzemStatusPage() {
@@ -282,7 +282,7 @@ export default function PzemStatusPage() {
                         background: entry.healthy
                           ? "rgba(63,185,80,0.15)"
                           : "rgba(248,81,73,0.14)",
-                        color: entry.healthy ? "#6ee7b7" : "#fb7185",
+                        color: entry.healthy ? "var(--accent-emerald-soft)" : "var(--accent-rose-soft)",
                         border: `1px solid ${entry.healthy ? "rgba(63,185,80,0.4)" : "rgba(248,81,73,0.3)"}`,
                       }}
                     >
@@ -291,7 +291,7 @@ export default function PzemStatusPage() {
                           width: 6,
                           height: 6,
                           borderRadius: "50%",
-                          background: entry.healthy ? "#4ade80" : "#f87171",
+                          background: entry.healthy ? "var(--accent-green-soft)" : "var(--accent-red-soft)",
                         }}
                       />
                       {entry.healthy ? "HEALTHY" : "OFFLINE"}
@@ -397,7 +397,7 @@ export default function PzemStatusPage() {
                   style={{
                     background: config?.mode === "auto" ? "rgba(6,182,212,0.18)" : undefined,
                     borderColor: config?.mode === "auto" ? "rgba(6,182,212,0.4)" : undefined,
-                    color: config?.mode === "auto" ? "#67e8f9" : undefined,
+                    color: config?.mode === "auto" ? "var(--accent-cyan-soft)" : undefined,
                     opacity: config?.mode === "auto" ? 1 : 0.7,
                   }}
                 >
@@ -410,7 +410,7 @@ export default function PzemStatusPage() {
                   style={{
                     background: config?.mode === "manual" ? "rgba(245,158,11,0.18)" : undefined,
                     borderColor: config?.mode === "manual" ? "rgba(245,158,11,0.4)" : undefined,
-                    color: config?.mode === "manual" ? "#fbbf24" : undefined,
+                    color: config?.mode === "manual" ? "var(--accent-amber-soft)" : undefined,
                     opacity: config?.mode === "manual" ? 1 : 0.7,
                   }}
                 >
@@ -456,7 +456,7 @@ export default function PzemStatusPage() {
                             color: isSelected
                               ? PHASE_COLORS[source]
                               : isOffline
-                                ? "#fb7185"
+                                ? "var(--accent-rose-soft)"
                                 : undefined,
                             opacity: isOffline ? 0.5 : 1,
                             cursor: isOffline ? "not-allowed" : "pointer",
@@ -467,7 +467,7 @@ export default function PzemStatusPage() {
                               width: 8,
                               height: 8,
                               borderRadius: "50%",
-                              background: isOffline ? "#f87171" : "#4ade80",
+                              background: isOffline ? "var(--accent-red-soft)" : "var(--accent-green-soft)",
                               display: "inline-block",
                             }}
                           />
@@ -496,7 +496,7 @@ export default function PzemStatusPage() {
                       ? "rgba(248,81,73,0.1)"
                       : "rgba(16,185,129,0.1)",
                     border: `1px solid ${saveMsg.startsWith("Error") || saveMsg.startsWith("Network") ? "rgba(248,81,73,0.3)" : "rgba(16,185,129,0.3)"}`,
-                    color: saveMsg.startsWith("Error") || saveMsg.startsWith("Network") ? "#fb7185" : "#6ee7b7",
+                    color: saveMsg.startsWith("Error") || saveMsg.startsWith("Network") ? "var(--accent-rose-soft)" : "var(--accent-emerald-soft)",
                   }}
                 >
                   {saveMsg}

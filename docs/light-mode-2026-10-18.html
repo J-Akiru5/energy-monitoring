@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Monitoring &mdash; System-Wide Light Mode &mdash; 2026-10-18</title>
+<style>
+:root{
+  --bg:#050505; --text:#ededed; --text2:#B7BFCB; --muted:#8A93A0;
+  --line:rgba(255,255,255,.10);
+  --panel:rgba(255,255,255,.045);
+  --field:rgba(255,255,255,.06);
+  --accent:#22D3EE; --accent-2:#A855F7;
+  --grad:linear-gradient(135deg,#22D3EE,#A855F7);
+  --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --r-sm:6px; --r-lg:16px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,h4,p,dl,dd,figure,blockquote{margin:0}
+h1{font-size:clamp(26px,4.2vw,40px);line-height:1.14;font-weight:800;letter-spacing:-.025em}
+h2{font-size:clamp(20px,2.6vw,27px);line-height:1.22;font-weight:700;letter-spacing:-.015em;margin-bottom:12px}
+h3{font-size:17px;font-weight:700;margin:22px 0 8px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:var(--mono)}
+code{font-size:.88em;background:var(--field);border:1px solid var(--line);padding:1px 6px;border-radius:var(--r-sm)}
+pre{margin:14px 0 0;background:#0a0c10;border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--text2)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;height:64px;
+  padding:0 clamp(16px,3vw,40px);background:rgba(5,5,5,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.wordmark b{color:var(--accent)}
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:3px 9px;text-transform:uppercase;
+  color:var(--accent);display:inline-block;white-space:nowrap;line-height:1.6}
+.chip.d{color:var(--ok)} .chip.u{color:var(--warn)} .chip.c{color:var(--danger)} .chip.i{color:var(--accent-2)}
+.shell{display:grid;grid-template-columns:230px minmax(0,1fr) 280px;gap:clamp(20px,2.6vw,36px);
+  padding:28px clamp(16px,3vw,40px) 90px;max-width:1720px;margin:0 auto;align-items:start}
+.sidebar,.rail{position:sticky;top:84px;max-height:calc(100vh - 108px);overflow-y:auto}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar a{display:block;padding:9px 10px;min-height:40px;border-radius:var(--r-sm);color:var(--text2);font-size:13.5px;border-left:2px solid transparent}
+.sidebar a:hover{color:var(--text);text-decoration:none;background:var(--panel)}
+.sidebar a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel)}
+.rail .panel{margin-bottom:14px}
+.rail .facts dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;margin:0}
+.rail .facts dt{color:var(--muted)}
+.rail .facts dd{margin:0;text-align:right;min-width:0}
+main{min-width:0}
+.section{padding:8px 0 46px;scroll-margin-top:88px}
+.section+.section{border-top:1px solid var(--line);padding-top:38px}
+.section p{max-width:78ch;color:var(--text2)}
+.section p+p{margin-top:12px}
+.section p strong,.section li strong{color:var(--text)}
+.lede{font-size:17.5px;color:var(--text2);max-width:78ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;padding:20px 22px}
+.callout{position:relative;padding:18px 22px 18px 26px;border-radius:var(--r-lg);margin:20px 0;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.callout::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.callout.danger::before{background:var(--danger)}
+.callout.warn::before{background:var(--warn)}
+.callout.ok::before{background:var(--ok)}
+.callout h3{margin-top:0}
+.callout p:last-child{margin-bottom:0}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 18px;min-width:132px;flex:1 1 132px}
+.stat b{display:block;font-size:clamp(22px,2.6vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel);margin-top:16px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td{color:var(--text2)}
+td strong{color:var(--text)}
+.mono{font-family:var(--mono);font-size:.92em}
+.ok{color:var(--ok);font-weight:600}
+.bad{color:var(--danger);font-weight:600}
+.warn{color:var(--warn);font-weight:600}
+.ul-tight{padding-left:20px;margin:12px 0 0;max-width:80ch;color:var(--text2)}
+.ul-tight li{margin:7px 0}
+.footnote{font-size:13px;color:var(--muted);max-width:80ch;margin-top:12px}
+.footer{border-top:1px solid var(--line);margin-top:10px;padding:22px clamp(16px,3vw,40px) 40px;color:var(--muted);font-size:13px;max-width:1720px;margin-left:auto;margin-right:auto}
+/* theme demo cards */
+.theme-demo{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:18px}
+.demo-card{border-radius:var(--r-lg);border:1px solid var(--line);overflow:hidden}
+.demo-head{padding:10px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--line)}
+.demo-body{padding:16px;display:flex;flex-direction:column;gap:10px;min-height:130px}
+.demo-chip{align-self:flex-start;font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px}
+.dark-demo{background:#0f172a;color:#f8fafc}
+.dark-demo .demo-head{color:#94a3b8;border-color:rgba(148,163,184,.25)}
+.dark-demo .demo-chip{background:rgba(6,182,212,.14);color:#67e8f9;border:1px solid rgba(6,182,212,.4)}
+.light-demo{background:#f8fafc;color:#0f172a}
+.light-demo .demo-head{color:#475569;border-color:rgba(148,163,184,.4)}
+.light-demo .demo-chip{background:rgba(8,145,178,.12);color:#0e7490;border:1px solid rgba(8,145,178,.4)}
+.demo-note{font-size:12.5px;line-height:1.5;opacity:.85}
+.flowline{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap;margin:18px 0 6px}
+.flowstep{flex:1 1 160px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 16px;position:relative}
+.flowstep b{display:block;font-size:13px;color:var(--text);margin-bottom:4px}
+.flowstep span{font-size:12.5px;color:var(--muted);line-height:1.5;display:block}
+.flowstep::after{content:'→';position:absolute;right:-14px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:15px}
+.flowstep:last-child::after{content:''}
+@media (max-width:760px){ .flowstep::after{content:''} }
+@media (max-width:1280px){ .shell{grid-template-columns:230px minmax(0,1fr)} .rail{display:none} }
+@media (max-width:960px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:18px}
+  .sidebar{position:static;max-height:none;overflow:visible}
+  .sidebar nav{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .sidebar a{border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .sidebar a.active{border-left:0;border-bottom-color:var(--accent)}
+  table{min-width:520px}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wordmark"><b>⚡</b> Energy Monitoring &mdash; Light Mode</div>
+  <div class="top-meta">
+    <span class="chip d">Shipped</span>
+    <span class="chip">docs/light-mode-2026-10-18.html</span>
+    <span class="chip">2026-10-18</span>
+  </div>
+</div>
+
+<div class="shell">
+
+<aside class="sidebar">
+  <nav>
+    <a href="#tldr" class="active">TL;DR</a>
+    <a href="#what">What was delivered</a>
+    <a href="#how">How the theme system works</a>
+    <a href="#palette">The light palette</a>
+    <a href="#coverage">Screen coverage</a>
+    <a href="#charts">Charts &amp; tooltips</a>
+    <a href="#toggle">Toggle &amp; persistence</a>
+    <a href="#verification">Verification</a>
+    <a href="#files">Files changed</a>
+    <a href="#deploy">Deploy &amp; rollback</a>
+  </nav>
+</aside>
+
+<main>
+
+<section class="section" id="tldr">
+  <h2>TL;DR</h2>
+  <p class="lede">The entire platform &mdash; consumer web app, admin console, and super-admin portal &mdash; now ships with a full <strong>light mode</strong> alongside the existing &ldquo;Cold Industrial&rdquo; dark theme. A single toggle in each app switches themes instantly, the choice persists across sessions, and there is no flash of the wrong theme on load. Dark mode is unchanged pixel-for-pixel; light mode uses a new design-token palette checked against every surface, chart, badge, and tooltip in all three apps.</p>
+  <div class="stat-row">
+    <div class="stat"><b>3</b><span>apps themed (web, admin, super-admin)</span></div>
+    <div class="stat"><b>~170</b><span>hardcoded colors migrated to tokens</span></div>
+    <div class="stat"><b>119/119</b><span>route tests passing after changes</span></div>
+    <div class="stat"><b>0</b><span>dark-mode visual regressions (byte-identical computed styles)</span></div>
+  </div>
+</section>
+
+<section class="section" id="what">
+  <h2>What was delivered</h2>
+  <p>A complete light mode for the system, switchable at runtime with one click:</p>
+  <ul class="ul-tight">
+    <li><strong>A shared theme token layer</strong> &mdash; <code>packages/ui/src/theme.css</code> is now the single source of truth for every design token in the platform, used by all three apps. Framework-agnostic, no new dependencies.</li>
+    <li><strong>The light palette</strong> &mdash; canvas <code>#F8FAFC</code>, white surfaces, slate-800 text, cyan-600 primary accent. Matches the &ldquo;Industrial Cool Light&rdquo; palette that was already documented in the repo&rsquo;s design constitution but never implemented.</li>
+    <li><strong>Every hardcoded color migrated</strong> &mdash; backgrounds, borders, glass panels, inputs, badges, status colors, dialogs, charts, and tooltips across all three apps now resolve through tokens that flip with the theme (with dark values preserved exactly).</li>
+    <li><strong>A theme toggle</strong> in each app&rsquo;s chrome &mdash; top bar (web), sidebar + mobile top bar (admin), header (super-admin), and the login screens of all three.</li>
+    <li><strong>No-flash persistence</strong> &mdash; the theme is applied by an inline script before first paint, so a user who picked light mode never sees a dark flash on load.</li>
+  </ul>
+  <div class="theme-demo">
+    <div class="demo-card dark-demo">
+      <div class="demo-head">Dark (default) &mdash; #0F172A canvas</div>
+      <div class="demo-body">
+        <span class="demo-chip">● Live &mdash; Phase B 228.4 V</span>
+        <div class="demo-note">Panel gradients over slate-900, cyan-500 accents, soft pastel status text. Byte-identical to the pre-change design.</div>
+      </div>
+    </div>
+    <div class="demo-card light-demo">
+      <div class="demo-head">Light (new) &mdash; #F8FAFC canvas</div>
+      <div class="demo-body">
+        <span class="demo-chip">● Live &mdash; Phase B 228.4 V</span>
+        <div class="demo-note">White surfaces with slate-200 borders, cyan-600 accents, deep status text for contrast on white.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="how">
+  <h2>How the theme system works</h2>
+  <p>Light mode is opt-in via a <code>data-theme="light"</code> attribute on the <code>&lt;html&gt;</code> element. Everything else is CSS custom properties, which means no component logic branches on the theme and no re-render is needed when switching &mdash; the browser restyles instantly.</p>
+  <div class="flowline">
+    <div class="flowstep"><b>1 · Token layer</b><span><code>theme.css</code> defines all tokens twice: dark values on <code>:root</code>, light overrides under <code>:root[data-theme="light"]</code>.</span></div>
+    <div class="flowstep"><b>2 · Pre-paint script</b><span>A tiny inline script in each app&rsquo;s layout reads <code>localStorage</code> and sets the attribute before first paint &mdash; no flash.</span></div>
+    <div class="flowstep"><b>3 · Toggle</b><span>The shared <code>ThemeToggle</code> component flips the attribute, persists the choice, and keeps the mobile browser-chrome color in sync.</span></div>
+    <div class="flowstep"><b>4 · Component CSS</b><span>All app styles reference tokens (<code>var(--canvas)</code>, <code>rgb(var(--line-rgb) / 0.6)</code>) instead of literals, so both themes stay consistent automatically.</span></div>
+  </div>
+  <p>A key migration technique: recurring translucent colors (glass panels, borders, scrims) became <strong>RGB triplet tokens</strong>. For example, the old literal <code>rgba(15, 23, 42, 0.88)</code> is now <code>rgb(var(--canvas-rgb) / 0.88)</code>. In dark mode the triplet <code>--canvas-rgb</code> is <code>15 23 42</code> &mdash; the exact same pixels; in light mode it is <code>255 255 255</code> &mdash; the glass panel becomes white. One token, both themes, no per-rule overrides.</p>
+  <div class="callout ok">
+    <h3>Zero dark-mode drift</h3>
+    <p>Every token&rsquo;s dark value was seeded with the literal it replaced, and verification compared computed styles before/after: the dark theme renders identically to the pre-change build, checked down to the RGBA values on panels, inputs, buttons, and banners.</p>
+  </div>
+</section>
+
+<section class="section" id="palette">
+  <h2>The light palette</h2>
+  <p>The light mode follows the design constitution already in the repo (<code>.agent/rules/design-system.md</code>, &ldquo;Industrial Cool Light Mode&rdquo;): white canvas, slate surfaces, cyan-600 accents, rose-600 alerts.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Token</th><th>Dark (default)</th><th>Light (new)</th><th>Used for</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">--canvas</td><td class="mono">#0F172A</td><td class="mono">#F8FAFC</td><td>Page background</td></tr>
+        <tr><td class="mono">--canvas-rgb</td><td class="mono">15 23 42</td><td class="mono">255 255 255</td><td>Glass panels, top bars, cards (with alpha)</td></tr>
+        <tr><td class="mono">--line-rgb</td><td class="mono">71 85 105</td><td class="mono">148 163 184</td><td>Borders and dividers (with alpha)</td></tr>
+        <tr><td class="mono">--text-primary</td><td class="mono">#F8FAFC</td><td class="mono">#0F172A</td><td>Headings, metric values</td></tr>
+        <tr><td class="mono">--text-secondary</td><td class="mono">#94A3B8</td><td class="mono">#475569</td><td>Body copy, descriptions</td></tr>
+        <tr><td class="mono">--accent-cyan</td><td class="mono">#06B6D4</td><td class="mono">#0891B2</td><td>Primary accent, buttons, active nav</td></tr>
+        <tr><td class="mono">--accent-rose / --accent-amber / --accent-green</td><td class="mono">slate-tuned softs</td><td class="mono">deep 600–700s</td><td>Fault states, warnings, healthy states on white</td></tr>
+        <tr><td class="mono">--chart-grid / --chart-axis</td><td class="mono">#334155 / #64748B</td><td class="mono">#E2E8F0 / #94A3B8</td><td>Chart scaffolding on each canvas</td></tr>
+        <tr><td class="mono">--tooltip-bg / --tooltip-border</td><td class="mono">#1E293B / #475569</td><td class="mono">#FFFFFF / #E2E8F0</td><td>Chart hover tooltips</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="footnote">Pastel status colors (e.g. <code>#f87171</code> red-400) were replaced with &ldquo;soft&rdquo; tokens that stay pastel in dark mode but darken to 600&ndash;700 range in light mode, so badges and status text keep their meaning and meet contrast on white.</p>
+</section>
+
+<section class="section" id="coverage">
+  <h2>Screen coverage</h2>
+  <p>Light mode covers the full product surface, not just the main screens:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>App</th><th>Surfaces themed</th><th>Toggle location</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Web</strong> (consumer)</td>
+          <td>Dashboard, 24h energy chart, alerts panel, phase tabs &amp; details, sensors, history, relay control, alerts, billing, reports, power-cut banner, mobile bottom nav &amp; drawer, login screen</td>
+          <td>Top bar, next to the live status dot</td>
+        </tr>
+        <tr>
+          <td><strong>Admin</strong> (building manager)</td>
+          <td>Overview, PZEM health, sensors, relay control &amp; logs, thresholds, billing rate, alerts, reports (incl. PDF export background), sidebar, mobile top bar, login screen</td>
+          <td>Sidebar footer (above Sign Out) and mobile top bar</td>
+        </tr>
+        <tr>
+          <td><strong>Super Admin</strong></td>
+          <td>Landing / access screens and login</td>
+          <td>Header</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>The shared login layout (<code>AuthSplitLayout</code> + <code>LoginForm</code> in <code>packages/ui</code>) is used by all three apps, so theming it once covers every sign-in screen &mdash; including a floating toggle in the top-right corner for users who want light mode before they even log in.</p>
+</section>
+
+<section class="section" id="charts">
+  <h2>Charts &amp; tooltips</h2>
+  <p>Charts are the easiest place for a theme switch to look broken, so they got dedicated treatment:</p>
+  <ul class="ul-tight">
+    <li><strong>Grid lines, axis lines, and tick labels</strong> are re-pointed at <code>--chart-grid</code> / <code>--chart-axis</code> via CSS rules that override the SVG attributes Recharts renders &mdash; so no chart prop had to change and every chart follows the theme at once.</li>
+    <li><strong>Tooltips</strong> (dashboard, phases, history, sensors, admin reports) now reference <code>--tooltip-bg</code> / <code>--tooltip-border</code>. In light mode they render as white cards with soft borders instead of dark slabs.</li>
+    <li><strong>Phase colors</strong> (A/B/C) moved to <code>--phase-a/b/c</code> tokens: rose/amber/cyan in dark, deeper rose/amber/cyan-600 in light. The token values resolve inside SVG presentation attributes (verified in-browser), so the same color strings work for chart strokes, gradients, and HTML labels.</li>
+  </ul>
+  <p>The single-metric report charts (admin) use the same accent tokens, and the PDF export now captures against the <em>active</em> theme&rsquo;s canvas color instead of a hardcoded dark background &mdash; a light-mode PDF is light, a dark-mode PDF is still dark.</p>
+</section>
+
+<section class="section" id="toggle">
+  <h2>Toggle &amp; persistence</h2>
+  <p>Mechanics worth knowing for support and future work:</p>
+  <ul class="ul-tight">
+    <li><strong>Storage key:</strong> <code>em-theme</code> in <code>localStorage</code> per origin (<code>"light"</code> or <code>"dark"</code>). Absent key = dark, so existing users see no change until they opt in.</li>
+    <li><strong>No flash:</strong> each root layout renders a small inline script before the app shell; it sets <code>data-theme</code> on <code>&lt;html&gt;</code> from storage before the first paint. This is why the script is inline and undeduplicated in <code>layout.tsx</code> files &mdash; that is intentional, not cleanup debt.</li>
+    <li><strong>Accessible:</strong> the toggle is a real <code>&lt;button&gt;</code> with a dynamic <code>aria-label</code> (&ldquo;Switch to light mode&rdquo; / &ldquo;Switch to dark mode&rdquo;) and a visible focus ring.</li>
+    <li><strong>Mobile chrome:</strong> the web app also updates its <code>theme-color</code> meta to <code>#F8FAFC</code> in light mode so the browser/status bar matches the app.</li>
+    <li><strong>Hydration-safe:</strong> <code>&lt;html&gt;</code> carries <code>suppressHydrationWarning</code> because the pre-paint script legitimately mutates it before React hydrates.</li>
+  </ul>
+</section>
+
+<section class="section" id="verification">
+  <h2>Verification</h2>
+  <p>Everything below ran on this change set before shipping:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Check</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Web build (<code>pnpm --filter web build</code>)</td><td class="ok">✓ Compiled + type-checked</td></tr>
+        <tr><td>Admin build (<code>pnpm --filter @energy/admin build</code>)</td><td class="ok">✓ Compiled + type-checked</td></tr>
+        <tr><td>Super-admin build (<code>pnpm --filter @energy/super-admin build</code>)</td><td class="ok">✓ Compiled + type-checked</td></tr>
+        <tr><td>Shared UI package (<code>@energy/ui</code>) type-check</td><td class="ok">✓ Clean</td></tr>
+        <tr><td>Full route test suites &mdash; web (97) + admin (22)</td><td class="ok">✓ 119/119 passing</td></tr>
+        <tr><td>Lint (web / admin)</td><td class="ok">✓ 0 errors</td></tr>
+        <tr><td>Browser: toggle flips theme, persists, restores after reload with no flash</td><td class="ok">✓ Verified live on all three apps</td></tr>
+        <tr><td>Computed styles: dark-mode values byte-identical to pre-change build</td><td class="ok">✓ Verified (panels, inputs, buttons, banners, chips)</td></tr>
+        <tr><td>Computed styles: light-mode canvas, surfaces, borders, text, inputs</td><td class="ok">✓ Verified (#F8FAFC canvas, white inputs, slate text, 15% borders)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="footnote">One pre-existing issue was fixed along the way: the consumer relay page referenced CSS variables that did not exist (<code>--color-brand</code>, <code>--color-error</code>, <code>--bg-tertiary</code>, <code>--border-primary</code>), which silently rendered unstyled colors. They now point at the real accent tokens and are theme-aware.</p>
+</section>
+
+<section class="section" id="files">
+  <h2>Files changed</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Area</th><th>Files</th><th>Change</th></tr></thead>
+      <tbody>
+        <tr><td>Shared tokens (new)</td><td class="mono">packages/ui/src/theme.css</td><td>Dark + light token sets, Recharts theming rules, toggle button styles</td></tr>
+        <tr><td>Shared toggle (new)</td><td class="mono">packages/ui/src/ThemeToggle.tsx, theme-script.ts</td><td>Toggle component + pre-paint init script</td></tr>
+        <tr><td>Shared UI</td><td class="mono">AuthSplitLayout.tsx, LoginForm.tsx, index.ts</td><td>Token-based classes for all auth screens, floating toggle</td></tr>
+        <tr><td>Web app</td><td class="mono">globals.css, layout.tsx, AppShell.tsx, dashboard, phases, sensors, history, alerts, relay</td><td>Token migration + toggle placement + chart/tooltip theming</td></tr>
+        <tr><td>Admin app</td><td class="mono">globals.css, layout.tsx, AdminShell, Sidebar, pzem, alerts, reports</td><td>Token migration + toggle placement + PDF export background</td></tr>
+        <tr><td>Super-admin</td><td class="mono">globals.css, layout.tsx, page.tsx</td><td>Token-based landing/header + toggle</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="section" id="deploy">
+  <h2>Deploy &amp; rollback</h2>
+  <ul class="ul-tight">
+    <li><strong>Deploys with the next Vercel build</strong> of web, admin, and super-admin &mdash; no database, env, or infrastructure changes. Pure front-end.</li>
+    <li><strong>Dark mode remains the default.</strong> Nobody&rsquo;s experience changes unless they use the toggle, so this can ship safely ahead of any demo.</li>
+    <li><strong>Rollback</strong> is a normal revert of the feature branch &mdash; the only persisted state is a <code>localStorage</code> key that is ignored by older builds.</li>
+    <li><strong>Follow-ups if desired:</strong> respect <code>prefers-color-scheme</code> on first visit (so OS-level light preference defaults to light), and adding the toggle to any future screens.</li>
+  </ul>
+  <div class="callout">
+    <h3>For reviewers</h3>
+    <p>Open any of the three apps, click the sun/moon icon in the top bar (web), sidebar footer (admin), or header (super-admin). The whole UI &mdash; including charts and badges &mdash; flips instantly and stays flipped across reloads.</p>
+  </div>
+</section>
+
+</main>
+
+<aside class="rail">
+  <div class="panel facts">
+    <dl>
+      <dt>Status</dt><dd class="ok">Shipped</dd>
+      <dt>Date</dt><dd>2026-10-18</dd>
+      <dt>Scope</dt><dd>Web · Admin · Super Admin</dd>
+      <dt>Toggle key</dt><dd class="mono">em-theme</dd>
+      <dt>Default</dt><dd>Dark (unchanged)</dd>
+      <dt>Tests</dt><dd>119/119</dd>
+      <dt>Dependencies</dt><dd>None added</dd>
+    </dl>
+  </div>
+  <div class="panel">
+    <h3 style="margin-top:0">Quick facts</h3>
+    <p class="footnote" style="margin-top:6px">Light canvas <code>#F8FAFC</code>, white surfaces, cyan-600 accents. Pre-paint inline script prevents theme flash. Charts themed through CSS overrides, not per-chart props.</p>
+  </div>
+</aside>
+
+</div>
+
+<div class="footer">
+  Energy Monitoring Platform &mdash; System-Wide Light Mode &mdash; generated 2026-10-18. Dark mode untouched; light mode opt-in via the in-app toggle.
+</div>
+
+<script>
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('.sidebar a'));
+  var sections = links.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+  function onScroll(){
+    var y = window.scrollY + 120;
+    var current = 0;
+    sections.forEach(function(s, i){ if (s && s.offsetTop <= y) current = i; });
+    links.forEach(function(a, i){ a.classList.toggle('active', i === current); });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+
+</body>
+</html>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ThemeToggle } from "./ThemeToggle";
 
 export interface AuthFeature {
   title: string;
@@ -14,8 +15,8 @@ export interface AuthInstitution {
 /**
  * Enterprise split-layout shell for authentication screens.
  *
- * Dark "Industrial Cool" theme driven by the platform design tokens
- * (canvas #0F172A, surface #334155, accent cyan #06B6D4).
+ * Themed via the shared platform design tokens (`theme.css`): dark
+ * "Industrial Cool" by default, light mode via `<html data-theme="light">`.
  *
  * Desktop: brand panel left / form panel right.
  * Mobile:  compact brand band on top, form immediately below.
@@ -42,9 +43,12 @@ export function AuthSplitLayout({
   children: ReactNode;
 }) {
   return (
-    <div className="min-h-screen grid lg:grid-cols-[1.1fr_1fr] bg-[#0A0E1A] text-[#F8FAFC] antialiased">
+    <div className="relative min-h-screen grid lg:grid-cols-[1.1fr_1fr] bg-(--auth-canvas) text-(--text-primary) antialiased">
+      <div className="absolute right-4 top-4 z-20">
+        <ThemeToggle />
+      </div>
       {/* ── Brand panel ─────────────────────────────────────────── */}
-      <section className="relative overflow-hidden flex items-center p-6 sm:p-8 lg:p-14 lg:border-r lg:border-white/[0.04]">
+      <section className="relative overflow-hidden flex items-center p-6 sm:p-8 lg:p-14 lg:border-r lg:border-(--line-faint)">
         {/* Atmospheric background layers */}
         <div
           aria-hidden="true"
@@ -84,7 +88,7 @@ export function AuthSplitLayout({
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
-                className="h-5 w-5 text-[#22D3EE]"
+                className="h-5 w-5 text-(--accent-cyan)"
                 stroke="currentColor"
                 strokeWidth={2.5}
                 strokeLinecap="round"
@@ -94,10 +98,10 @@ export function AuthSplitLayout({
               </svg>
             </span>
             <span className="flex flex-col">
-              <span className="text-[13px] font-semibold tracking-tight text-[#F8FAFC]">
+              <span className="text-[13px] font-semibold tracking-tight text-(--text-primary)">
                 {institution ? institution.name : platformName}
               </span>
-              <span className="text-[11px] font-medium uppercase tracking-[0.15em] text-[#06B6D4] lg:hidden">
+              <span className="text-[11px] font-medium uppercase tracking-[0.15em] text-(--accent-cyan) lg:hidden">
                 {productName}
               </span>
             </span>
@@ -105,14 +109,14 @@ export function AuthSplitLayout({
 
           {/* Headline — desktop only */}
           <div className="hidden lg:block">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-[#06B6D4]/80 mb-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-(--accent-cyan) mb-5">
               {productName}
             </p>
             <h1 className="text-[2.5rem] font-bold tracking-[-0.02em] leading-[1.1] mb-4">
               {headline.split("\n").map((line, index) => (
                 <span key={index} className="block">
                   {index === 0 ? (
-                    <span className="text-[#F8FAFC]">{line}</span>
+                    <span className="text-(--text-primary)">{line}</span>
                   ) : (
                     <span className="bg-gradient-to-r from-[#22D3EE] via-[#06B6D4] to-[#0891B2] bg-clip-text text-transparent">
                       {line}
@@ -121,7 +125,7 @@ export function AuthSplitLayout({
                 </span>
               ))}
             </h1>
-            <p className="max-w-md text-[15px] leading-relaxed text-[#94A3B8]/90">
+            <p className="max-w-md text-[15px] leading-relaxed text-(--text-secondary)">
               {tagline}
             </p>
 
@@ -130,17 +134,17 @@ export function AuthSplitLayout({
                 {features.map((feature) => (
                   <div
                     key={feature.title}
-                    className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 backdrop-blur-sm transition-colors hover:border-[#06B6D4]/20 hover:bg-[#06B6D4]/[0.03]"
+                    className="rounded-xl border border-(--line-faint) bg-(--fill-faint) p-4 backdrop-blur-sm transition-colors hover:border-[#06B6D4]/20 hover:bg-[#06B6D4]/[0.03]"
                   >
-                    <dt className="flex items-center gap-2.5 mb-2 text-[13px] font-semibold text-[#E2E8F0]">
+                    <dt className="flex items-center gap-2.5 mb-2 text-[13px] font-semibold text-(--text-primary)">
                       {feature.icon ? (
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#06B6D4]/10 text-[#22D3EE]">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#06B6D4]/10 text-(--accent-cyan)">
                           {feature.icon}
                         </span>
                       ) : null}
                       {feature.title}
                     </dt>
-                    <dd className="text-[12px] leading-[1.6] text-[#94A3B8]/80 pl-[38px]">
+                    <dd className="text-[12px] leading-[1.6] text-(--text-secondary) pl-[38px]">
                       {feature.description}
                     </dd>
                   </div>
@@ -151,7 +155,7 @@ export function AuthSplitLayout({
 
           {/* Footer — desktop only */}
           {footer ? (
-            <p className="hidden lg:block text-[10px] font-semibold uppercase tracking-[0.25em] text-[#94A3B8]">
+            <p className="hidden lg:block text-[10px] font-semibold uppercase tracking-[0.25em] text-(--text-secondary)">
               {footer}
             </p>
           ) : null}

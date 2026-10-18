@@ -42,11 +42,11 @@ export function LoginForm({
   return (
     <div>
       <div className="mb-8 text-center lg:text-left">
-        <h2 className="text-2xl font-bold tracking-tight text-[#F8FAFC]">
+        <h2 className="text-2xl font-bold tracking-tight text-(--text-primary)">
           {heading}
         </h2>
         {subheading ? (
-          <p className="mt-2 text-[15px] text-[#94A3B8]/80">{subheading}</p>
+          <p className="mt-2 text-[15px] text-(--text-secondary)">{subheading}</p>
         ) : null}
       </div>
 
@@ -54,7 +54,7 @@ export function LoginForm({
         <div>
           <label
             htmlFor={emailId}
-            className="mb-2 block text-[13px] font-medium text-[#CBD5E1]"
+            className="mb-2 block text-[13px] font-medium text-(--text-label)"
           >
             Email
           </label>
@@ -67,7 +67,7 @@ export function LoginForm({
             placeholder={emailPlaceholder}
             aria-invalid={hasError || undefined}
             aria-describedby={hasError ? errorId : undefined}
-            className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-[15px] text-[#F8FAFC] placeholder:text-[#64748B] transition-all duration-200 focus:border-[#06B6D4]/50 focus:outline-none focus:ring-2 focus:ring-[#06B6D4]/20 focus:bg-white/[0.05] backdrop-blur-sm"
+            className="w-full rounded-xl border border-(--input-border) bg-(--input-bg) px-4 py-3 text-[15px] text-(--text-primary) placeholder:text-(--text-muted) transition-all duration-200 focus:border-[#06B6D4]/50 focus:outline-none focus:ring-2 focus:ring-[#06B6D4]/20 backdrop-blur-sm"
           />
         </div>
 
@@ -75,14 +75,14 @@ export function LoginForm({
           <div className="mb-2 flex items-center justify-between">
             <label
               htmlFor={passwordId}
-              className="text-[13px] font-medium text-[#CBD5E1]"
+              className="text-[13px] font-medium text-(--text-label)"
             >
               Password
             </label>
             {forgotPasswordHref ? (
               <a
                 href={forgotPasswordHref}
-                className="text-[13px] text-[#06B6D4] transition-colors hover:text-[#22D3EE] focus:outline-none focus:ring-2 focus:ring-[#06B6D4]/40 rounded"
+                className="text-[13px] text-(--accent-cyan) transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-[#06B6D4]/40 rounded"
               >
                 Forgot password?
               </a>
@@ -98,14 +98,14 @@ export function LoginForm({
               placeholder="Enter your password"
               aria-invalid={hasError || undefined}
               aria-describedby={hasError ? errorId : undefined}
-              className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 pr-12 text-[15px] text-[#F8FAFC] placeholder:text-[#64748B] transition-all duration-200 focus:border-[#06B6D4]/50 focus:outline-none focus:ring-2 focus:ring-[#06B6D4]/20 focus:bg-white/[0.05] backdrop-blur-sm"
+              className="w-full rounded-xl border border-(--input-border) bg-(--input-bg) px-4 py-3 pr-12 text-[15px] text-(--text-primary) placeholder:text-(--text-muted) transition-all duration-200 focus:border-[#06B6D4]/50 focus:outline-none focus:ring-2 focus:ring-[#06B6D4]/20 backdrop-blur-sm"
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? "Hide password" : "Show password"}
               aria-pressed={showPassword}
-              className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-[#64748B] transition-colors hover:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#06B6D4]/40 rounded-r-xl"
+              className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-(--text-muted) transition-colors hover:text-(--text-secondary) focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#06B6D4]/40 rounded-r-xl"
             >
               {showPassword ? (
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]" aria-hidden="true">
@@ -128,7 +128,7 @@ export function LoginForm({
           <div
             id={errorId}
             role="alert"
-            className="rounded-xl border border-[#E11D48]/30 bg-[#E11D48]/[0.08] p-3.5 text-center text-sm text-[#FDA4AF]"
+            className="rounded-xl border border-[#E11D48]/30 bg-[#E11D48]/[0.08] p-3.5 text-center text-sm text-(--accent-pink-soft)"
           >
             {state.error}
           </div>
@@ -138,7 +138,7 @@ export function LoginForm({
           type="submit"
           disabled={isPending}
           aria-busy={isPending}
-          className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-[#06B6D4] to-[#0891B2] px-5 py-3.5 text-[15px] font-semibold text-[#0A0E1A] transition-all duration-200 hover:from-[#22D3EE] hover:to-[#06B6D4] focus:outline-none focus:ring-2 focus:ring-[#06B6D4]/50 focus:ring-offset-2 focus:ring-offset-[#0A0E1A] disabled:cursor-not-allowed disabled:opacity-60 shadow-[0_0_30px_rgba(6,182,212,0.2)]"
+          className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-[#06B6D4] to-[#0891B2] px-5 py-3.5 text-[15px] font-semibold text-(--on-accent) transition-all duration-200 hover:from-[#22D3EE] hover:to-[#06B6D4] focus:outline-none focus:ring-2 focus:ring-[#06B6D4]/50 focus:ring-offset-2 focus:ring-offset-(--auth-canvas) disabled:cursor-not-allowed disabled:opacity-60 shadow-[0_0_30px_rgba(6,182,212,0.2)]"
         >
           {isPending ? (
             <>
@@ -160,7 +160,7 @@ export function LoginForm({
       </form>
 
       {supportingText ? (
-        <p className="mt-8 text-center text-[12px] text-[#94A3B8]">
+        <p className="mt-8 text-center text-[12px] text-(--text-secondary)">
           {supportingText}
         </p>
       ) : null}

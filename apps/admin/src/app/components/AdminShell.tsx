@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ThemeToggle } from "@energy/ui";
 import { Sidebar } from "./Sidebar";
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -56,6 +57,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <Link href="/" className="admin-topbar-brand">
           ⚡ Energy Admin
         </Link>
+        <div className="admin-topbar-spacer" />
+        <ThemeToggle />
       </header>
 
       <div

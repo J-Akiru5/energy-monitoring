@@ -136,7 +136,7 @@ export default function AlertsPage() {
                       <span style={{
                         fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 99,
                         background: alert.ended_at ? "rgba(74,222,128,0.15)" : "rgba(248,113,113,0.15)",
-                        color: alert.ended_at ? "#4ade80" : "#f87171",
+                        color: alert.ended_at ? "var(--accent-green-soft)" : "var(--accent-red-soft)",
                         border: `1px solid ${alert.ended_at ? "rgba(74,222,128,0.3)" : "rgba(248,113,113,0.3)"}`,
                       }}>
                         {alert.ended_at ? "✓ Resolved" : "● Ongoing"}

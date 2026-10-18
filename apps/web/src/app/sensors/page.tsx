@@ -67,7 +67,7 @@ function isThreePhase(r: Reading | null): boolean {
   return !!(r && r.voltage_a != null && r.voltage_b != null && r.voltage_c != null);
 }
 
-const PHASE_COLORS = { A: "#fb7185", B: "#F59E0B", C: "#06B6D4" } as const;
+const PHASE_COLORS = { A: "var(--phase-a)", B: "var(--phase-b)", C: "var(--phase-c)" } as const;
 
 // ════════════════════════════════════════════════════════════
 // SENSORS PAGE
@@ -263,7 +263,7 @@ export default function SensorsPage() {
               alignItems: "center",
               gap: 6,
               fontSize: 13,
-              color: isConnected ? "#22c55e" : "var(--text-muted)",
+              color: isConnected ? "var(--status-ok)" : "var(--text-muted)",
             }}
           >
             <span
@@ -271,8 +271,8 @@ export default function SensorsPage() {
                 width: 8,
                 height: 8,
                 borderRadius: "50%",
-                background: isConnected ? "#22c55e" : "#64748b",
-                boxShadow: isConnected ? "0 0 8px #22c55e" : "none",
+                background: isConnected ? "var(--status-ok)" : "var(--text-muted)",
+                boxShadow: isConnected ? "0 0 8px var(--status-ok)" : "none",
                 display: "inline-block",
               }}
             />
@@ -287,7 +287,7 @@ export default function SensorsPage() {
         <TotalCard label="Total Power" value={totalPower.toFixed(1)} unit="W" accent="var(--accent-cyan)" />
         <TotalCard label="Total Energy" value={totalEnergy.toFixed(4)} unit="kWh" />
         <TotalCard label="Avg Frequency" value={(stale ? 0 : r.frequency).toFixed(1)} unit="Hz" />
-        <TotalCard label="Online Sensors" value={phases.filter((p) => p.status === "online").length.toString()} unit={`/ ${phases.length}`} accent={phases.filter((p) => p.status === "online").length === phases.length ? "#22c55e" : "#F59E0B"} />
+        <TotalCard label="Online Sensors" value={phases.filter((p) => p.status === "online").length.toString()} unit={`/ ${phases.length}`} accent={phases.filter((p) => p.status === "online").length === phases.length ? "var(--status-ok)" : "var(--status-warn)"} />
       </div>
 
       {/* ── 3 Sensor Cards ── */}
@@ -352,7 +352,7 @@ export default function SensorsPage() {
                 />
                 <YAxis stroke="#64748B" tick={{ fontSize: 11 }} unit="W" />
                 <Tooltip
-                  contentStyle={{ background: "#1E293B", border: "1px solid #475569", borderRadius: 4, fontSize: 12 }}
+                  contentStyle={{ background: "var(--tooltip-bg)", border: "1px solid var(--tooltip-border)", borderRadius: 4, fontSize: 12 }}
                   labelFormatter={(t) => parseDBDate(t as string).toLocaleString()}
                 />
                 <Legend />
@@ -380,7 +380,7 @@ export default function SensorsPage() {
                 />
                 <YAxis stroke="#64748B" tick={{ fontSize: 11 }} unit={chartUnit} domain={["auto", "auto"]} />
                 <Tooltip
-                  contentStyle={{ background: "#1E293B", border: "1px solid #475569", borderRadius: 4, fontSize: 12 }}
+                  contentStyle={{ background: "var(--tooltip-bg)", border: "1px solid var(--tooltip-border)", borderRadius: 4, fontSize: 12 }}
                   labelFormatter={(t) => parseDBDate(t as string).toLocaleString()}
                 />
                 <Legend />
@@ -512,10 +512,10 @@ function SensorCard({
   staleLabel?: string;
 }) {
   const statusColors = {
-    online: { bg: "rgba(34,197,94,0.1)", text: "#22c55e", label: "Online" },
-    zero: { bg: "rgba(245,158,11,0.1)", text: "#F59E0B", label: "Blackout / 0V" },
-    offline: { bg: "rgba(100,116,139,0.1)", text: "#64748b", label: "No Data" },
-    stale: { bg: "rgba(245,158,11,0.1)", text: "#F59E0B", label: "Stale" },
+    online: { bg: "rgba(34,197,94,0.1)", text: "var(--status-ok)", label: "Online" },
+    zero: { bg: "rgba(245,158,11,0.1)", text: "var(--status-warn)", label: "Blackout / 0V" },
+    offline: { bg: "rgba(100,116,139,0.1)", text: "var(--text-muted)", label: "No Data" },
+    stale: { bg: "rgba(245,158,11,0.1)", text: "var(--status-warn)", label: "Stale" },
   };
   const sc = statusColors[phase.status];
 
@@ -528,7 +528,7 @@ function SensorCard({
     <div
       className="bento-tile"
       style={{
-        borderColor: `${phase.color}40`,
+        borderColor: `color-mix(in srgb, ${phase.color} 25%, transparent)`,
         borderWidth: 1.5,
         position: "relative",
         overflow: "hidden",
@@ -645,7 +645,7 @@ function LiveValue({
   useLayoutEffect(() => {
     if (!flashKey || !ref.current) return;
     if (timerRef.current) clearTimeout(timerRef.current);
-    ref.current.style.color = "#06B6D4";
+    ref.current.style.color = "var(--accent-cyan)";
     timerRef.current = setTimeout(() => {
       if (ref.current) ref.current.style.color = accent ?? "var(--text-primary)";
     }, 400);
@@ -686,7 +686,7 @@ function MetricCell({
   useLayoutEffect(() => {
     if (!flashKey || !ref.current) return;
     if (timerRef.current) clearTimeout(timerRef.current);
-    ref.current.style.color = "#06B6D4";
+    ref.current.style.color = "var(--accent-cyan)";
     timerRef.current = setTimeout(() => {
       if (ref.current) ref.current.style.color = "var(--text-primary)";
     }, 400);
