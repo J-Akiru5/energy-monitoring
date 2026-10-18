@@ -1,0 +1,204 @@
+/**
+ * Shared design tokens for the Energy Monitoring platform.
+ *
+ * Dark ("Cold Industrial") is the default look. Light mode activates via
+ * `<html data-theme="light">`, applied by the ThemeToggle component and the
+ * pre-hydration script in each app's root layout.
+ *
+ * Legacy hardcoded colors in app CSS were migrated to the rgb-triplet tokens
+ * so both themes stay in sync: `rgb(var(--line-rgb) / 0.6)` etc.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ── Core palette (dark / default) ───────────────────────────── */
+  --canvas: #0f172a;
+  --canvas-secondary: #1e293b;
+  --surface: #334155;
+  --surface-hover: #475569;
+  --border: #475569;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-label: #cbd5e1;
+
+  --accent-cyan: #06b6d4;
+  --accent-cyan-glow: rgba(6, 182, 212, 0.3);
+  --accent-blue: #3b82f6;
+  --accent-green: #10b981;
+  --accent-amber: #f59e0b;
+  --accent-rose: #e11d48;
+  --on-accent: #04212a;
+
+  /* ── RGB triplets for alpha-tinted surfaces ──────────────────── */
+  --canvas-rgb: 15 23 42;
+  --mix-rgb: 30 41 59;
+  --control-rgb: 51 65 85;
+  --line-rgb: 71 85 105;
+  --scrim-rgb: 2 6 23;
+  --slate500-rgb: 100 116 139;
+  --slate400-rgb: 148 163 184;
+
+  /* ── Body ambience ───────────────────────────────────────────── */
+  --body-glow-cyan: rgba(6, 182, 212, 0.16);
+  --body-glow-blue: rgba(59, 130, 246, 0.14);
+
+  /* ── Semantic translucent fills (inverted in light mode) ─────── */
+  --drawer-link-bg: rgba(15, 23, 42, 0.35);
+  --sidebar-hover-bg: rgba(15, 23, 42, 0.45);
+  --table-hover-bg: rgba(15, 23, 42, 0.4);
+
+  /* ── Soft accent text (tinted chips/badges on dark) ──────────── */
+  --accent-cyan-soft: #67e8f9;
+  --accent-green-soft: #4ade80;
+  --accent-emerald-soft: #6ee7b7;
+  --accent-amber-soft: #fbbf24;
+  --accent-rose-soft: #fb7185;
+  --accent-rose-bright: #ff5c7c;
+  --accent-red-soft: #f87171;
+  --accent-red-banner: #fca5a5;
+  --accent-pink-soft: #fda4af;
+  --accent-yellow-soft: #fcd34d;
+
+  /* ── Status indicators ───────────────────────────────────────── */
+  --status-ok: #22c55e;
+  --status-warn: #f59e0b;
+
+  /* ── Charts ──────────────────────────────────────────────────── */
+  --chart-grid: #334155;
+  --chart-axis: #64748b;
+  --tooltip-bg: #1e293b;
+  --tooltip-border: #475569;
+  --phase-a: #fb7185;
+  --phase-b: #f59e0b;
+  --phase-c: #06b6d4;
+
+  /* ── Shared component tokens (auth screens, generic inputs) ──── */
+  --auth-canvas: #0a0e1a;
+  --line-faint: rgb(255 255 255 / 0.06);
+  --fill-faint: rgb(255 255 255 / 0.02);
+  --input-bg: rgb(255 255 255 / 0.03);
+  --input-border: rgb(255 255 255 / 0.08);
+
+  /* ── Typography ──────────────────────────────────────────────── */
+  --font-ui: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   LIGHT MODE — "Industrial Cool Light"
+   Canvas #F8FAFC / white surfaces, cyan-600 accents, slate-800 text.
+   ══════════════════════════════════════════════════════════════ */
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --canvas: #f8fafc;
+  --canvas-secondary: #ffffff;
+  --surface: #f1f5f9;
+  --surface-hover: #e2e8f0;
+  --border: #cbd5e1;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-label: #334155;
+
+  --accent-cyan: #0891b2;
+  --accent-cyan-glow: rgba(8, 145, 178, 0.22);
+  --accent-blue: #2563eb;
+  --accent-green: #059669;
+  --accent-amber: #d97706;
+  --accent-rose: #e11d48;
+  --on-accent: #ffffff;
+
+  --canvas-rgb: 255 255 255;
+  --mix-rgb: 255 255 255;
+  --control-rgb: 241 245 249;
+  --line-rgb: 148 163 184;
+  --scrim-rgb: 15 23 42;
+  --slate500-rgb: 100 116 139;
+  --slate400-rgb: 148 163 184;
+
+  --body-glow-cyan: rgba(8, 145, 178, 0.08);
+  --body-glow-blue: rgba(37, 99, 235, 0.06);
+
+  --drawer-link-bg: rgba(15, 23, 42, 0.04);
+  --sidebar-hover-bg: rgba(15, 23, 42, 0.05);
+  --table-hover-bg: rgba(15, 23, 42, 0.03);
+
+  --accent-cyan-soft: #0e7490;
+  --accent-green-soft: #15803d;
+  --accent-emerald-soft: #047857;
+  --accent-amber-soft: #b45309;
+  --accent-rose-soft: #be123c;
+  --accent-rose-bright: #e11d48;
+  --accent-red-soft: #dc2626;
+  --accent-red-banner: #b91c1c;
+  --accent-pink-soft: #be123c;
+  --accent-yellow-soft: #a16207;
+
+  --status-ok: #16a34a;
+  --status-warn: #d97706;
+
+  --chart-grid: #e2e8f0;
+  --chart-axis: #94a3b8;
+  --tooltip-bg: #ffffff;
+  --tooltip-border: #e2e8f0;
+  --phase-a: #e11d48;
+  --phase-b: #d97706;
+  --phase-c: #0891b2;
+
+  --auth-canvas: #f8fafc;
+  --line-faint: rgb(15 23 42 / 0.08);
+  --fill-faint: rgb(15 23 42 / 0.02);
+  --input-bg: #ffffff;
+  --input-border: rgb(15 23 42 / 0.15);
+}
+
+/* ── Recharts theming ──────────────────────────────────────────────
+   Plain CSS rules beat SVG presentation attributes, so charts follow
+   the active theme without touching every chart prop. */
+
+.recharts-cartesian-grid line {
+  stroke: var(--chart-grid);
+}
+
+.recharts-cartesian-axis-line,
+.recharts-cartesian-axis-tick-line {
+  stroke: var(--chart-axis);
+}
+
+.recharts-cartesian-axis-tick-value {
+  fill: var(--chart-axis);
+}
+
+/* ── Shared theme toggle button ────────────────────────────────── */
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  border: 1px solid rgb(var(--line-rgb) / 0.75);
+  background: rgb(var(--control-rgb) / 0.35);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.theme-toggle:hover {
+  color: var(--text-primary);
+  border-color: rgb(var(--line-rgb) / 0.95);
+  background: rgb(var(--control-rgb) / 0.55);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}

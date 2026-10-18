@@ -135,9 +135,14 @@ export default function ReportsPage() {
     if (!element) return;
 
     try {
+      // Capture with the active theme background so the PDF matches the UI.
+      const canvasBg = getComputedStyle(document.documentElement)
+        .getPropertyValue("--canvas")
+        .trim() || "#0F172A";
+
       const canvas = await html2canvas(element, {
         scale: 2,
-        backgroundColor: "#0F172A",
+        backgroundColor: canvasBg,
       });
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("landscape", "mm", "a4");
@@ -163,10 +168,10 @@ export default function ReportsPage() {
     : "-";
 
   const CHART_CONFIG = {
-    energy: { key: "energy_kwh", label: "Energy (kWh)", color: "#F59E0B", unit: "kWh", digits: 4 },
-    power: { key: "power_w", label: "Power (W)", color: "#06B6D4", unit: "W", digits: 1 },
-    voltage: { key: "voltage", label: "Voltage (V)", color: "#3B82F6", unit: "V", digits: 1 },
-    current: { key: "current_amp", label: "Current (A)", color: "#22D3EE", unit: "A", digits: 3 },
+    energy: { key: "energy_kwh", label: "Energy (kWh)", color: "var(--accent-amber)", unit: "kWh", digits: 4 },
+    power: { key: "power_w", label: "Power (W)", color: "var(--accent-cyan)", unit: "W", digits: 1 },
+    voltage: { key: "voltage", label: "Voltage (V)", color: "var(--accent-blue)", unit: "V", digits: 1 },
+    current: { key: "current_amp", label: "Current (A)", color: "var(--accent-cyan-soft)", unit: "A", digits: 3 },
   };
 
   const cfg = CHART_CONFIG[activeChart];
@@ -349,8 +354,7 @@ export default function ReportsPage() {
                       <YAxis stroke="#64748B" tick={{ fontSize: 11 }} unit={cfg.unit ? ` ${cfg.unit}` : undefined} />
                       <Tooltip
                         contentStyle={{
-                          background: "#1E293B",
-                          border: "1px solid #475569",
+                          background: "var(--tooltip-bg)", border: "1px solid var(--tooltip-border)",
                           borderRadius: 2,
                           fontSize: 12,
                         }}

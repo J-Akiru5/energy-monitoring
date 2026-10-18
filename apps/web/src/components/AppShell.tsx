@@ -7,7 +7,7 @@ import { usePolling } from "@/hooks/usePolling";
 import { usePrimaryDevice } from "@/hooks/usePrimaryDevice";
 import { useRelayState } from "@/hooks/useRelayState";
 import { APP_NAV_ITEMS, MOBILE_PRIMARY_NAV } from "@/lib/navigation";
-import { formatTripReason } from "@energy/ui";
+import { formatTripReason, ThemeToggle } from "@energy/ui";
 import { logout } from "@/app/actions";
 
 function isActivePath(pathname: string, href: string) {
@@ -119,6 +119,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="app-shell-status-muted">Last seen {lastSeen}</span>
           )}
           {alertsCount > 0 && <span className="alert-badge">{alertsCount}</span>}
+          <ThemeToggle />
         </div>
 
         <form action={logout} className="app-shell-signout-form desktop-only">

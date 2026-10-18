@@ -55,9 +55,9 @@ function parseDBDate(iso: string): Date {
 }
 
 const PHASE_COLORS = {
-  A: "#fb7185",
-  B: "#F59E0B",
-  C: "#06B6D4",
+  A: "var(--phase-a)",
+  B: "var(--phase-b)",
+  C: "var(--phase-c)",
 };
 
 // ════════════════════════════════════════════════════════════
@@ -266,8 +266,7 @@ export default function PhaseDetailsPage() {
               <YAxis stroke="#64748B" tick={{ fontSize: 11 }} unit="V" domain={["auto", "auto"]} />
               <Tooltip
                 contentStyle={{
-                  background: "#1E293B",
-                  border: "1px solid #475569",
+                  background: "var(--tooltip-bg)", border: "1px solid var(--tooltip-border)",
                   borderRadius: 2,
                   fontSize: 12,
                 }}
@@ -324,8 +323,7 @@ export default function PhaseDetailsPage() {
               <YAxis stroke="#64748B" tick={{ fontSize: 11 }} unit="W" />
               <Tooltip
                 contentStyle={{
-                  background: "#1E293B",
-                  border: "1px solid #475569",
+                  background: "var(--tooltip-bg)", border: "1px solid var(--tooltip-border)",
                   borderRadius: 2,
                   fontSize: 12,
                 }}
@@ -382,8 +380,7 @@ export default function PhaseDetailsPage() {
               <YAxis stroke="#64748B" tick={{ fontSize: 11 }} unit="A" />
               <Tooltip
                 contentStyle={{
-                  background: "#1E293B",
-                  border: "1px solid #475569",
+                  background: "var(--tooltip-bg)", border: "1px solid var(--tooltip-border)",
                   borderRadius: 2,
                   fontSize: 12,
                 }}
@@ -442,7 +439,13 @@ function PhaseDetailCard({
   powerFactor: number;
 }) {
   return (
-    <div className="summary-card" style={{ borderColor: `${color}40`, borderWidth: 2 }}>
+    <div
+      className="summary-card"
+      style={{
+        borderColor: `color-mix(in srgb, ${color} 25%, transparent)`,
+        borderWidth: 2,
+      }}
+    >
       <div
         style={{
           fontSize: 14,
