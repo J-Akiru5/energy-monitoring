@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { themeInitScript } from "@energy/ui";
 import { AppShell } from "@/components/AppShell";
 import "./globals-compiled.css";
 
@@ -34,8 +35,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
+        {/* Applies the stored theme before first paint — must stay inline. */}
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <AppShell>{children}</AppShell>
       </body>
     </html>

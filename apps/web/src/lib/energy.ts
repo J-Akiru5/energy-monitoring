@@ -38,6 +38,77 @@ export function monotonicEnergyDelta(energies: number[]): number {
   return total;
 }
 
+type NumericColumn = number | string | null | undefined;
+
+/** Electrical columns of a power_readings row (legacy + per-phase + total). */
+export type PhaseReadingFields = {
+  voltage?: NumericColumn;
+  current_amp?: NumericColumn;
+  power_w?: NumericColumn;
+  total_power?: NumericColumn;
+  voltage_a?: NumericColumn;
+  voltage_b?: NumericColumn;
+  voltage_c?: NumericColumn;
+  current_a?: NumericColumn;
+  current_b?: NumericColumn;
+  current_c?: NumericColumn;
+};
+
+export type ResolvedReading = {
+  voltage: number;
+  current: number;
+  power: number;
+  /** True when the circuit was energised (a phase reported voltage > 0). */
+  live: boolean;
+};
+
+function columnNumber(value: NumericColumn): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Resolve the voltage / current / power a row actually recorded.
+ *
+ * The legacy `voltage` / `current_amp` columns only mirror Phase A (or the
+ * active source in 1-phase mode). When that tap reads 0/NULL while another
+ * phase is energised, reading the legacy column alone yields flat-zero
+ * voltage and current. So: use the legacy value when it is energised,
+ * otherwise fall back to the highest-voltage energised phase. A row with no
+ * energised phase is not `live` — it is an offline/blackout sample and must
+ * not drag averages or min/max toward zero.
+ */
+export function resolveReading(row: PhaseReadingFields): ResolvedReading {
+  const power = columnNumber(row.total_power) ?? columnNumber(row.power_w) ?? 0;
+
+  const legacyVoltage = columnNumber(row.voltage);
+  if (legacyVoltage !== null && legacyVoltage > 0) {
+    return {
+      voltage: legacyVoltage,
+      current: columnNumber(row.current_amp) ?? 0,
+      power,
+      live: true,
+    };
+  }
+
+  const phases: Array<[NumericColumn, NumericColumn]> = [
+    [row.voltage_a, row.current_a],
+    [row.voltage_b, row.current_b],
+    [row.voltage_c, row.current_c],
+  ];
+  let best: { voltage: number; current: number } | null = null;
+  for (const [voltageColumn, currentColumn] of phases) {
+    const voltage = columnNumber(voltageColumn);
+    if (voltage !== null && voltage > 0 && (best === null || voltage > best.voltage)) {
+      best = { voltage, current: columnNumber(currentColumn) ?? 0 };
+    }
+  }
+
+  if (best) return { ...best, power, live: true };
+  return { voltage: 0, current: 0, power, live: false };
+}
+
 /**
  * Energy delta for readings inside [startTs, endTs], using the shared
  * monotonic method. Readings must be in ascending time order.

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { themeInitScript } from "@energy/ui";
 import "./globals-compiled.css";
 
 export const metadata: Metadata = {
@@ -12,8 +13,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        {/* Applies the stored theme before first paint — must stay inline. */}
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        {children}
+      </body>
     </html>
   );
 }

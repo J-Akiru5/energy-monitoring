@@ -38,7 +38,7 @@ function AlertBadge({ alert }: { alert: AlertItem }) {
       <span style={{
         fontSize: 10, fontWeight: 700, letterSpacing: "0.08em",
         padding: "2px 8px", borderRadius: 99,
-        background: "rgba(239,68,68,0.18)", color: "#f87171",
+        background: "rgba(239,68,68,0.18)", color: "var(--accent-red-soft)",
         border: "1px solid rgba(239,68,68,0.35)", textTransform: "uppercase",
       }}>
         ● Ongoing
@@ -50,7 +50,7 @@ function AlertBadge({ alert }: { alert: AlertItem }) {
       <span style={{
         fontSize: 10, fontWeight: 700, letterSpacing: "0.08em",
         padding: "2px 8px", borderRadius: 99,
-        background: "rgba(34,197,94,0.15)", color: "#4ade80",
+        background: "rgba(34,197,94,0.15)", color: "var(--accent-green-soft)",
         border: "1px solid rgba(34,197,94,0.3)", textTransform: "uppercase",
       }}>
         ✓ Resolved
@@ -61,7 +61,7 @@ function AlertBadge({ alert }: { alert: AlertItem }) {
     <span style={{
       fontSize: 10, fontWeight: 700, letterSpacing: "0.08em",
       padding: "2px 8px", borderRadius: 99,
-      background: "rgba(250,204,21,0.15)", color: "#fbbf24",
+      background: "rgba(250,204,21,0.15)", color: "var(--accent-amber-soft)",
       border: "1px solid rgba(250,204,21,0.3)", textTransform: "uppercase",
     }}>
       Spike
@@ -84,7 +84,7 @@ function AlertTimeRange({ alert }: { alert: AlertItem }) {
 
   if (!alert.ended_at) {
     return (
-      <div style={{ fontSize: 11, color: "#f87171", marginTop: 4, fontFamily: "var(--font-mono)" }}>
+      <div style={{ fontSize: 11, color: "var(--accent-red-soft)", marginTop: 4, fontFamily: "var(--font-mono)" }}>
         ⏱ {start} → Ongoing ({formatOngoingDuration(alert.created_at)})
       </div>
     );
@@ -94,7 +94,7 @@ function AlertTimeRange({ alert }: { alert: AlertItem }) {
     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
   });
   return (
-    <div style={{ fontSize: 11, color: "#4ade80", marginTop: 4, fontFamily: "var(--font-mono)" }}>
+    <div style={{ fontSize: 11, color: "var(--accent-green-soft)", marginTop: 4, fontFamily: "var(--font-mono)" }}>
       ⏱ {start} → {end}
       {alert.duration_seconds != null && (
         <span style={{ color: "var(--text-muted)", marginLeft: 6 }}>

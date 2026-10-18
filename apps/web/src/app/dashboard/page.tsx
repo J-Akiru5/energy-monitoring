@@ -522,8 +522,8 @@ export default function DashboardPage() {
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="powerGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#06B6D4" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#06B6D4" stopOpacity={0} />
+                    <stop offset="5%" stopColor="var(--accent-cyan)" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="var(--accent-cyan)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
@@ -541,8 +541,8 @@ export default function DashboardPage() {
                 <YAxis stroke="#64748B" tick={{ fontSize: 11 }} unit="W" />
                 <Tooltip
                   contentStyle={{
-                    background: "#1E293B",
-                    border: "1px solid #475569",
+                    background: "var(--tooltip-bg)",
+                    border: "1px solid var(--tooltip-border)",
                     borderRadius: 2,
                     fontSize: 12,
                   }}
@@ -555,7 +555,7 @@ export default function DashboardPage() {
                 <Area
                   type="monotone"
                   dataKey={getChartPower}
-                  stroke="#06B6D4"
+                  stroke="var(--accent-cyan)"
                   strokeWidth={2}
                   fill="url(#powerGrad)"
                   dot={false}
@@ -636,18 +636,18 @@ export default function DashboardPage() {
                   <div
                     style={{
                       fontWeight: 600,
-                      color: "#FF5C7C",
+                      color: "var(--accent-rose-bright)",
                       marginBottom: 4,
                     }}
                   >
                     {alert.type.replace("_", " ")}
                   </div>
-                  <div style={{ color: "#E2E8F0" }}>{alert.message}</div>
+                  <div style={{ color: "var(--text-primary)" }}>{alert.message}</div>
                   <div
                     style={{
                       marginTop: 6,
                       fontSize: 11,
-                      color: "#94A3B8",
+                      color: "var(--text-secondary)",
                       textDecoration: "underline",
                     }}
                   >
@@ -797,21 +797,21 @@ export default function DashboardPage() {
                 voltage={latestReading.voltage_a ?? 0}
                 current={latestReading.current_a ?? 0}
                 power={latestReading.power_a ?? 0}
-                color="#fb7185"
+                color="var(--phase-a)"
               />
               <PhaseQuickCard
                 phase="B"
                 voltage={latestReading.voltage_b ?? 0}
                 current={latestReading.current_b ?? 0}
                 power={latestReading.power_b ?? 0}
-                color="#F59E0B"
+                color="var(--phase-b)"
               />
               <PhaseQuickCard
                 phase="C"
                 voltage={latestReading.voltage_c ?? 0}
                 current={latestReading.current_c ?? 0}
                 power={latestReading.power_c ?? 0}
-                color="#06B6D4"
+                color="var(--phase-c)"
               />
             </div>
           </div>
@@ -899,7 +899,10 @@ function PhaseQuickCard({
   color: string;
 }) {
   return (
-    <div className="phase-quick-card" style={{ borderColor: `${color}40` }}>
+    <div
+      className="phase-quick-card"
+      style={{ borderColor: `color-mix(in srgb, ${color} 25%, transparent)` }}
+    >
       <div className="phase-quick-label" style={{ color }}>
         Phase {phase}
       </div>

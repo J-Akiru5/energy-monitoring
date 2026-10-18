@@ -205,8 +205,8 @@ export default function RelayPage() {
                 className="summary-value"
                 style={{
                   color: state?.isTripped
-                    ? "var(--color-error)"
-                    : "var(--color-success)",
+                    ? "var(--accent-rose)"
+                    : "var(--accent-green)",
                 }}
               >
                 {state?.isTripped ? "TRIPPED" : "NORMAL"}
@@ -250,7 +250,7 @@ export default function RelayPage() {
               style={{
                 flex: 1,
                 padding: "16px 12px",
-                border: `2px solid ${mode === "AUTOMATIC" ? "var(--color-brand)" : "var(--border-primary)"}`,
+                border: `2px solid ${mode === "AUTOMATIC" ? "var(--accent-cyan)" : "var(--border)"}`,
                 borderRadius: 12,
                 background:
                   mode === "AUTOMATIC"
@@ -279,7 +279,7 @@ export default function RelayPage() {
               style={{
                 flex: 1,
                 padding: "16px 12px",
-                border: `2px solid ${mode === "MANUAL" ? "var(--color-brand)" : "var(--border-primary)"}`,
+                border: `2px solid ${mode === "MANUAL" ? "var(--accent-cyan)" : "var(--border)"}`,
                 borderRadius: 12,
                 background:
                   mode === "MANUAL" ? "rgba(59,130,246,0.1)" : "transparent",
@@ -340,8 +340,8 @@ export default function RelayPage() {
                   border: "none",
                   borderRadius: 12,
                   background: state?.isTripped || controlUnavailable
-                    ? "var(--bg-tertiary)"
-                    : "var(--color-error)",
+                    ? "var(--surface)"
+                    : "var(--accent-rose)",
                   color: state?.isTripped || controlUnavailable ? "var(--text-muted)" : "white",
                   fontWeight: 600,
                   fontSize: 15,
@@ -360,8 +360,8 @@ export default function RelayPage() {
                   border: "none",
                   borderRadius: 12,
                   background: !state?.isTripped || controlUnavailable
-                    ? "var(--bg-tertiary)"
-                    : "var(--color-success)",
+                    ? "var(--surface)"
+                    : "var(--accent-green)",
                   color: !state?.isTripped || controlUnavailable ? "var(--text-muted)" : "white",
                   fontWeight: 600,
                   fontSize: 15,
@@ -381,7 +381,7 @@ export default function RelayPage() {
                   background: "rgba(239,68,68,0.1)",
                   borderRadius: 8,
                   fontSize: 13,
-                  color: "var(--color-error)",
+                  color: "var(--accent-rose)",
                 }}
               >
                 Manual control temporarily unavailable.
@@ -399,8 +399,8 @@ export default function RelayPage() {
                   borderRadius: 8,
                   fontSize: 13,
                   color: message.includes("Error")
-                    ? "var(--color-error)"
-                    : "var(--color-success)",
+                    ? "var(--accent-rose)"
+                    : "var(--accent-green)",
                 }}
               >
                 {message}
@@ -414,7 +414,7 @@ export default function RelayPage() {
                 background: "rgba(251,191,36,0.1)",
                 borderRadius: 8,
                 fontSize: 12,
-                color: "var(--color-warning)",
+                color: "var(--accent-amber)",
               }}
             >
               <strong>Note:</strong> Manual mode lets you control the relay directly.
